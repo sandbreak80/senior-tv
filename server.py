@@ -1677,6 +1677,33 @@ def nas_photo(filename):
     return send_from_directory(nas_path, safe_name)
 
 
+@app.route("/api/jellyfin-image/<item_id>/<image_type>")
+def jellyfin_image_proxy(item_id, image_type):
+    """Proxy Jellyfin images so they work from remote access."""
+    import re
+    if not re.match(r'^[a-f0-9]+$', item_id) or image_type not in ("Primary", "Backdrop", "Thumb", "Banner"):
+        return "", 400
+    jf_url = get_setting_or_default("jellyfin_url")
+    jf_key = get_setting_or_default("jellyfin_api_key")
+    if not jf_url or not jf_key:
+        return "", 404
+    width = request.args.get("w", "400")
+    tag = request.args.get("tag", "")
+    try:
+        resp = requests.get(
+            f"{jf_url}/Items/{item_id}/Images/{image_type}",
+            params={"maxWidth": width, "tag": tag, "api_key": jf_key},
+            timeout=10,
+        )
+        if resp.ok:
+            r = Response(resp.content, mimetype=resp.headers.get("Content-Type", "image/jpeg"))
+            r.headers["Cache-Control"] = "public, max-age=86400"
+            return r
+    except Exception:
+        pass
+    return "", 404
+
+
 @app.route("/api/immich-photo/<asset_id>")
 def immich_photo_proxy(asset_id):
     """Proxy an Immich photo to avoid exposing the API key to the browser."""

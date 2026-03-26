@@ -316,24 +316,25 @@ def _parse_item(item, base_url, api_key):
 
 
 def _image_url(item, base_url, api_key, image_type="Primary", width=400):
+    """Generate a proxied image URL that works from both LAN and remote."""
     item_id = item.get("Id", "")
     image_tags = item.get("ImageTags", {})
 
     if image_type in image_tags:
         tag = image_tags[image_type]
-        return f"{base_url}/Items/{item_id}/Images/{image_type}?maxWidth={width}&tag={tag}&api_key={api_key}"
+        return f"/api/jellyfin-image/{item_id}/{image_type}?w={width}&tag={tag}"
 
     # For episodes, try series primary image
     if image_type == "Primary" and item.get("SeriesPrimaryImageTag"):
         series_id = item.get("SeriesId", "")
         tag = item["SeriesPrimaryImageTag"]
-        return f"{base_url}/Items/{series_id}/Images/Primary?maxWidth={width}&tag={tag}&api_key={api_key}"
+        return f"/api/jellyfin-image/{series_id}/Primary?w={width}&tag={tag}"
 
     # Try backdrop tags (array)
     if image_type == "Backdrop":
         backdrop_tags = item.get("BackdropImageTags", [])
         if backdrop_tags:
-            return f"{base_url}/Items/{item_id}/Images/Backdrop?maxWidth={width}&tag={backdrop_tags[0]}&api_key={api_key}"
+            return f"/api/jellyfin-image/{item_id}/Backdrop?w={width}&tag={backdrop_tags[0]}"
 
     return None
 
