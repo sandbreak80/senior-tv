@@ -1195,7 +1195,27 @@ def admin_cameras():
                 })
     except Exception:
         pass
-    return render_template("admin/cameras.html", cameras=cameras)
+
+    # Saved camera snapshots (check on loved ones)
+    saved_snaps = []
+    snap_dir = os.path.join(config.BASE_DIR, "static", "camera_snaps")
+    if os.path.isdir(snap_dir):
+        for f in sorted(os.listdir(snap_dir), reverse=True)[:40]:
+            if f.endswith(".jpg"):
+                parts = f.replace(".jpg", "").split("_")
+                # Format: camera_name_YYYYMMDD_HHMMSS.jpg
+                if len(parts) >= 3:
+                    cam_name = "_".join(parts[:-2])
+                    ts = parts[-2] + "_" + parts[-1]
+                    try:
+                        from datetime import datetime as _dt
+                        dt = _dt.strptime(ts, "%Y%m%d_%H%M%S")
+                        time_str = dt.strftime("%b %d, %I:%M %p")
+                    except Exception:
+                        time_str = ts
+                    saved_snaps.append({"file": f, "camera": cam_name, "time": time_str})
+
+    return render_template("admin/cameras.html", cameras=cameras, saved_snaps=saved_snaps)
 
 
 @app.route("/admin/cameras/snapshot/<camera_name>")
