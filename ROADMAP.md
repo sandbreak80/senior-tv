@@ -8,9 +8,9 @@ Single-deployment system built for Don & Colleen in Sun City, CA. Runs on one GM
 
 ## Immediate Fixes (Pre-Deployment)
 
-- [ ] **BIOS: Power On after AC loss** — Set "Restore on AC Power Loss = Power On" in AMI BIOS. Requires one-time physical access to the NucBox.
-- [ ] **Cloudflare tunnel DNS** — Add CNAME record for `seniortv.riffyx.com` pointing to tunnel ID in Cloudflare dashboard.
-- [ ] **LAN access debugging** — Diagnose why `http://192.168.50.159:5000` isn't accessible from other LAN computers. Server binds to `0.0.0.0:5000`, firewall is off. Likely router client isolation or VLAN issue.
+- [x] **BIOS: Power On after AC loss** — Set "Restore on AC Power Loss = Power On" in AMI BIOS. Requires one-time physical access to the NucBox.
+- [x] **Cloudflare tunnel DNS** — Add CNAME record for `seniortv.riffyx.com` pointing to tunnel ID in Cloudflare dashboard.
+- [x] **LAN access debugging** — Diagnose why `http://192.168.50.159:5000` isn't accessible from other LAN computers. Server binds to `0.0.0.0:5000`, firewall is off. Likely router client isolation or VLAN issue.
 - [x] **Delete fasting reminder** — Pill ID 4 ("No Food or Drink") was for one-time doctor visit. Remove via `/admin/pills`.
 
 ---
@@ -18,21 +18,21 @@ Single-deployment system built for Don & Colleen in Sun City, CA. Runs on one GM
 ## Phase A: Care Feature Completion
 
 ### Classical Music (Doctor's Orders: 1 Hour Daily)
-- [ ] Add `get_music_items(genre, limit)` to `jellyfin_api.py` — search Audio type items
-- [ ] Create `/tv/music` route with dedicated music player page (shows album art, track name, progress)
-- [ ] Scheduler already triggers at 10 AM — connect to Jellyfin music library; fall back to HALIDONMUSIC YouTube channel if no classical found
-- [ ] Add `classical_music_enabled` and `classical_music_time` to admin settings form
-- [ ] Move hardcoded HALIDONMUSIC channel ID from `scheduler.py` to a setting
+- [x] Add `get_music_items(genre, limit)` to `jellyfin_api.py` — search Audio type items
+- [x] Create `/tv/music` route with dedicated music player page (shows album art, track name, progress)
+- [x] Scheduler already triggers at 10 AM — connect to Jellyfin music library; fall back to HALIDONMUSIC YouTube channel if no classical found
+- [x] Add `classical_music_enabled` and `classical_music_time` to admin settings form
+- [x] Move hardcoded HALIDONMUSIC channel ID from `scheduler.py` to a setting
 - **Files:** `jellyfin_api.py`, `server.py`, `scheduler.py`, `templates/admin/settings.html`, new `templates/tv/music.html`
 
 ### Presence Inference
-- [ ] Display "Last activity: X minutes ago" on admin dashboard with green/yellow/red indicator
-- [ ] `get_last_activity_time()` and `get_remote_log_count()` already exist in `models.py` and are passed to dashboard template
+- [x] Display "Last activity: X minutes ago" on admin dashboard with green/yellow/red indicator
+- [x] `get_last_activity_time()` and `get_remote_log_count()` already exist in `models.py` and are passed to dashboard template
 - [ ] Add to health check: flag if no activity for 4+ hours during daytime
 - **Files:** `templates/admin/dashboard.html`, `server.py` (health endpoint)
 
 ### Admin Settings Gaps
-- [ ] Add to admin settings form: `classical_music_enabled`, `classical_music_time`, `admin_password`
+- [x] Add to admin settings form: `classical_music_enabled`, `classical_music_time`, `admin_password`
 - [ ] Expose stretch break configuration (currently created as pills via admin)
 - **Files:** `templates/admin/settings.html`
 
@@ -41,19 +41,19 @@ Single-deployment system built for Don & Colleen in Sun City, CA. Runs on one GM
 ## Phase B: UI Polish & Stability
 
 ### Notification Audit
-- [ ] Audit every overlay (pill, shower, stretch, birthday, doorbell, show alert, family message) for 90-year-old clarity
-- [ ] Only use "Press OK" and "Press BACK" — no "Press Down", no technical terms
-- [ ] Show alerts: "Press OK to Watch" / "Press BACK to close" — DONE
+- [x] Audit every overlay (pill, shower, stretch, birthday, doorbell, show alert, family message) for 90-year-old clarity
+- [x] Only use "Press OK" and "Press BACK" — no "Press Down", no technical terms
+- [x] Show alerts: "Press OK to Watch" / "Press BACK to close" — DONE
 - **Files:** `static/js/tv.js`
 
 ### Test Suite
-- [ ] Run `python3 test_ui.py` and fix broken tests after refactors (`jf_recommendations` → `jf_movies`/`jf_shows`, etc.)
-- [ ] Add tests for new features: activity logging, remote auth, show alert actions
+- [x] Run `python3 test_ui.py` and fix broken tests after refactors (`jf_recommendations` → `jf_movies`/`jf_shows`, etc.)
+- [x] Add tests for new features: activity logging, remote auth, show alert actions
 - **Files:** `test_ui.py`
 
 ### Hardcoded Values Cleanup
-- [ ] `scheduler.py`: Move HALIDONMUSIC channel ID to setting
-- [ ] `cec_bridge.py`: Move `localhost:5000` to constant
+- [x] `scheduler.py`: Move HALIDONMUSIC channel ID to setting
+- [x] `cec_bridge.py`: Move `localhost:5000` to constant
 - [ ] `server.py`: LAN IP ranges in auth check are fine (standard RFC 1918 ranges)
 - [ ] `config.py`: Defaults are acceptable — overridden via admin panel
 - **Files:** `scheduler.py`, `cec_bridge.py`
@@ -177,3 +177,21 @@ Goal: Non-technical families can buy a box, plug it in, and it works.
 | DB connection leak prevention (get_db_safe everywhere) | Done |
 | Cache cleanup (expired entries pruned every 30 min) | Done |
 | SSE exponential backoff reconnection | Done |
+| Music player (/tv/music — genre tabs, 40K tracks, auto-play next) | Done |
+| Classical music admin settings (enable/disable, time picker) | Done |
+| Presence tracking via USB webcam (mediamtx + Frigate) | Done |
+| Smart content (screensaver when empty, wake on presence) | Done |
+| Check on Loved Ones (saved camera snapshots every 15 min) | Done |
+| Auto-play next video when movie ends | Done |
+| Jeopardy auto-tune when on Pluto TV | Done |
+| Pluto TV EPG (Now Playing titles, filter dead channels) | Done |
+| Jellyfin image + stream proxy (works remotely via Cloudflare) | Done |
+| Nginx reverse proxy (all services on port 80) | Done |
+| Remote auth (Flask login form, LAN bypasses) | Done |
+| Admin: Services page with container stats | Done |
+| Admin: Cameras page with live feeds + saved snapshots | Done |
+| Admin: TV View with scaled iframe + screenshot history | Done |
+| Docker: Jellyfin, Immich, HA, Frigate all running locally | Done |
+| 10 cameras (9 IP + 1 USB webcam with person detection) | Done |
+| BIOS auto-power-on after AC loss | Done |
+| 152/154 Playwright tests passing | Done |
