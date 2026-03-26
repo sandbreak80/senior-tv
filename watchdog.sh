@@ -93,18 +93,18 @@ if command -v tailscale > /dev/null 2>&1; then
     fi
 fi
 
-# --- 8. TV Power/Input (via Home Assistant) --- DISABLED
-# Samsung MU6100 "HDMI" source maps to smart hub, not HDMI2.
-# Roku CEC steals input back. Disabled until Roku is unplugged.
-# See ROADMAP.md Known Limitations.
-#
-# HOUR=$(date +%H)
-# if [ "$HOUR" -ge 7 ] && [ "$HOUR" -lt 22 ]; then
-#     cd "$PROJECT_DIR" && source venv/bin/activate && python3 -c "
-# from cec_control import tv_set_input
-# tv_set_input()
-# " 2>/dev/null
-# fi
+# --- 8. TV Power/Input (via Home Assistant) ---
+HOUR=$(date +%H)
+if [ "$HOUR" -ge 7 ] && [ "$HOUR" -lt 22 ]; then
+    cd "$PROJECT_DIR" && source venv/bin/activate && python3 -c "
+from cec_control import tv_power_on, tv_set_input, tv_get_power_status
+status = tv_get_power_status()
+if status in ('standby', 'off'):
+    tv_power_on()
+    import time; time.sleep(3)
+tv_set_input()
+" 2>/dev/null
+fi
 
 # --- Track repair count ---
 if [ "$ISSUES" -gt 0 ]; then
