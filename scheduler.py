@@ -184,12 +184,16 @@ def check_favorite_shows():
                         continue
                     active_reminders[reminder_id] = {"triggered": True}
 
+                # Auto-tune: skip the popup and navigate directly
+                auto_tune = "jeopardy" in search
+
                 event_data = {
-                    "type": "show_alert",
+                    "type": "auto_play" if auto_tune else "show_alert",
                     "reminder_id": reminder_id,
                     "show_name": show["name"],
                     "channel_name": ch["name"],
                     "channel_id": ch["id"],
+                    "url": f"/tv/live/play/{ch['id']}",
                     "message": f"📺 {show['name']} is on now!\nChannel: {ch['name']}",
                 }
                 reminder_queue.put(event_data)
