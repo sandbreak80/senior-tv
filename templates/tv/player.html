@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ item.title if item else 'Playing' }} - Senior TV</title>
+    <link rel="stylesheet" href="/static/css/tv.css">
+</head>
+<body class="player-body">
+    <div class="player-container" id="player-container">
+        <video id="video-player" autoplay>
+            {% if stream_url %}<source src="{{ stream_url }}" type="video/mp4">{% endif %}
+            {% if transcode_url %}<source src="{{ transcode_url }}" type="application/x-mpegURL">{% endif %}
+            {% if subtitle_url %}
+            <track kind="subtitles" src="{{ subtitle_url }}" srclang="en" label="English" default>
+            {% endif %}
+        </video>
+
+        <!-- Controls overlay -->
+        <div class="player-overlay" id="player-overlay">
+            <div class="player-top-bar">
+                <span class="player-back-hint">◀ BACK</span>
+                <span class="player-now-playing">
+                    {% if item.series_name %}
+                        {{ item.series_name }} — {{ item.title }}
+                    {% else %}
+                        {{ item.title }}
+                    {% endif %}
+                </span>
+            </div>
+
+            <div class="player-center-icon" id="player-center-icon"></div>
+
+            <div class="player-bottom-bar">
+                <div class="player-progress-wrap">
+                    <div class="player-progress-bar" id="player-progress-bar">
+                        <div class="player-progress-fill" id="player-progress-fill"></div>
+                    </div>
+                </div>
+                <div class="player-time">
+                    <span id="player-current-time">0:00</span>
+                    <span class="player-time-sep"> / </span>
+                    <span id="player-duration">0:00</span>
+                </div>
+                <div class="player-controls-hint">
+                    OK = Play/Pause &nbsp;&nbsp; ◀ ▶ = Skip 30s &nbsp;&nbsp; BACK = Stop
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pill Reminder Overlay (still works during playback) -->
+    <div class="reminder-overlay" id="reminder-overlay">
+        <div class="reminder-icon">💊</div>
+        <div class="reminder-title">Time For Your Medicine</div>
+        <div class="reminder-name" id="reminder-name"></div>
+        <div class="reminder-dosage" id="reminder-dosage"></div>
+        <video class="reminder-video" id="reminder-video" style="display:none" autoplay></video>
+        <img class="reminder-image" id="reminder-image" style="display:none" alt="Reminder">
+        <div class="reminder-message" id="reminder-message"></div>
+        <div class="reminder-dismiss">Press OK to dismiss</div>
+    </div>
+
+    <script src="/static/js/tv.js"></script>
+    <script src="/static/js/player.js"></script>
+</body>
+</html>

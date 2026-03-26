@@ -1,0 +1,25 @@
+{% extends "admin/base.html" %}
+{% block title %}Add Favorite Show{% endblock %}
+{% block content %}
+<h1 style="margin: 20px 0;">📺 Add Favorite Show</h1>
+<div class="card">
+    <form method="POST">
+        <div class="form-group">
+            <label for="name">Show Name *</label>
+            <input type="text" id="name" name="name" required placeholder="e.g. Jeopardy!">
+        </div>
+        <div class="form-group">
+            <label for="search_term">Search Term *</label>
+            <input type="text" id="search_term" name="search_term" required placeholder="e.g. jeopardy">
+            <div class="hint">This is matched against Pluto TV channel names and current programs. Use lowercase.</div>
+        </div>
+        <div class="form-group">
+            <label><input type="checkbox" name="enabled" value="1" checked> Enabled</label>
+        </div>
+        <div class="btn-group">
+            <button type="submit" class="btn btn-primary">Add Show</button>
+            <a href="/admin/shows" class="btn" style="color: var(--text-muted);">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

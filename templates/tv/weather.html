@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather - Senior TV</title>
+    <link rel="stylesheet" href="/static/css/tv.css">
+</head>
+<body>
+    <div class="content-page">
+        <div class="page-header">
+            <span class="page-title">🌤️ Weather</span>
+            <span class="back-hint">Press BACK to return home</span>
+        </div>
+
+        {% if current %}
+        <div class="content-body">
+            <div class="weather-current">
+                <span class="big-icon">{{ current.icon }}</span>
+                <div>
+                    <div class="temp">{{ current.temp }}{{ current.symbol }}</div>
+                    <div class="condition">{{ current.condition }}</div>
+                </div>
+                <div class="details">
+                    <div>Humidity: {{ current.humidity }}%</div>
+                    <div>Wind: {{ current.wind }} mph</div>
+                </div>
+            </div>
+
+            <div class="forecast-row">
+                {% for day in forecast %}
+                <div class="forecast-day">
+                    <div class="day-name">{{ day.day }}</div>
+                    <div class="day-icon">{{ day.icon }}</div>
+                    <div class="day-temps">
+                        <span class="high">{{ day.high }}°</span>
+                        <span class="low"> / {{ day.low }}°</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% elif error %}
+        <div class="error-state">Unable to load weather. Please try again later.</div>
+        {% endif %}
+    </div>
+
+    <!-- Pill Reminder Overlay -->
+    <div class="reminder-overlay" id="reminder-overlay">
+        <div class="reminder-icon">💊</div>
+        <div class="reminder-title">Time For Your Medicine</div>
+        <div class="reminder-name" id="reminder-name"></div>
+        <div class="reminder-dosage" id="reminder-dosage"></div>
+        <video class="reminder-video" id="reminder-video" style="display:none" autoplay></video>
+        <img class="reminder-image" id="reminder-image" style="display:none" alt="Reminder">
+        <div class="reminder-message" id="reminder-message"></div>
+        <div class="reminder-dismiss">Press OK to dismiss</div>
+    </div>
+
+    <script src="/static/js/tv.js"></script>
+</body>
+</html>

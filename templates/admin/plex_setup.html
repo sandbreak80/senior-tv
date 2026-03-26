@@ -1,0 +1,70 @@
+{% extends "admin/base.html" %}
+{% block title %}Jellyfin Setup{% endblock %}
+{% block content %}
+<h1 style="margin: 20px 0;">🎬 Jellyfin Setup</h1>
+
+{% if message %}
+<div class="flash flash-success">{{ message }}</div>
+{% endif %}
+
+<div class="card">
+    <h2>1. Server URL</h2>
+    <form method="POST">
+        <input type="hidden" name="action" value="save_url">
+        <div class="form-group">
+            <label for="jellyfin_url">Jellyfin Server URL</label>
+            <input type="text" id="jellyfin_url" name="jellyfin_url" value="{{ jellyfin_url }}"
+                   placeholder="http://192.168.1.x:8096">
+        </div>
+        <button type="submit" class="btn btn-primary">Save URL</button>
+    </form>
+</div>
+
+{% if jellyfin_url %}
+<div class="card">
+    <h2>2. Login</h2>
+    <form method="POST">
+        <input type="hidden" name="action" value="authenticate">
+        <div class="form-group">
+            <label for="username">Jellyfin Username</label>
+            <input type="text" id="username" name="username" placeholder="Your Jellyfin username">
+        </div>
+        <div class="form-group">
+            <label for="password">Password</label>
+            <input type="text" id="password" name="password" placeholder="Your Jellyfin password">
+            <div class="hint">Password is only used to get an API token. It is not stored.</div>
+        </div>
+        <button type="submit" class="btn btn-primary">Login & Connect</button>
+    </form>
+</div>
+{% endif %}
+
+{% if connection %}
+<div class="card">
+    <h2>Connection Status</h2>
+    {% if connection.ok %}
+    <div class="flash flash-success">
+        ✓ Connected to <strong>{{ connection.server_name }}</strong>
+    </div>
+    {% if libraries %}
+    <h3 style="margin: 16px 0 10px;">Libraries Found:</h3>
+    <div class="table-wrap">
+        <table>
+            <tr><th>Name</th><th>Type</th></tr>
+            {% for lib in libraries %}
+            <tr>
+                <td>{{ lib.icon }} {{ lib.title }}</td>
+                <td>{{ lib.type }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% endif %}
+    {% else %}
+    <div style="color: var(--danger); padding: 12px;">
+        ✗ Connection failed: {{ connection.error }}
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

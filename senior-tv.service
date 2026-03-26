@@ -1,0 +1,19 @@
+[Unit]
+Description=Senior TV Entertainment System
+After=network.target graphical.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=media
+WorkingDirectory=/home/media/code_projectsd/senior_tv
+Environment=DISPLAY=:0
+Environment=WAYLAND_DISPLAY=wayland-0
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+ExecStartPre=/bin/sleep 5
+ExecStart=/home/media/code_projectsd/senior_tv/start.sh
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=graphical.target

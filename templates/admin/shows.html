@@ -1,0 +1,37 @@
+{% extends "admin/base.html" %}
+{% block title %}Favorite Shows{% endblock %}
+{% block content %}
+<div style="display: flex; align-items: center; justify-content: space-between; margin: 20px 0;">
+    <h1>📺 Favorite Shows</h1>
+    <a href="/admin/shows/new" class="btn btn-primary">+ Add Show</a>
+</div>
+
+<p style="color: var(--text-muted); margin-bottom: 20px; font-size: 14px;">
+    When a favorite show is playing on Pluto TV, a notification will appear on the TV.
+</p>
+
+{% if shows %}
+<div class="card">
+    <div class="table-wrap">
+        <table>
+            <tr><th>Show</th><th>Search Term</th><th>Status</th><th>Actions</th></tr>
+            {% for show in shows %}
+            <tr>
+                <td><strong>{{ show.name }}</strong></td>
+                <td><code>{{ show.search_term }}</code></td>
+                <td>{% if show.enabled %}<span class="badge badge-active">Active</span>{% else %}<span class="badge badge-inactive">Disabled</span>{% endif %}</td>
+                <td>
+                    <form method="POST" action="/admin/shows/{{ show.id }}/delete" style="display:inline"
+                          onsubmit="return confirm('Remove?')">
+                        <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="card"><p class="empty">No favorite shows yet.</p></div>
+{% endif %}
+{% endblock %}

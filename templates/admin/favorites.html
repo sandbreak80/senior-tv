@@ -1,0 +1,49 @@
+{% extends "admin/base.html" %}
+{% block title %}Favorites{% endblock %}
+{% block content %}
+<div style="display: flex; align-items: center; justify-content: space-between; margin: 20px 0;">
+    <h1>⭐ Streaming Favorites</h1>
+    <a href="/admin/favorites/new" class="btn btn-primary">+ Add Favorite</a>
+</div>
+
+<p style="color: var(--text-muted); margin-bottom: 20px; font-size: 14px;">
+    Add Netflix and HBO shows/movies here. They'll appear as easy-to-browse lists on the TV.
+</p>
+
+{% if favorites %}
+<div class="card">
+    <div class="table-wrap">
+        <table>
+            <tr><th>Platform</th><th>Title</th><th>Category</th><th>Actions</th></tr>
+            {% for fav in favorites %}
+            <tr>
+                <td>
+                    {% if fav.platform == 'netflix' %}🍿 Netflix
+                    {% elif fav.platform == 'hbo' %}🎭 HBO
+                    {% else %}{{ fav.platform }}{% endif %}
+                </td>
+                <td>
+                    <strong>{{ fav.title }}</strong>
+                    {% if fav.description %}<br><small style="color: var(--text-muted);">{{ fav.description[:50] }}</small>{% endif %}
+                </td>
+                <td>{{ fav.category }}</td>
+                <td>
+                    <div class="btn-group">
+                        <a href="/admin/favorites/{{ fav.id }}/edit" class="btn btn-sm btn-primary">Edit</a>
+                        <form method="POST" action="/admin/favorites/{{ fav.id }}/delete" style="display:inline"
+                              onsubmit="return confirm('Remove {{ fav.title }}?')">
+                            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="card">
+    <p class="empty">No favorites yet. Click "Add Favorite" to add Netflix or HBO shows.</p>
+</div>
+{% endif %}
+{% endblock %}

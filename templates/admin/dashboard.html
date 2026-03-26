@@ -1,0 +1,63 @@
+{% extends "admin/base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<h1 style="margin: 20px 0;">Dashboard</h1>
+
+<div class="stats-row">
+    <div class="stat-card">
+        <div class="stat-num">{{ pills | length }}</div>
+        <div class="stat-label">Pill Reminders</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-num">{{ events | length }}</div>
+        <div class="stat-label">Upcoming Events</div>
+    </div>
+</div>
+
+<div class="card">
+    <h2>💊 Active Pills</h2>
+    {% if pills %}
+    <div class="table-wrap">
+        <table>
+            <tr><th>Name</th><th>Dosage</th><th>Times</th><th>Status</th></tr>
+            {% for pill in pills %}
+            <tr>
+                <td>{{ pill.name }}</td>
+                <td>{{ pill.dosage or '—' }}</td>
+                <td>{{ pill.schedule_times_display }}</td>
+                <td>
+                    {% if pill.enabled %}
+                    <span class="badge badge-active">Active</span>
+                    {% else %}
+                    <span class="badge badge-inactive">Disabled</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% else %}
+    <p class="empty">No pill reminders set up yet. <a href="/admin/pills/new">Add one</a></p>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h2>📅 Upcoming Events</h2>
+    {% if events %}
+    <div class="table-wrap">
+        <table>
+            <tr><th>Date</th><th>Time</th><th>Event</th></tr>
+            {% for event in events %}
+            <tr>
+                <td>{{ event.event_date }}</td>
+                <td>{{ event.event_time or 'All day' }}</td>
+                <td>{{ event.title }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% else %}
+    <p class="empty">No upcoming events. <a href="/admin/calendar/new">Add one</a></p>
+    {% endif %}
+</div>
+{% endblock %}

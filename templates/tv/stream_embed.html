@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ favorite.title }} - Senior TV</title>
+    <link rel="stylesheet" href="/static/css/tv.css">
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; }
+        .stream-frame {
+            width: 100vw;
+            height: 100vh;
+            border: none;
+        }
+        .stream-back-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0,0,0,0.85);
+            color: #f0f0f0;
+            padding: 12px 30px;
+            font-size: 28px;
+            font-family: 'Segoe UI', sans-serif;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            z-index: 10000;
+            transition: opacity 0.3s, transform 0.3s;
+        }
+        .stream-back-bar.hidden {
+            opacity: 0;
+            transform: translateY(-100%);
+        }
+        .stream-back-bar .back-btn {
+            background: #e94560;
+            color: white;
+            border: none;
+            padding: 8px 24px;
+            border-radius: 8px;
+            font-size: 24px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .stream-back-bar .stream-title {
+            flex: 1;
+        }
+        .stream-back-bar .stream-hint {
+            font-size: 22px;
+            color: #a0a0b0;
+        }
+    </style>
+</head>
+<body>
+    <div class="stream-back-bar" id="back-bar">
+        <button class="back-btn" onclick="goHome()">◀ HOME</button>
+        <span class="stream-title">{{ favorite.title }}</span>
+        <span class="stream-hint">Press BACK to return home</span>
+    </div>
+
+    <iframe class="stream-frame" src="{{ favorite.url }}" id="stream-frame"
+            allow="encrypted-media; autoplay"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
+            referrerpolicy="no-referrer"></iframe>
+
+    <script>
+        // Auto-hide the back bar after 5 seconds, show on any key press
+        let hideTimeout;
+        const bar = document.getElementById('back-bar');
+
+        function showBar() {
+            bar.classList.remove('hidden');
+            clearTimeout(hideTimeout);
+            hideTimeout = setTimeout(() => bar.classList.add('hidden'), 5000);
+        }
+
+        function goHome() { window.quickNav('/'); }
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' || e.key === 'Backspace' || e.key === 'BrowserBack') {
+                e.preventDefault();
+                goHome();
+            } else {
+                showBar();
+            }
+        });
+
+        showBar();
+    </script>
+</body>
+</html>

@@ -1,0 +1,61 @@
+{% extends "admin/base.html" %}
+{% block title %}{{ 'Edit' if favorite else 'Add' }} Favorite{% endblock %}
+{% block content %}
+<h1 style="margin: 20px 0;">{{ 'Edit' if favorite else 'Add' }} Favorite</h1>
+
+<div class="card">
+    <form method="POST">
+        <div class="form-group">
+            <label for="platform">Platform *</label>
+            <select id="platform" name="platform" required>
+                <option value="netflix" {% if favorite and favorite.platform == 'netflix' %}selected{% endif %}>Netflix</option>
+                <option value="hbo" {% if favorite and favorite.platform == 'hbo' %}selected{% endif %}>HBO</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="title">Title *</label>
+            <input type="text" id="title" name="title" required value="{{ favorite.title if favorite else '' }}"
+                   placeholder="e.g. The Golden Girls">
+        </div>
+
+        <div class="form-group">
+            <label for="description">Description</label>
+            <input type="text" id="description" name="description" value="{{ favorite.description if favorite else '' }}"
+                   placeholder="e.g. Comedy series about four older women">
+        </div>
+
+        <div class="form-group">
+            <label for="url">URL *</label>
+            <input type="text" id="url" name="url" required value="{{ favorite.url if favorite else '' }}"
+                   placeholder="e.g. https://www.netflix.com/title/70153390">
+            <div class="hint">Go to the show/movie on Netflix or HBO in your browser, copy the URL from the address bar.</div>
+        </div>
+
+        <div class="form-group">
+            <label for="thumbnail_url">Thumbnail Image URL</label>
+            <input type="text" id="thumbnail_url" name="thumbnail_url" value="{{ favorite.thumbnail_url if favorite else '' }}"
+                   placeholder="https://image-url...">
+            <div class="hint">Optional. Paste a URL to a poster/thumbnail image for this show. You can right-click an image on Google and copy the image address.</div>
+        </div>
+
+        <div class="form-group">
+            <label for="category">Category</label>
+            <input type="text" id="category" name="category" value="{{ favorite.category if favorite else 'Shows' }}"
+                   placeholder="e.g. Shows, Movies, Documentaries">
+            <div class="hint">Used to group favorites on the TV screen.</div>
+        </div>
+
+        <div class="form-group">
+            <label for="sort_order">Sort Order</label>
+            <input type="number" id="sort_order" name="sort_order" value="{{ favorite.sort_order if favorite else 0 }}">
+            <div class="hint">Lower numbers appear first. Use this to put their favorites at the top.</div>
+        </div>
+
+        <div class="btn-group">
+            <button type="submit" class="btn btn-primary">{{ 'Save Changes' if favorite else 'Add Favorite' }}</button>
+            <a href="/admin/favorites" class="btn" style="color: var(--text-muted);">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

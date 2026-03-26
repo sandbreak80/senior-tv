@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ platform }} - Senior TV</title>
+    <link rel="stylesheet" href="/static/css/tv.css">
+</head>
+<body>
+    <div class="content-page">
+        <div class="page-header">
+            <span class="page-title">{{ platform_icon }} {{ platform }}</span>
+            <span class="back-hint">Press BACK to return home</span>
+        </div>
+
+        <div class="content-body scroll-container">
+            {% if favorites %}
+                {% for cat_name, cat_items in categories.items() %}
+                <div class="section-label">{{ cat_name }}</div>
+                <div class="poster-row">
+                    {% for fav in cat_items %}
+                    <a class="poster-card navigable" href="/tv/watch/{{ fav.id }}">
+                        {% if fav.thumbnail_url %}
+                        <img class="poster-img" src="{{ fav.thumbnail_url }}" alt="{{ fav.title }}" loading="lazy">
+                        {% else %}
+                        <div class="poster-img poster-placeholder">{{ platform_icon }}</div>
+                        {% endif %}
+                        <div class="poster-title">{{ fav.title }}</div>
+                        {% if fav.description %}
+                        <div class="poster-subtitle">{{ fav.description[:60] }}</div>
+                        {% endif %}
+                    </a>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    No {{ platform }} favorites yet.<br>
+                    Ask your family to add some in the admin panel.
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="nav-hint">◀ ▶ Browse &nbsp;&nbsp; OK = Watch &nbsp;&nbsp; BACK = Home</div>
+    </div>
+
+    <!-- Pill Reminder Overlay -->
+    <div class="reminder-overlay" id="reminder-overlay">
+        <div class="reminder-icon">💊</div>
+        <div class="reminder-title">Time For Your Medicine</div>
+        <div class="reminder-name" id="reminder-name"></div>
+        <div class="reminder-dosage" id="reminder-dosage"></div>
+        <video class="reminder-video" id="reminder-video" style="display:none" autoplay></video>
+        <img class="reminder-image" id="reminder-image" style="display:none" alt="Reminder">
+        <div class="reminder-message" id="reminder-message"></div>
+        <div class="reminder-dismiss">Press OK to dismiss</div>
+    </div>
+
+    <script src="/static/js/tv.js"></script>
+</body>
+</html>

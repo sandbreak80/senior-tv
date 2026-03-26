@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>News - Senior TV</title>
+    <link rel="stylesheet" href="/static/css/tv.css">
+</head>
+<body>
+    <div class="content-page">
+        <div class="page-header">
+            <span class="page-title">📰 News</span>
+            <span class="back-hint">Press BACK to return home</span>
+        </div>
+
+        <div class="content-body scroll-container">
+            <!-- Live News Streams -->
+            {% if live_streams %}
+            <div class="section-label">🔴 Watch Live News</div>
+            <div class="menu-list" style="margin-bottom: 30px;">
+                {% for stream in live_streams %}
+                <a class="menu-item navigable" href="/tv/news/youtube/{{ stream.video_id }}">
+                    <span class="item-icon">📺</span>
+                    <span>{{ stream.name }}</span>
+                    <span style="font-size: 24px; color: var(--accent); margin-left: auto;">● LIVE</span>
+                </a>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Pluto TV News Channels -->
+            {% if pluto_news %}
+            <div class="section-label">📡 News Channels</div>
+            <div class="menu-list" style="margin-bottom: 30px;">
+                {% for ch in pluto_news %}
+                <a class="channel-item navigable" href="/tv/live/play/{{ ch.id }}">
+                    <div class="channel-logo-wrap">
+                        {% if ch.logo %}
+                        <img class="channel-logo" src="{{ ch.logo }}" alt="{{ ch.name }}" loading="lazy">
+                        {% endif %}
+                    </div>
+                    <div class="channel-info">
+                        <div class="channel-name" style="font-size: 34px;">{{ ch.name }}</div>
+                        {% if ch.current_program %}
+                        <div class="channel-now-playing">Now: {{ ch.current_program.title }}</div>
+                        {% endif %}
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Headlines -->
+            {% if articles %}
+            <div class="section-label">📋 Headlines</div>
+            {% for article in articles %}
+            <div class="news-article">
+                <div class="article-source">{{ article.source }}</div>
+                <div class="article-title">{{ article.title }}</div>
+                {% if article.summary %}
+                <div class="article-summary">{{ article.summary | striptags | truncate(200) }}</div>
+                {% endif %}
+            </div>
+            {% endfor %}
+            {% endif %}
+
+            {% if not live_streams and not pluto_news and not articles %}
+            <div class="empty-state">No news available right now.</div>
+            {% endif %}
+        </div>
+
+        <div class="nav-hint">▲ ▼ Browse &nbsp;&nbsp; OK = Watch &nbsp;&nbsp; BACK = Home</div>
+    </div>
+
+    <!-- Pill Reminder Overlay -->
+    <div class="reminder-overlay" id="reminder-overlay">
+        <div class="reminder-icon">💊</div>
+        <div class="reminder-title">Time For Your Medicine</div>
+        <div class="reminder-name" id="reminder-name"></div>
+        <div class="reminder-dosage" id="reminder-dosage"></div>
+        <video class="reminder-video" id="reminder-video" style="display:none" autoplay></video>
+        <img class="reminder-image" id="reminder-image" style="display:none" alt="Reminder">
+        <div class="reminder-message" id="reminder-message"></div>
+        <div class="reminder-dismiss">Press OK to dismiss</div>
+    </div>
+
+    <script src="/static/js/tv.js"></script>
+</body>
+</html>

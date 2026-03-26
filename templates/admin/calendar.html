@@ -1,0 +1,39 @@
+{% extends "admin/base.html" %}
+{% block title %}Calendar{% endblock %}
+{% block content %}
+<div style="display: flex; align-items: center; justify-content: space-between; margin: 20px 0;">
+    <h1>📅 Calendar Events</h1>
+    <a href="/admin/calendar/new" class="btn btn-primary">+ Add Event</a>
+</div>
+
+{% if events %}
+<div class="card">
+    <div class="table-wrap">
+        <table>
+            <tr><th>Date</th><th>Time</th><th>Event</th><th>Recurring</th><th>Actions</th></tr>
+            {% for event in events %}
+            <tr>
+                <td>{{ event.event_date }}</td>
+                <td>{{ event.event_time or 'All day' }}</td>
+                <td><strong>{{ event.title }}</strong></td>
+                <td>{{ event.recurring or '—' }}</td>
+                <td>
+                    <div class="btn-group">
+                        <a href="/admin/calendar/{{ event.id }}/edit" class="btn btn-sm btn-primary">Edit</a>
+                        <form method="POST" action="/admin/calendar/{{ event.id }}/delete" style="display:inline"
+                              onsubmit="return confirm('Delete this event?')">
+                            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="card">
+    <p class="empty">No events yet. Click "Add Event" to create one.</p>
+</div>
+{% endif %}
+{% endblock %}

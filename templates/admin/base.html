@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Admin{% endblock %} - Senior TV</title>
+    <link rel="stylesheet" href="/static/css/admin.css">
+</head>
+<body>
+    <nav class="admin-nav">
+        <span class="logo">📺 Senior TV Admin</span>
+        <a href="/admin" {% if request.path == '/admin' %}class="active"{% endif %}>Dashboard</a>
+        <a href="/admin/pills" {% if '/pills' in request.path %}class="active"{% endif %}>Pills</a>
+        <a href="/admin/calendar" {% if '/calendar' in request.path %}class="active"{% endif %}>Calendar</a>
+        <a href="/admin/messages" {% if '/messages' in request.path %}class="active"{% endif %}>Messages</a>
+        <a href="/admin/birthdays" {% if '/birthdays' in request.path %}class="active"{% endif %}>Birthdays</a>
+        <a href="/admin/shows" {% if '/shows' in request.path %}class="active"{% endif %}>Shows</a>
+        <a href="/admin/youtube" {% if '/youtube' in request.path %}class="active"{% endif %}>YouTube</a>
+        <a href="/admin/photos" {% if '/photos' in request.path %}class="active"{% endif %}>Photos</a>
+        <a href="/admin/plex-setup" {% if '/plex' in request.path %}class="active"{% endif %}>Jellyfin</a>
+        <a href="/admin/settings" {% if '/settings' in request.path %}class="active"{% endif %}>Settings</a>
+    </nav>
+
+    <div class="container">
+        {% block content %}{% endblock %}
+    </div>
+</body>
+</html>

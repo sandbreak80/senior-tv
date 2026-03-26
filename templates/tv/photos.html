@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photos - Senior TV</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #000;
+            overflow: hidden;
+            cursor: none;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        .slideshow {
+            position: fixed;
+            inset: 0;
+        }
+        .slide {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 1.5s ease;
+        }
+        .slide.active {
+            opacity: 1;
+        }
+        .slide img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        .photo-info {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.5);
+            color: rgba(255,255,255,0.7);
+            padding: 10px 30px;
+            border-radius: 20px;
+            font-size: 24px;
+        }
+        .photo-clock {
+            position: fixed;
+            top: 30px;
+            right: 40px;
+            color: rgba(255,255,255,0.6);
+            font-size: 48px;
+            font-weight: 300;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+        }
+        .no-photos {
+            color: rgba(255,255,255,0.5);
+            font-size: 40px;
+            text-align: center;
+            padding-top: 40vh;
+        }
+        .loading {
+            color: rgba(255,255,255,0.3);
+            font-size: 36px;
+            text-align: center;
+            padding-top: 45vh;
+        }
+    </style>
+</head>
+<body>
+    {% if photos or has_immich %}
+    <div class="slideshow" id="slideshow">
+        <div class="slide active" id="slide-a"><img id="img-a" alt="Family photo"></div>
+        <div class="slide" id="slide-b"><img id="img-b" alt="Family photo"></div>
+    </div>
+    <div class="photo-clock" id="clock"></div>
+    <div class="photo-info">Press any key to return home</div>
+    {% else %}
+    <div class="no-photos">
+        📷 No Photos Yet<br>
+        <span style="font-size: 28px; opacity: 0.6;">Ask your family to add photos in the admin panel</span>
+        <br><br>
+        <span style="font-size: 24px; opacity: 0.4;">Press any key to go back</span>
+    </div>
+    <script>
+        document.addEventListener('keydown', function() { window.quickNav('/'); });
+    </script>
+    {% endif %}
+
+    <!-- Pill Reminder Overlay -->
+    <div class="reminder-overlay" id="reminder-overlay" style="position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.95); flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:80px; font-family:'Segoe UI',sans-serif; color:#f0f0f0;">
+        <div class="reminder-icon" style="font-size:120px; margin-bottom:40px;">💊</div>
+        <div class="reminder-title" style="font-size:72px; font-weight:700; margin-bottom:20px; color:#e94560;">Time For Your Medicine</div>
+        <div class="reminder-name" id="reminder-name" style="font-size:80px; font-weight:800; margin-bottom:30px;"></div>
+        <div class="reminder-dosage" id="reminder-dosage" style="font-size:52px; color:#a0a0b0; margin-bottom:20px;"></div>
+        <video class="reminder-video" id="reminder-video" style="display:none" autoplay></video>
+        <img class="reminder-image" id="reminder-image" style="display:none; max-width:70%; max-height:50vh; border-radius:20px; margin-bottom:40px;" alt="Reminder">
+        <div class="reminder-message" id="reminder-message" style="font-size:48px; margin-bottom:50px;"></div>
+        <div class="reminder-dismiss" style="font-size:40px; color:#4ecca3;">Press OK to dismiss</div>
+    </div>
+
+    <script src="/static/js/tv.js"></script>
+    <script>
+        (function() {
+            var interval = {{ interval }} * 1000;
+            var slideA = document.getElementById('slide-a');
+            var slideB = document.getElementById('slide-b');
+            var imgA = document.getElementById('img-a');
+            var imgB = document.getElementById('img-b');
+            if (!slideA) return;
+
+            // Photo queue — mix server-rendered and Immich
+            var queue = [];
+            var currentSlide = 'a';
+
+            // Load initial photos from server render
+            {% for photo in photos %}
+            queue.push("{{ photo.url }}");
+            {% endfor %}
+
+            // Fetch more from Immich API
+            function fetchMore() {
+                fetch('/api/immich-slideshow?count=20')
+                    .then(function(r) { return r.json(); })
+                    .then(function(photos) {
+                        photos.forEach(function(p) { queue.push(p.url); });
+                    })
+                    .catch(function() {});
+            }
+            {% if has_immich %}
+            fetchMore();
+            {% endif %}
+
+            var idx = 0;
+
+            function showNext() {
+                if (queue.length === 0) return;
+                idx = (idx + 1) % queue.length;
+
+                // Fetch more when running low
+                if (idx > queue.length - 5) {
+                    fetchMore();
+                }
+
+                var nextUrl = queue[idx];
+                if (currentSlide === 'a') {
+                    imgB.src = nextUrl;
+                    imgB.onload = function() {
+                        slideA.classList.remove('active');
+                        slideB.classList.add('active');
+                        currentSlide = 'b';
+                    };
+                } else {
+                    imgA.src = nextUrl;
+                    imgA.onload = function() {
+                        slideB.classList.remove('active');
+                        slideA.classList.add('active');
+                        currentSlide = 'a';
+                    };
+                }
+            }
+
+            // Show first photo
+            if (queue.length > 0) {
+                imgA.src = queue[0];
+            }
+
+            setInterval(showNext, interval);
+
+            // Clock
+            function updateClock() {
+                var el = document.getElementById('clock');
+                if (el) {
+                    var now = new Date();
+                    el.textContent = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                }
+            }
+            updateClock();
+            setInterval(updateClock, 30000);
+
+            // Any key returns home — kill all image loads first
+            document.addEventListener('keydown', function(e) {
+                var overlay = document.getElementById('reminder-overlay');
+                if (overlay && overlay.classList.contains('active')) return;
+                e.preventDefault();
+                e.stopPropagation();
+                // Abort all image downloads immediately
+                document.querySelectorAll('img').forEach(function(img) { img.src = ''; });
+                window.quickNav('/');
+            }, true);
+        })();
+    </script>
+</body>
+</html>

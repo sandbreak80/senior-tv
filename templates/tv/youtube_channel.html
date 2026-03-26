@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ channel_name }} - Senior TV</title>
+    <link rel="stylesheet" href="/static/css/tv.css">
+</head>
+<body>
+    <div class="content-page">
+        <div class="page-header">
+            <span class="page-title">{{ channel_name }}</span>
+            <span class="back-hint">Press BACK to go back</span>
+        </div>
+
+        <div class="content-body scroll-container">
+            {% if videos %}
+            <div class="poster-grid" id="poster-grid" style="grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));">
+                {% for video in videos %}
+                <a class="poster-card navigable" href="/tv/youtube/watch/{{ video.video_id }}" style="max-width: 420px;">
+                    {% if video.thumbnail %}
+                    <img class="poster-img" src="{{ video.thumbnail }}" alt="{{ video.title }}" loading="lazy"
+                         style="aspect-ratio: 16/9; object-fit: cover;">
+                    {% endif %}
+                    <div class="poster-title">{{ video.title }}</div>
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-state">No videos found for this channel.</div>
+            {% endif %}
+        </div>
+
+        <div class="nav-hint">▲ ▼ ◀ ▶ Browse &nbsp;&nbsp; OK = Watch &nbsp;&nbsp; BACK = YouTube</div>
+    </div>
+
+    <!-- Pill Reminder Overlay -->
+    <div class="reminder-overlay" id="reminder-overlay">
+        <div class="reminder-icon">💊</div>
+        <div class="reminder-title">Time For Your Medicine</div>
+        <div class="reminder-name" id="reminder-name"></div>
+        <div class="reminder-dosage" id="reminder-dosage"></div>
+        <video class="reminder-video" id="reminder-video" style="display:none" autoplay></video>
+        <img class="reminder-image" id="reminder-image" style="display:none" alt="Reminder">
+        <div class="reminder-message" id="reminder-message"></div>
+        <div class="reminder-dismiss">Press OK to dismiss</div>
+    </div>
+
+    <script src="/static/js/tv.js"></script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+__pycache__/
+*.py[cod]
+*.so
+venv/
+.ruff_cache/
+*.egg-info/
+
+# Database (contains personal data)
+senior_tv.db
+
+# Environment / secrets
+.env
+.env.local
+
+# User uploads and screenshots
+static/media/photos/
+static/media/uploads/
+screenshots/
+
+# Logs
+*.log
+/tmp/
+
+# Chrome profile
+.config/
+
+# OS
+.DS_Store
+Thumbs.db

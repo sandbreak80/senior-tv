@@ -1,0 +1,120 @@
+{% extends "admin/base.html" %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<h1 style="margin: 20px 0;">⚙️ Settings</h1>
+
+<form method="POST">
+    <div class="card">
+        <h2>👋 Greeting</h2>
+        <div class="form-group">
+            <label for="greeting_names">Names (shown on home screen)</label>
+            <input type="text" id="greeting_names" name="greeting_names" value="{{ settings.greeting_names }}">
+            <div class="hint">Example: "Colleen & Don" → "Good Morning, Colleen & Don!"</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>🌤️ Weather</h2>
+        <div class="form-group">
+            <label for="weather_lat">Latitude</label>
+            <input type="text" id="weather_lat" name="weather_lat" value="{{ settings.weather_lat }}">
+        </div>
+        <div class="form-group">
+            <label for="weather_lon">Longitude</label>
+            <input type="text" id="weather_lon" name="weather_lon" value="{{ settings.weather_lon }}">
+            <div class="hint">Find coordinates at <strong>latlong.net</strong></div>
+        </div>
+        <div class="form-group">
+            <label for="weather_unit">Temperature Unit</label>
+            <select id="weather_unit" name="weather_unit">
+                <option value="fahrenheit" {% if settings.weather_unit == 'fahrenheit' %}selected{% endif %}>Fahrenheit (°F)</option>
+                <option value="celsius" {% if settings.weather_unit == 'celsius' %}selected{% endif %}>Celsius (°C)</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>📰 News</h2>
+        <div class="form-group">
+            <label for="news_feeds">RSS Feed URLs (comma-separated)</label>
+            <textarea id="news_feeds" name="news_feeds" rows="3">{{ settings.news_feeds }}</textarea>
+            <div class="hint">One or more RSS feed URLs, separated by commas</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>🎬 Jellyfin</h2>
+        <div class="form-group">
+            <label for="jellyfin_url">Jellyfin Server URL</label>
+            <input type="text" id="jellyfin_url" name="jellyfin_url" value="{{ settings.jellyfin_url }}">
+            <div class="hint">For full setup and login, use the <a href="/admin/plex-setup">Jellyfin Setup</a> page</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>🚪 Smart Home (Frigate)</h2>
+        <div class="form-group">
+            <label for="frigate_url">Frigate URL</label>
+            <input type="text" id="frigate_url" name="frigate_url" value="{{ settings.frigate_url }}">
+        </div>
+        <div class="form-group">
+            <label for="frigate_user">Frigate Username</label>
+            <input type="text" id="frigate_user" name="frigate_user" value="{{ settings.frigate_user }}">
+        </div>
+        <div class="form-group">
+            <label for="frigate_pass">Frigate Password</label>
+            <input type="text" id="frigate_pass" name="frigate_pass" value="{{ settings.frigate_pass }}">
+        </div>
+        <div class="form-group">
+            <label for="frigate_cameras">Alert Cameras (comma-separated)</label>
+            <input type="text" id="frigate_cameras" name="frigate_cameras" value="{{ settings.frigate_cameras }}">
+            <div class="hint">Camera names to monitor for person detection. e.g. "front_door,back_patio"</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>🏠 Home Assistant</h2>
+        <div class="form-group">
+            <label for="ha_url">Home Assistant URL</label>
+            <input type="text" id="ha_url" name="ha_url" value="{{ settings.ha_url }}">
+        </div>
+        <div class="form-group">
+            <label for="ha_token">Long-Lived Access Token</label>
+            <input type="text" id="ha_token" name="ha_token" value="{{ settings.ha_token }}">
+        </div>
+        <div class="form-group">
+            <label for="ha_tv_entity">Samsung TV Entity ID</label>
+            <input type="text" id="ha_tv_entity" name="ha_tv_entity" value="{{ settings.ha_tv_entity or 'media_player.samsung_tv' }}" placeholder="media_player.samsung_tv">
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>📸 Immich Photo Server</h2>
+        <div class="form-group">
+            <label for="immich_url">Immich URL</label>
+            <input type="text" id="immich_url" name="immich_url" value="{{ settings.immich_url }}" placeholder="http://192.168.50.165:2283">
+        </div>
+        <div class="form-group">
+            <label for="immich_api_key">Immich API Key</label>
+            <input type="text" id="immich_api_key" name="immich_api_key" value="{{ settings.immich_api_key }}" placeholder="Your Immich API key">
+            <div class="hint">Generate in Immich: User Settings > API Keys</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>📷 Photos</h2>
+        <div class="form-group">
+            <label for="photo_interval">Slideshow Interval (seconds)</label>
+            <input type="number" id="photo_interval" name="photo_interval" value="{{ settings.photo_interval }}">
+        </div>
+        <div class="form-group">
+            <label for="photo_nas_path">NAS Photo Folder Path</label>
+            <input type="text" id="photo_nas_path" name="photo_nas_path" value="{{ settings.photo_nas_path }}"
+                   placeholder="/mnt/nas/photos">
+            <div class="hint">Local path to a mounted NAS share containing family photos</div>
+        </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary" style="width: 100%; padding: 14px;">Save All Settings</button>
+</form>
+{% endblock %}

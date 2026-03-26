@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calendar - Senior TV</title>
+    <link rel="stylesheet" href="/static/css/tv.css">
+    <style>
+        .cal-tabs { display: flex; gap: 12px; margin-bottom: 24px; }
+        .cal-tab {
+            padding: 12px 30px; background: var(--bg-card); border: 3px solid transparent;
+            border-radius: 30px; font-size: 32px; font-weight: 600; color: var(--text-muted);
+            text-decoration: none; transition: all 0.15s ease;
+        }
+        .cal-tab.active { background: var(--bg-selected); border-color: var(--accent); color: var(--text); }
+        .cal-tab.selected { border-color: var(--accent); box-shadow: var(--glow); }
+
+        /* Daily view */
+        .day-header { font-size: 48px; font-weight: 700; margin-bottom: 20px; }
+        .day-timeline { display: flex; flex-direction: column; gap: 8px; }
+        .day-hour {
+            display: flex; align-items: center; gap: 20px; padding: 14px 30px;
+            background: var(--bg-card); border-radius: 14px; font-size: 32px;
+        }
+        .day-hour-label { font-size: 30px; color: var(--text-muted); min-width: 120px; }
+        .day-hour.has-event { background: var(--bg-selected); border-left: 6px solid var(--accent); }
+        .day-hour .event-name { font-weight: 600; }
+
+        /* Monthly view */
+        .month-header {
+            font-size: 48px; font-weight: 700; text-align: center; margin-bottom: 20px;
+        }
+        .month-grid {
+            display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px;
+        }
+        .month-day-label {
+            text-align: center; font-size: 26px; font-weight: 600;
+            color: var(--text-muted); padding: 10px 0;
+        }
+        .month-day {
+            aspect-ratio: 1; display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            background: var(--bg-card); border-radius: 12px;
+            font-size: 34px; font-weight: 600; border: 3px solid transparent;
+            transition: all 0.15s ease;
+        }
+        .month-day.today { border-color: var(--accent); background: var(--bg-selected); }
+        .month-day.has-event::after {
+            content: ''; width: 10px; height: 10px; border-radius: 50%;
+            background: var(--accent); margin-top: 4px;
+        }
+        .month-day.empty { background: transparent; }
+    </style>
+</head>
+<body>
+    <div class="content-page">
+        <div class="page-header">
+            <span class="page-title">📅 Calendar</span>
+            <span class="back-hint">Press BACK to return home</span>
+        </div>
+
+        <!-- View tabs -->
+        <div class="cal-tabs">
+            <a class="cal-tab navigable {% if view == 'daily' %}active{% endif %}" href="/tv/calendar?view=daily">Today</a>
+            <a class="cal-tab navigable {% if view == 'monthly' %}active{% endif %}" href="/tv/calendar?view=monthly">This Month</a>
+            <a class="cal-tab navigable {% if view == 'upcoming' %}active{% endif %}" href="/tv/calendar?view=upcoming">Upcoming</a>
+        </div>
+
+        <div class="content-body scroll-container">
+            {% if view == 'daily' %}
+            <!-- Daily View -->
+            <div class="day-header">{{ today_str }}</div>
+            <div class="day-timeline">
+                {% for hour in day_hours %}
+                <div class="day-hour {% if hour.events %}has-event{% endif %}">
+                    <span class="day-hour-label">{{ hour.label }}</span>
+                    {% if hour.events %}
+                        {% for ev in hour.events %}
+                        <span class="event-name">{{ ev.title }}</span>
+                        {% endfor %}
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+
+            {% elif view == 'monthly' %}
+            <!-- Monthly View -->
+            <div class="month-header">{{ month_name }} {{ year }}</div>
+            <div class="month-grid">
+                {% for label in weekday_labels %}
+                <div class="month-day-label">{{ label }}</div>
+                {% endfor %}
+                {% for day in month_days %}
+                <div class="month-day {% if day.is_today %}today{% endif %} {% if day.has_event %}has-event{% endif %} {% if not day.num %}empty{% endif %}">
+                    {{ day.num or '' }}
+                </div>
+                {% endfor %}
+            </div>
+
+            {% else %}
+            <!-- Upcoming View (default) -->
+            {% if events %}
+                {% for event in events %}
+                <div class="calendar-event">
+                    <div class="event-date-box">
+                        <div class="event-day-num">{{ event.event_date[8:10] | int }}</div>
+                        <div class="event-month">{{ event.event_date[5:7] | int }}/{{ event.event_date[:4] }}</div>
+                    </div>
+                    <div>
+                        <div class="event-title">{{ event.title }}</div>
+                        {% if event.event_time %}
+                        <div class="event-time">{{ event.event_time }}</div>
+                        {% endif %}
+                        {% if event.description %}
+                        <div class="event-desc">{{ event.description }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">No upcoming events.</div>
+            {% endif %}
+            {% endif %}
+        </div>
+
+        <div class="nav-hint">▲ ▼ Navigate &nbsp;&nbsp; ◀ ▶ Switch View &nbsp;&nbsp; BACK = Home</div>
+    </div>
+
+    <!-- Pill Reminder Overlay -->
+    <div class="reminder-overlay" id="reminder-overlay">
+        <div class="reminder-icon">💊</div>
+        <div class="reminder-title">Time For Your Medicine</div>
+        <div class="reminder-name" id="reminder-name"></div>
+        <div class="reminder-dosage" id="reminder-dosage"></div>
+        <video class="reminder-video" id="reminder-video" style="display:none" autoplay></video>
+        <img class="reminder-image" id="reminder-image" style="display:none" alt="Reminder">
+        <div class="reminder-message" id="reminder-message"></div>
+        <div class="reminder-dismiss">Press OK to dismiss</div>
+    </div>
+
+    <script src="/static/js/tv.js"></script>
+</body>
+</html>

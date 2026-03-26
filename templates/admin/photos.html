@@ -1,0 +1,40 @@
+{% extends "admin/base.html" %}
+{% block title %}Photos{% endblock %}
+{% block content %}
+<h1 style="margin: 20px 0;">📷 Photo Gallery</h1>
+
+<div class="card">
+    <h2>Upload Photos</h2>
+    <form method="POST" enctype="multipart/form-data">
+        <div class="form-group">
+            <input type="file" name="photos" multiple accept="image/*">
+            <div class="hint">Upload family photos. They'll appear in the photo frame slideshow on the TV.</div>
+        </div>
+        <button type="submit" class="btn btn-primary">Upload</button>
+    </form>
+</div>
+
+<div class="card">
+    <h2>Photos ({{ photos | length }})</h2>
+    {% if photos %}
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px;">
+        {% for photo in photos %}
+        <div style="position: relative;">
+            <img src="{{ photo.url }}" alt="{{ photo.name }}" style="width: 100%; height: 120px; object-fit: cover; border-radius: 8px;">
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                {{ photo.name }}
+                {% if photo.source == 'nas' %}<span style="color: var(--primary);">(NAS)</span>{% endif %}
+            </div>
+            {% if photo.source == 'upload' %}
+            <form method="POST" action="/admin/photos/delete/{{ photo.name }}" style="position: absolute; top: 4px; right: 4px;">
+                <button type="submit" class="btn btn-sm btn-danger" style="padding: 2px 8px; font-size: 11px;" onclick="return confirm('Delete?')">✕</button>
+            </form>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="empty">No photos yet. Upload some above or set a NAS path in Settings.</p>
+    {% endif %}
+</div>
+{% endblock %}

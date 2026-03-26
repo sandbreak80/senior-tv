@@ -1,0 +1,45 @@
+{% extends "admin/base.html" %}
+{% block title %}{{ 'Edit' if event else 'New' }} Event{% endblock %}
+{% block content %}
+<h1 style="margin: 20px 0;">{{ 'Edit' if event else 'New' }} Event</h1>
+
+<div class="card">
+    <form method="POST">
+        <div class="form-group">
+            <label for="title">Event Title *</label>
+            <input type="text" id="title" name="title" required value="{{ event.title if event else '' }}" placeholder="e.g. Doctor Appointment">
+        </div>
+
+        <div class="form-group">
+            <label for="description">Description</label>
+            <textarea id="description" name="description" placeholder="Optional details">{{ event.description if event else '' }}</textarea>
+        </div>
+
+        <div class="form-group">
+            <label for="event_date">Date *</label>
+            <input type="date" id="event_date" name="event_date" required value="{{ event.event_date if event else '' }}">
+        </div>
+
+        <div class="form-group">
+            <label for="event_time">Time (optional)</label>
+            <input type="time" id="event_time" name="event_time" value="{{ event.event_time if event else '' }}">
+        </div>
+
+        <div class="form-group">
+            <label for="recurring">Recurring</label>
+            <select id="recurring" name="recurring">
+                <option value="">One-time</option>
+                <option value="daily" {% if event and event.recurring == 'daily' %}selected{% endif %}>Daily</option>
+                <option value="weekly" {% if event and event.recurring == 'weekly' %}selected{% endif %}>Weekly</option>
+                <option value="monthly" {% if event and event.recurring == 'monthly' %}selected{% endif %}>Monthly</option>
+                <option value="yearly" {% if event and event.recurring == 'yearly' %}selected{% endif %}>Yearly</option>
+            </select>
+        </div>
+
+        <div class="btn-group">
+            <button type="submit" class="btn btn-primary">{{ 'Save Changes' if event else 'Create Event' }}</button>
+            <a href="/admin/calendar" class="btn" style="color: var(--text-muted);">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

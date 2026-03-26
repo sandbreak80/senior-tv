@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Messages - Senior TV</title>
+    <link rel="stylesheet" href="/static/css/tv.css">
+</head>
+<body>
+    <div class="content-page">
+        <div class="page-header">
+            <span class="page-title">💌 Messages{% if unread %} ({{ unread }} new){% endif %}</span>
+            <span class="back-hint">Press BACK to return home</span>
+        </div>
+
+        <div class="content-body scroll-container">
+            {% if messages %}
+                {% for msg in messages %}
+                <a class="menu-item navigable {% if not msg.read_at %}message-unread{% endif %}" href="/tv/messages/{{ msg.id }}"
+                   style="{% if not msg.read_at %}border-left: 6px solid var(--accent);{% endif %}">
+                    <span class="item-icon">
+                        {% if msg.media_type == 'image' %}📷
+                        {% elif msg.media_type == 'video' %}🎥
+                        {% else %}✉️{% endif %}
+                    </span>
+                    <div style="flex: 1;">
+                        <div style="font-size: 38px; font-weight: 600;">From {{ msg.sender }}</div>
+                        <div style="font-size: 30px; color: var(--text-muted);">{{ msg.message[:80] if msg.message else 'Photo/Video message' }}</div>
+                    </div>
+                    <div style="font-size: 24px; color: var(--text-muted);">{{ msg.created_at[:16] }}</div>
+                </a>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">No messages yet.</div>
+            {% endif %}
+        </div>
+
+        <div class="nav-hint">▲ ▼ Browse &nbsp;&nbsp; OK = Open &nbsp;&nbsp; BACK = Home</div>
+    </div>
+
+    <!-- Pill Reminder Overlay -->
+    <div class="reminder-overlay" id="reminder-overlay">
+        <div class="reminder-icon">💊</div>
+        <div class="reminder-title">Time For Your Medicine</div>
+        <div class="reminder-name" id="reminder-name"></div>
+        <div class="reminder-dosage" id="reminder-dosage"></div>
+        <video class="reminder-video" id="reminder-video" style="display:none" autoplay></video>
+        <img class="reminder-image" id="reminder-image" style="display:none" alt="Reminder">
+        <div class="reminder-message" id="reminder-message"></div>
+        <div class="reminder-dismiss">Press OK to dismiss</div>
+    </div>
+
+    <script src="/static/js/tv.js"></script>
+</body>
+</html>

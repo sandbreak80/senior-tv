@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live News - Senior TV</title>
+    <link rel="stylesheet" href="/static/css/tv.css">
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; }
+        .yt-container {
+            position: fixed;
+            inset: 0;
+        }
+        .yt-container iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        .yt-back-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0,0,0,0.8);
+            padding: 16px 40px;
+            font-size: 32px;
+            font-family: 'Segoe UI', sans-serif;
+            color: #f0f0f0;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            z-index: 100;
+            transition: opacity 0.3s, transform 0.3s;
+        }
+        .yt-back-bar.hidden {
+            opacity: 0.7;
+        }
+        .yt-back-bar .back-label {
+            color: #e94560;
+            font-weight: 700;
+        }
+        .yt-back-bar .hint {
+            margin-left: auto;
+            font-size: 24px;
+            color: #a0a0b0;
+        }
+    </style>
+</head>
+<body>
+    <div class="yt-back-bar" id="back-bar">
+        <span class="back-label">◀ BACK</span>
+        <span>Live News</span>
+        <span class="hint">Press BACK to return to News</span>
+    </div>
+
+    <div class="yt-container">
+        <iframe
+            src="https://www.youtube.com/embed/{{ video_id }}?autoplay=1&mute=0&controls=0&modestbranding=1&rel=0&showinfo=0&disablekb=1&iv_load_policy=3&fs=0"
+            allow="autoplay; encrypted-media"
+            sandbox="allow-scripts allow-same-origin allow-presentation"
+            >
+        </iframe>
+        <div style="position:fixed;inset:0;z-index:50;cursor:default;"></div>
+    </div>
+
+    <!-- Pill Reminder Overlay -->
+    <div class="reminder-overlay" id="reminder-overlay">
+        <div class="reminder-icon">💊</div>
+        <div class="reminder-title">Time For Your Medicine</div>
+        <div class="reminder-name" id="reminder-name"></div>
+        <div class="reminder-dosage" id="reminder-dosage"></div>
+        <video class="reminder-video" id="reminder-video" style="display:none" autoplay></video>
+        <img class="reminder-image" id="reminder-image" style="display:none" alt="Reminder">
+        <div class="reminder-message" id="reminder-message"></div>
+        <div class="reminder-dismiss">Press OK to dismiss</div>
+    </div>
+
+    <script src="/static/js/tv.js"></script>
+    <script>
+        const bar = document.getElementById('back-bar');
+        let hideTimeout;
+
+        function showBar() {
+            bar.classList.remove('hidden');
+            clearTimeout(hideTimeout);
+            hideTimeout = setTimeout(() => bar.classList.add('hidden'), 4000);
+        }
+
+        function quickBack() { window.quickNav('/tv/news'); }
+
+        document.addEventListener('keydown', function(e) {
+            if (document.getElementById('reminder-overlay').classList.contains('active')) return;
+
+            if (e.key === 'Escape' || e.key === 'Backspace' || e.key === 'BrowserBack') {
+                e.preventDefault();
+                e.stopPropagation();
+                quickBack();
+            } else {
+                showBar();
+            }
+        }, true);
+
+        showBar();
+    </script>
+</body>
+</html>

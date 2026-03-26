@@ -1,0 +1,38 @@
+{% extends "admin/base.html" %}
+{% block title %}Birthdays{% endblock %}
+{% block content %}
+<div style="display: flex; align-items: center; justify-content: space-between; margin: 20px 0;">
+    <h1>🎂 Birthdays</h1>
+    <a href="/admin/birthdays/new" class="btn btn-primary">+ Add Birthday</a>
+</div>
+
+<p style="color: var(--text-muted); margin-bottom: 20px; font-size: 14px;">
+    A full-screen birthday greeting will appear at 9 AM on their birthday.
+</p>
+
+{% if birthdays %}
+<div class="card">
+    <div class="table-wrap">
+        <table>
+            <tr><th>Name</th><th>Date</th><th>Birth Year</th><th>Relationship</th><th>Actions</th></tr>
+            {% for b in birthdays %}
+            <tr>
+                <td><strong>{{ b.name }}</strong></td>
+                <td>{{ b.birth_date }}</td>
+                <td>{{ b.birth_year or '—' }}</td>
+                <td>{{ b.relationship or '—' }}</td>
+                <td>
+                    <form method="POST" action="/admin/birthdays/{{ b.id }}/delete" style="display:inline"
+                          onsubmit="return confirm('Remove?')">
+                        <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="card"><p class="empty">No birthdays yet.</p></div>
+{% endif %}
+{% endblock %}

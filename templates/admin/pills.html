@@ -1,0 +1,56 @@
+{% extends "admin/base.html" %}
+{% block title %}Pills{% endblock %}
+{% block content %}
+<div style="display: flex; align-items: center; justify-content: space-between; margin: 20px 0;">
+    <h1>💊 Pill Reminders</h1>
+    <a href="/admin/pills/new" class="btn btn-primary">+ Add Pill</a>
+</div>
+
+{% if pills %}
+<div class="card">
+    <div class="table-wrap">
+        <table>
+            <tr><th>Name</th><th>Dosage</th><th>Times</th><th>Days</th><th>Status</th><th>Actions</th></tr>
+            {% for pill in pills %}
+            <tr>
+                <td><strong>{{ pill.name }}</strong></td>
+                <td>{{ pill.dosage or '—' }}</td>
+                <td>{{ pill.schedule_times_display }}</td>
+                <td>{{ pill.schedule_days_display }}</td>
+                <td>
+                    {% if pill.enabled %}
+                    <span class="badge badge-active">Active</span>
+                    {% else %}
+                    <span class="badge badge-inactive">Disabled</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div class="btn-group">
+                        <a href="/admin/pills/{{ pill.id }}/edit" class="btn btn-sm btn-primary">Edit</a>
+                        <form method="POST" action="/admin/pills/{{ pill.id }}/delete" style="display:inline"
+                              onsubmit="return confirm('Delete {{ pill.name }}?')">
+                            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                        </form>
+                        <button class="btn btn-sm btn-success" onclick="testReminder({{ pill.id }})">Test</button>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="card">
+    <p class="empty">No pill reminders yet. Click "Add Pill" to create one.</p>
+</div>
+{% endif %}
+
+<script>
+function testReminder(pillId) {
+    fetch('/api/trigger-reminder/' + pillId, { method: 'POST' })
+        .then(r => r.json())
+        .then(d => alert(d.status === 'triggered' ? 'Reminder sent to TV!' : 'Error: pill not found'))
+        .catch(() => alert('Error sending test reminder'));
+}
+</script>
+{% endblock %}

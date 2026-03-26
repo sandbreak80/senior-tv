@@ -1,0 +1,91 @@
+{% extends "admin/base.html" %}
+{% block title %}{{ 'Edit' if pill else 'New' }} Pill{% endblock %}
+{% block content %}
+<h1 style="margin: 20px 0;">{{ 'Edit' if pill else 'New' }} Pill Reminder</h1>
+
+<div class="card">
+    <form method="POST" enctype="multipart/form-data">
+        <div class="form-group">
+            <label for="name">Pill Name *</label>
+            <input type="text" id="name" name="name" required value="{{ pill.name if pill else '' }}" placeholder="e.g. Blood Pressure Medicine">
+        </div>
+
+        <div class="form-group">
+            <label for="dosage">Dosage</label>
+            <input type="text" id="dosage" name="dosage" value="{{ pill.dosage if pill else '' }}" placeholder="e.g. 1 tablet, 10mg">
+        </div>
+
+        <div class="form-group">
+            <label for="instructions">Instructions</label>
+            <textarea id="instructions" name="instructions" placeholder="e.g. Take with food and a full glass of water">{{ pill.instructions if pill else '' }}</textarea>
+        </div>
+
+        <div class="form-group">
+            <label for="schedule_times">Times (comma-separated, 24h format) *</label>
+            <input type="text" id="schedule_times" name="schedule_times" required
+                   value="{{ pill.schedule_times | join(', ') if pill else '' }}"
+                   placeholder="e.g. 08:00, 14:00, 20:00">
+            <div class="hint">Use 24-hour format. Example: 08:00 = 8 AM, 14:00 = 2 PM, 20:00 = 8 PM</div>
+        </div>
+
+        <div class="form-group">
+            <label>Days of the Week</label>
+            <div class="checkbox-group">
+                {% set days = [('mon','Monday'),('tue','Tuesday'),('wed','Wednesday'),('thu','Thursday'),('fri','Friday'),('sat','Saturday'),('sun','Sunday')] %}
+                {% for val, label in days %}
+                <label>
+                    <input type="checkbox" name="schedule_days" value="{{ val }}"
+                           {% if not pill or val in pill.schedule_days %}checked{% endif %}>
+                    {{ label }}
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="reminder_type">Reminder Type</label>
+            <select id="reminder_type" name="reminder_type" onchange="toggleMediaUpload()">
+                <option value="text" {% if pill and pill.reminder_type == 'text' %}selected{% endif %}>Text Only</option>
+                <option value="image" {% if pill and pill.reminder_type == 'image' %}selected{% endif %}>Text + Image</option>
+                <option value="video" {% if pill and pill.reminder_type == 'video' %}selected{% endif %}>Text + Video</option>
+            </select>
+        </div>
+
+        <div class="form-group" id="media-upload" style="display: none;">
+            <label for="reminder_media_file">Upload Media File</label>
+            <input type="file" id="reminder_media_file" name="reminder_media_file" accept="image/*,video/*">
+            {% if pill and pill.reminder_media %}
+            <div class="hint">Current: {{ pill.reminder_media }}</div>
+            {% endif %}
+        </div>
+
+        <div class="form-group">
+            <label for="reminder_message">Custom Message</label>
+            <textarea id="reminder_message" name="reminder_message"
+                      placeholder="e.g. Don't forget to take this with breakfast!">{{ pill.reminder_message if pill else '' }}</textarea>
+            <div class="hint">This message will be shown on the full-screen reminder on the TV.</div>
+        </div>
+
+        <div class="form-group">
+            <label>
+                <input type="checkbox" name="enabled" value="1"
+                       {% if not pill or pill.enabled %}checked{% endif %}>
+                Enabled
+            </label>
+        </div>
+
+        <div class="btn-group">
+            <button type="submit" class="btn btn-primary">{{ 'Save Changes' if pill else 'Create Pill Reminder' }}</button>
+            <a href="/admin/pills" class="btn" style="color: var(--text-muted);">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<script>
+function toggleMediaUpload() {
+    const type = document.getElementById('reminder_type').value;
+    document.getElementById('media-upload').style.display = (type === 'text') ? 'none' : 'block';
+}
+toggleMediaUpload();
+</script>
+{% endblock %}

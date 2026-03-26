@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live TV - Senior TV</title>
+    <link rel="stylesheet" href="/static/css/tv.css">
+</head>
+<body>
+    <div class="content-page">
+        <div class="page-header">
+            <span class="page-title">📺 Live TV</span>
+            <span class="back-hint">Press BACK to return home</span>
+        </div>
+
+        {% if error %}
+        <div class="error-state">Unable to load channels. Please try again later.</div>
+        {% else %}
+
+        <!-- Category filter tabs -->
+        <div class="category-tabs">
+            <a class="category-tab navigable {% if not selected_category %}active{% endif %}"
+               href="/tv/live">All</a>
+            {% for cat in categories[:8] %}
+            <a class="category-tab navigable {% if selected_category == cat.name %}active{% endif %}"
+               href="/tv/live?category={{ cat.name }}">{{ cat.name }}</a>
+            {% endfor %}
+        </div>
+
+        <div class="content-body scroll-container">
+            {% if channels %}
+                {% for ch in channels %}
+                <a class="channel-item navigable" href="/tv/live/play/{{ ch.id }}">
+                    <div class="channel-logo-wrap">
+                        {% if ch.logo %}
+                        <img class="channel-logo" src="{{ ch.logo }}" alt="{{ ch.name }}" loading="lazy">
+                        {% else %}
+                        <div class="channel-logo-placeholder">{{ ch.name[:3] }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="channel-info">
+                        <div class="channel-name">{{ ch.name }}</div>
+                        {% if ch.current_program %}
+                        <div class="channel-now-playing">Now: {{ ch.current_program.title }}</div>
+                        {% if ch.current_program.description %}
+                        <div class="channel-description">{{ ch.current_program.description }}</div>
+                        {% endif %}
+                        {% endif %}
+                    </div>
+                    {% if ch.number > 0 %}
+                    <div class="channel-number">{{ ch.number }}</div>
+                    {% endif %}
+                </a>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">No channels found for this category.</div>
+            {% endif %}
+        </div>
+
+        <div class="nav-hint">▲ ▼ Browse Channels &nbsp;&nbsp; ◀ ▶ Categories &nbsp;&nbsp; OK = Watch</div>
+        {% endif %}
+    </div>
+
+    <!-- Pill Reminder Overlay -->
+    <div class="reminder-overlay" id="reminder-overlay">
+        <div class="reminder-icon">💊</div>
+        <div class="reminder-title">Time For Your Medicine</div>
+        <div class="reminder-name" id="reminder-name"></div>
+        <div class="reminder-dosage" id="reminder-dosage"></div>
+        <video class="reminder-video" id="reminder-video" style="display:none" autoplay></video>
+        <img class="reminder-image" id="reminder-image" style="display:none" alt="Reminder">
+        <div class="reminder-message" id="reminder-message"></div>
+        <div class="reminder-dismiss">Press OK to dismiss</div>
+    </div>
+
+    <script src="/static/js/tv.js"></script>
+</body>
+</html>

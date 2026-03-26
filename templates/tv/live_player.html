@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ channel.name }} - Senior TV</title>
+    <link rel="stylesheet" href="/static/css/tv.css">
+    <script src="/static/js/hls.min.js"></script>
+</head>
+<body class="player-body">
+    <div class="player-container" id="player-container">
+        <video id="video-player" autoplay playsinline></video>
+
+        <!-- Controls overlay -->
+        <div class="player-overlay visible" id="player-overlay">
+            <div class="player-top-bar">
+                <span class="player-back-hint">◀ BACK</span>
+                <span class="player-now-playing">
+                    📺 {{ channel.name }}
+                    {% if channel.current_program %}
+                     — {{ channel.current_program.title }}
+                    {% endif %}
+                </span>
+            </div>
+
+            <div class="player-center-icon" id="player-center-icon">Loading...</div>
+
+            <div class="player-bottom-bar">
+                <div class="player-controls-hint">
+                    OK = Play/Pause &nbsp;&nbsp; ▲▼ = Volume &nbsp;&nbsp; BACK = Channel Guide
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pill Reminder Overlay -->
+    <div class="reminder-overlay" id="reminder-overlay">
+        <div class="reminder-icon">💊</div>
+        <div class="reminder-title">Time For Your Medicine</div>
+        <div class="reminder-name" id="reminder-name"></div>
+        <div class="reminder-dosage" id="reminder-dosage"></div>
+        <video class="reminder-video" id="reminder-video" style="display:none" autoplay></video>
+        <img class="reminder-image" id="reminder-image" style="display:none" alt="Reminder">
+        <div class="reminder-message" id="reminder-message"></div>
+        <div class="reminder-dismiss">Press OK to dismiss</div>
+    </div>
+
+    <script src="/static/js/tv.js"></script>
+    <script>
+        (function() {
+            const video = document.getElementById('video-player');
+            const streamUrl = {{ channel.stream_url | tojson }};
+            const overlay = document.getElementById('player-overlay');
+            const centerIcon = document.getElementById('player-center-icon');
+            let overlayTimeout, iconTimeout;
+            let hls = null;
+
+            function showOverlay() {
+                overlay.classList.add('visible');
+                clearTimeout(overlayTimeout);
+                overlayTimeout = setTimeout(() => {
+                    if (!video.paused) overlay.classList.remove('visible');
+                }, 4000);
+            }
+
+            function showCenterIcon(text) {
+                centerIcon.textContent = text;
+                centerIcon.classList.add('visible');
+                clearTimeout(iconTimeout);
+                iconTimeout = setTimeout(() => centerIcon.classList.remove('visible'), 2000);
+            }
+
+            // Use proxy to bypass Pluto TV CORS restrictions
+            const proxyUrl = "/api/pluto-stream/{{ channel.id }}";
+
+            function startHLS(url) {
+                if (Hls.isSupported()) {
+                    hls = new Hls({
+                        liveDurationInfinity: true,
+                        lowLatencyMode: false,
+                        enableWorker: true,
+                        fragLoadingMaxRetry: 6,
+                        manifestLoadingMaxRetry: 6,
+                        levelLoadingMaxRetry: 6,
+                        fragLoadingRetryDelay: 2000,
+                    });
+
+                    hls.loadSource(url);
+                    hls.attachMedia(video);
+
+                    hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                        // Enable subtitles if available
+                        if (hls.subtitleTracks && hls.subtitleTracks.length > 0) {
+                            hls.subtitleTrack = 0;
+                            hls.subtitleDisplay = true;
+                        }
+                        video.play().then(() => {
+                            showCenterIcon('▶');
+                        }).catch(() => {
+                            showCenterIcon('Press OK to play');
+                        });
+                    });
+
+                    var hlsRetries = 0;
+                    hls.on(Hls.Events.ERROR, function(event, data) {
+                        console.log('HLS error:', data.type, data.details);
+                        if (data.fatal) {
+                            hlsRetries++;
+                            if (hlsRetries > 3) {
+                                showCenterIcon('Stream unavailable — press BACK');
+                                return;
+                            }
+                            switch (data.type) {
+                                case Hls.ErrorTypes.NETWORK_ERROR:
+                                    showCenterIcon('Reconnecting...');
+                                    setTimeout(() => hls.startLoad(), 3000);
+                                    break;
+                                case Hls.ErrorTypes.MEDIA_ERROR:
+                                    showCenterIcon('Recovering...');
+                                    hls.recoverMediaError();
+                                    break;
+                                default:
+                                    showCenterIcon('Trying backup stream...');
+                                    hls.destroy();
+                                    setTimeout(() => startHLS(proxyUrl), 2000);
+                                    break;
+                            }
+                        }
+                    });
+                } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                    // Safari native HLS
+                    video.src = streamUrl;
+                    video.play().catch(() => {
+                        showCenterIcon('Press OK to play');
+                    });
+                } else {
+                    showCenterIcon('HLS not supported');
+                }
+            }
+
+            // Always use proxy — Pluto TV blocks CORS from non-pluto.tv origins
+            startHLS(proxyUrl);
+
+            video.addEventListener('playing', () => showCenterIcon('▶'));
+            video.addEventListener('waiting', () => showCenterIcon('Buffering...'));
+
+            document.addEventListener('keydown', function(e) {
+                if (document.getElementById('reminder-overlay').classList.contains('active')) return;
+
+                switch(e.key) {
+                    case 'Enter':
+                    case ' ':
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (video.paused) {
+                            video.play().then(() => showCenterIcon('▶')).catch(() => {});
+                        } else {
+                            video.pause();
+                            showCenterIcon('⏸');
+                        }
+                        showOverlay();
+                        break;
+                    case 'ArrowUp':
+                        e.preventDefault();
+                        e.stopPropagation();
+                        video.volume = Math.min(1, video.volume + 0.1);
+                        showCenterIcon('🔊 ' + Math.round(video.volume * 100) + '%');
+                        showOverlay();
+                        break;
+                    case 'ArrowDown':
+                        e.preventDefault();
+                        e.stopPropagation();
+                        video.volume = Math.max(0, video.volume - 0.1);
+                        showCenterIcon('🔉 ' + Math.round(video.volume * 100) + '%');
+                        showOverlay();
+                        break;
+                    case 'Escape':
+                    case 'Backspace':
+                    case 'BrowserBack':
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (hls) hls.destroy();
+                        window.quickNav('/tv/live');
+                        break;
+                    default:
+                        showOverlay();
+                }
+            }, true);
+
+            showOverlay();
+        })();
+    </script>
+</body>
+</html>

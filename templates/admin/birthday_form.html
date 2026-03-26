@@ -1,0 +1,31 @@
+{% extends "admin/base.html" %}
+{% block title %}Add Birthday{% endblock %}
+{% block content %}
+<h1 style="margin: 20px 0;">🎂 Add Birthday</h1>
+<div class="card">
+    <form method="POST">
+        <div class="form-group">
+            <label for="name">Name *</label>
+            <input type="text" id="name" name="name" required placeholder="e.g. Cheryl">
+        </div>
+        <div class="form-group">
+            <label for="birth_date">Birthday (MM-DD) *</label>
+            <input type="text" id="birth_date" name="birth_date" required placeholder="e.g. 07-04" pattern="\d{2}-\d{2}">
+            <div class="hint">Month and day only, e.g. 07-04 for July 4th</div>
+        </div>
+        <div class="form-group">
+            <label for="birth_year">Birth Year (optional)</label>
+            <input type="number" id="birth_year" name="birth_year" placeholder="e.g. 1965">
+            <div class="hint">If provided, the greeting will include their age</div>
+        </div>
+        <div class="form-group">
+            <label for="relationship">Relationship</label>
+            <input type="text" id="relationship" name="relationship" placeholder="e.g. Daughter, Grandson">
+        </div>
+        <div class="btn-group">
+            <button type="submit" class="btn btn-primary">Add Birthday</button>
+            <a href="/admin/birthdays" class="btn" style="color: var(--text-muted);">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

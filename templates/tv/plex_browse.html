@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ library_name }} - Senior TV</title>
+    <link rel="stylesheet" href="/static/css/tv.css">
+</head>
+<body>
+    <div class="content-page">
+        <div class="page-header">
+            <span class="page-title">{{ library_name }}</span>
+            <span class="back-hint">Press BACK to go back</span>
+        </div>
+
+        {% if error %}
+        <div class="error-state">{{ error }}</div>
+        {% else %}
+
+        <!-- Genre filter tabs -->
+        {% if genres %}
+        <div class="category-tabs">
+            <a class="category-tab navigable {% if not selected_genre %}active{% endif %}"
+               href="/tv/plex/library/{{ library_id }}?sort={{ selected_sort }}">All</a>
+            {% for genre in genres %}
+            <a class="category-tab navigable {% if selected_genre == genre %}active{% endif %}"
+               href="/tv/plex/library/{{ library_id }}?genre={{ genre }}&sort={{ selected_sort }}">{{ genre }}</a>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Sort bar -->
+        {% if sort_options %}
+        <div class="sort-bar">
+            <span class="sort-label">Sort:</span>
+            {% for s_key, s_order, s_label in sort_options %}
+            <a class="sort-option navigable {% if selected_sort == s_key %}active{% endif %}"
+               href="/tv/plex/library/{{ library_id }}?sort={{ s_key }}&order={{ s_order }}{% if selected_genre %}&genre={{ selected_genre }}{% endif %}">{{ s_label }}</a>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Items grid -->
+        <div class="content-body scroll-container">
+            {% if items %}
+            <div class="poster-grid" id="poster-grid">
+                {% for item in items %}
+                <a class="poster-card navigable"
+                   href="{% if item.type == 'series' %}/tv/plex/show/{{ item.id }}{% else %}/tv/plex/play/{{ item.id }}{% endif %}">
+                    {% if item.thumb %}
+                    <img class="poster-img" src="{{ item.thumb }}" alt="{{ item.title }}" loading="lazy">
+                    {% else %}
+                    <div class="poster-img poster-placeholder">🎬</div>
+                    {% endif %}
+                    <div class="poster-title">{{ item.title }}</div>
+                    <div class="poster-subtitle">
+                        {% if item.year %}{{ item.year }}{% endif %}
+                        {% if item.duration %} · {{ item.duration }}{% endif %}
+                        {% if item.official_rating %} · {{ item.official_rating }}{% endif %}
+                        {% if item.rating %} · ★{{ "%.1f" | format(item.rating) }}{% endif %}
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+
+            <!-- Pagination -->
+            <div class="pagination-bar">
+                {% if page > 0 %}
+                <a class="pagination-btn navigable" href="/tv/plex/library/{{ library_id }}?page={{ page - 1 }}&sort={{ selected_sort }}{% if selected_genre %}&genre={{ selected_genre }}{% endif %}">◀ Previous</a>
+                {% endif %}
+                {% if has_more %}
+                <a class="pagination-btn navigable" href="/tv/plex/library/{{ library_id }}?page={{ page + 1 }}&sort={{ selected_sort }}{% if selected_genre %}&genre={{ selected_genre }}{% endif %}">Next ▶</a>
+                {% endif %}
+            </div>
+            {% else %}
+            <div class="empty-state">No items found.</div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Pill Reminder Overlay -->
+    <div class="reminder-overlay" id="reminder-overlay">
+        <div class="reminder-icon">💊</div>
+        <div class="reminder-title">Time For Your Medicine</div>
+        <div class="reminder-name" id="reminder-name"></div>
+        <div class="reminder-dosage" id="reminder-dosage"></div>
+        <video class="reminder-video" id="reminder-video" style="display:none" autoplay></video>
+        <img class="reminder-image" id="reminder-image" style="display:none" alt="Reminder">
+        <div class="reminder-message" id="reminder-message"></div>
+        <div class="reminder-dismiss">Press OK to dismiss</div>
+    </div>
+
+    <script src="/static/js/tv.js"></script>
+</body>
+</html>

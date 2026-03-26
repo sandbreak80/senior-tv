@@ -1,0 +1,38 @@
+{% extends "admin/base.html" %}
+{% block title %}Messages{% endblock %}
+{% block content %}
+<div style="display: flex; align-items: center; justify-content: space-between; margin: 20px 0;">
+    <h1>💌 Family Messages</h1>
+    <a href="/admin/messages/send" class="btn btn-primary">+ Send Message</a>
+</div>
+
+<p style="color: var(--text-muted); margin-bottom: 20px; font-size: 14px;">
+    Send messages, photos, and videos to Don & Colleen's TV. They'll see a notification immediately and can view the message on screen.
+</p>
+
+{% if messages %}
+<div class="card">
+    <div class="table-wrap">
+        <table>
+            <tr><th>From</th><th>Message</th><th>Type</th><th>Sent</th><th>Read</th><th>Actions</th></tr>
+            {% for msg in messages %}
+            <tr>
+                <td><strong>{{ msg.sender }}</strong></td>
+                <td>{{ (msg.message or '')[:50] }}{% if msg.media_file %} <em>(+{{ msg.media_type }})</em>{% endif %}</td>
+                <td>{{ msg.media_type }}</td>
+                <td style="font-size: 12px;">{{ msg.created_at[:16] }}</td>
+                <td>{% if msg.read_at %}<span class="badge badge-active">Read</span>{% else %}<span class="badge badge-inactive">Unread</span>{% endif %}</td>
+                <td>
+                    <form method="POST" action="/admin/messages/{{ msg.id }}/delete" style="display:inline" onsubmit="return confirm('Delete?')">
+                        <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="card"><p class="empty">No messages sent yet. Click "Send Message" to send one to the TV.</p></div>
+{% endif %}
+{% endblock %}

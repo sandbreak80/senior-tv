@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Message from {{ message.sender }} - Senior TV</title>
+    <link rel="stylesheet" href="/static/css/tv.css">
+    <style>
+        .message-full {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            text-align: center;
+            padding: 80px;
+            background: var(--bg);
+        }
+        .message-from {
+            font-size: 44px;
+            color: var(--accent);
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+        .message-text {
+            font-size: 64px;
+            font-weight: 700;
+            line-height: 1.4;
+            max-width: 80%;
+            margin-bottom: 40px;
+            color: var(--text);
+        }
+        .message-media img {
+            max-width: 70vw;
+            max-height: 55vh;
+            border-radius: 20px;
+            object-fit: contain;
+            margin-bottom: 30px;
+        }
+        .message-media video {
+            max-width: 70vw;
+            max-height: 55vh;
+            border-radius: 20px;
+            margin-bottom: 30px;
+        }
+        .message-time {
+            font-size: 28px;
+            color: var(--text-muted);
+            margin-bottom: 20px;
+        }
+        .message-back {
+            font-size: 30px;
+            color: var(--text-muted);
+            opacity: 0.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="message-full">
+        <div class="message-from">💌 Message from {{ message.sender }}</div>
+
+        {% if message.media_type == 'image' and message.media_file %}
+        <div class="message-media">
+            <img src="/static/media/{{ message.media_file }}" alt="Photo">
+        </div>
+        {% elif message.media_type == 'video' and message.media_file %}
+        <div class="message-media">
+            <video autoplay controls>
+                <source src="/static/media/{{ message.media_file }}">
+            </video>
+        </div>
+        {% endif %}
+
+        {% if message.message %}
+        <div class="message-text">{{ message.message }}</div>
+        {% endif %}
+
+        <div class="message-time">{{ message.created_at }}</div>
+        <div class="message-back">Press BACK to return to messages</div>
+    </div>
+
+    <!-- Pill Reminder Overlay -->
+    <div class="reminder-overlay" id="reminder-overlay">
+        <div class="reminder-icon">💊</div>
+        <div class="reminder-title">Time For Your Medicine</div>
+        <div class="reminder-name" id="reminder-name"></div>
+        <div class="reminder-dosage" id="reminder-dosage"></div>
+        <video class="reminder-video" id="reminder-video" style="display:none" autoplay></video>
+        <img class="reminder-image" id="reminder-image" style="display:none" alt="Reminder">
+        <div class="reminder-message" id="reminder-message"></div>
+        <div class="reminder-dismiss">Press OK to dismiss</div>
+    </div>
+
+    <script src="/static/js/tv.js"></script>
+</body>
+</html>

@@ -1,0 +1,54 @@
+{% extends "admin/base.html" %}
+{% block title %}{{ 'Edit' if channel else 'Add' }} YouTube Channel{% endblock %}
+{% block content %}
+<h1 style="margin: 20px 0;">{{ 'Edit' if channel else 'Add' }} YouTube Channel</h1>
+
+<div class="card">
+    <form method="POST">
+        <div class="form-group">
+            <label for="name">Channel Name *</label>
+            <input type="text" id="name" name="name" required value="{{ channel.name if channel else '' }}"
+                   placeholder="e.g. The Lawrence Welk Show">
+        </div>
+
+        <div class="form-group">
+            <label for="channel_id">YouTube Channel ID *</label>
+            <input type="text" id="channel_id" name="channel_id" required value="{{ channel.channel_id if channel else '' }}"
+                   placeholder="e.g. UCxxxxxxxxxxxxxxxxxx">
+            <div class="hint">
+                Go to the YouTube channel page → click "About" → Share → Copy channel ID.
+                It starts with "UC" and is 24 characters. You can also find it in the channel's URL.
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="description">Description</label>
+            <input type="text" id="description" name="description" value="{{ channel.description if channel else '' }}"
+                   placeholder="e.g. Classic variety show">
+        </div>
+
+        <div class="form-group">
+            <label for="thumbnail_url">Thumbnail URL</label>
+            <input type="text" id="thumbnail_url" name="thumbnail_url" value="{{ channel.thumbnail_url if channel else '' }}"
+                   placeholder="https://...">
+            <div class="hint">Optional. URL to a thumbnail image for this channel.</div>
+        </div>
+
+        <div class="form-group">
+            <label for="category">Category</label>
+            <input type="text" id="category" name="category" value="{{ channel.category if channel else 'Entertainment' }}"
+                   placeholder="e.g. Entertainment, Music, Cooking, Faith">
+        </div>
+
+        <div class="form-group">
+            <label for="sort_order">Sort Order</label>
+            <input type="number" id="sort_order" name="sort_order" value="{{ channel.sort_order if channel else 0 }}">
+        </div>
+
+        <div class="btn-group">
+            <button type="submit" class="btn btn-primary">{{ 'Save Changes' if channel else 'Add Channel' }}</button>
+            <a href="/admin/youtube" class="btn" style="color: var(--text-muted);">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

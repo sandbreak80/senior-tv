@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Today's Movies - Senior TV</title>
+    <link rel="stylesheet" href="/static/css/tv.css">
+</head>
+<body>
+    <div class="content-page">
+        <div class="page-header">
+            <span class="page-title">🎲 Today's Movies — {{ today_str }}</span>
+            <span class="back-hint">Press BACK to go back</span>
+        </div>
+
+        <div class="content-body scroll-container">
+            {% if movies %}
+            <div class="poster-grid" id="poster-grid">
+                {% for item in movies %}
+                <a class="poster-card navigable" href="/tv/plex/play/{{ item.id }}">
+                    {% if item.thumb %}
+                    <img class="poster-img" src="{{ item.thumb }}" alt="{{ item.title }}" loading="lazy">
+                    {% else %}
+                    <div class="poster-img poster-placeholder">🎬</div>
+                    {% endif %}
+                    <div class="poster-title">{{ item.title }}</div>
+                    <div class="poster-subtitle">
+                        {% if item.year %}{{ item.year }}{% endif %}
+                        {% if item.duration %} · {{ item.duration }}{% endif %}
+                        {% if item.rating %} · ★{{ "%.1f" | format(item.rating) }}{% endif %}
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+            {% elif error %}
+            <div class="error-state">{{ error }}</div>
+            {% else %}
+            <div class="empty-state">No movies available.</div>
+            {% endif %}
+        </div>
+
+        <div class="nav-hint">20 different movies every day! &nbsp;&nbsp; ▲ ▼ ◀ ▶ Browse &nbsp;&nbsp; OK = Watch</div>
+    </div>
+
+    <!-- Pill Reminder Overlay -->
+    <div class="reminder-overlay" id="reminder-overlay">
+        <div class="reminder-icon">💊</div>
+        <div class="reminder-title">Time For Your Medicine</div>
+        <div class="reminder-name" id="reminder-name"></div>
+        <div class="reminder-dosage" id="reminder-dosage"></div>
+        <video class="reminder-video" id="reminder-video" style="display:none" autoplay></video>
+        <img class="reminder-image" id="reminder-image" style="display:none" alt="Reminder">
+        <div class="reminder-message" id="reminder-message"></div>
+        <div class="reminder-dismiss">Press OK to dismiss</div>
+    </div>
+
+    <script src="/static/js/tv.js"></script>
+</body>
+</html>

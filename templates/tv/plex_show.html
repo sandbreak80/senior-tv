@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ show.title if show else 'Show' }} - Senior TV</title>
+    <link rel="stylesheet" href="/static/css/tv.css">
+</head>
+<body>
+    <div class="content-page">
+        <div class="page-header">
+            <span class="page-title">{{ show.title if show else 'Show' }}</span>
+            <span class="back-hint">Press BACK to go back</span>
+        </div>
+
+        {% if error %}
+        <div class="error-state">{{ error }}</div>
+        {% elif show %}
+
+        <!-- Show Header -->
+        <div class="show-header">
+            {% if show.backdrop %}
+            <div class="show-backdrop" style="background-image: url('{{ show.backdrop }}')"></div>
+            {% endif %}
+            <div class="show-info">
+                <div class="show-title">{{ show.title }}</div>
+                <div class="show-meta">
+                    {% if show.year %}{{ show.year }}{% endif %}
+                    {% if show.official_rating %} · {{ show.official_rating }}{% endif %}
+                    {% if show.season_count %} · {{ show.season_count }} Seasons{% endif %}
+                </div>
+                {% if show.summary %}
+                <div class="show-summary">{{ show.summary }}</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Shuffle Play Button -->
+        <a class="menu-item navigable" href="/tv/plex/shuffle/{{ show.id }}" style="margin: 16px 0; max-width: 500px; background: var(--accent-soft);">
+            <span class="item-icon">🔀</span>
+            <span>Shuffle Play — Random Episode</span>
+        </a>
+
+        <!-- Season Tabs -->
+        {% if seasons %}
+        <div class="season-tabs">
+            {% for season in seasons %}
+            <a class="season-tab navigable {% if season.id == selected_season %}active{% endif %}"
+               href="/tv/plex/show/{{ show.id }}?season={{ season.id }}">
+                {{ season.title }}
+            </a>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Episodes -->
+        <div class="content-body scroll-container">
+            {% if episodes %}
+                {% for ep in episodes %}
+                <a class="episode-item navigable" href="/tv/plex/play/{{ ep.id }}">
+                    <div class="episode-thumb-wrap">
+                        {% if ep.thumb %}
+                        <img class="episode-thumb" src="{{ ep.thumb }}" alt="" loading="lazy">
+                        {% else %}
+                        <div class="episode-thumb-placeholder">▶</div>
+                        {% endif %}
+                    </div>
+                    <div class="episode-info">
+                        <div class="episode-title">{{ ep.index }}. {{ ep.title }}</div>
+                        {% if ep.duration %}<div class="episode-duration">{{ ep.duration }}</div>{% endif %}
+                        {% if ep.summary %}<div class="episode-summary">{{ ep.summary }}</div>{% endif %}
+                    </div>
+                </a>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">No episodes found.</div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Pill Reminder Overlay -->
+    <div class="reminder-overlay" id="reminder-overlay">
+        <div class="reminder-icon">💊</div>
+        <div class="reminder-title">Time For Your Medicine</div>
+        <div class="reminder-name" id="reminder-name"></div>
+        <div class="reminder-dosage" id="reminder-dosage"></div>
+        <video class="reminder-video" id="reminder-video" style="display:none" autoplay></video>
+        <img class="reminder-image" id="reminder-image" style="display:none" alt="Reminder">
+        <div class="reminder-message" id="reminder-message"></div>
+        <div class="reminder-dismiss">Press OK to dismiss</div>
+    </div>
+
+    <script src="/static/js/tv.js"></script>
+</body>
+</html>

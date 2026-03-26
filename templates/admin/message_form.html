@@ -1,0 +1,42 @@
+{% extends "admin/base.html" %}
+{% block title %}Send Message{% endblock %}
+{% block content %}
+<h1 style="margin: 20px 0;">💌 Send a Message to the TV</h1>
+
+<div class="card">
+    <form method="POST" enctype="multipart/form-data">
+        <div class="form-group">
+            <label for="sender">Your Name *</label>
+            <input type="text" id="sender" name="sender" required placeholder="e.g. Brad, Cheryl" value="Brad">
+        </div>
+
+        <div class="form-group">
+            <label for="message">Message</label>
+            <textarea id="message" name="message" rows="4" placeholder="e.g. Hi Mom and Dad! We love you! See you Sunday."></textarea>
+            <div class="hint">This will be displayed in large text on the TV screen.</div>
+        </div>
+
+        <div class="form-group">
+            <label for="media_file">Attach a Photo or Video (optional)</label>
+            <input type="file" id="media_file" name="media_file" accept="image/*,video/*">
+            <div class="hint">Send a family photo or a video message. It will display full-screen on the TV.</div>
+        </div>
+
+        <div class="btn-group">
+            <button type="submit" class="btn btn-primary" style="padding: 14px 40px; font-size: 16px;">Send to TV Now</button>
+            <a href="/admin/messages" class="btn" style="color: var(--text-muted);">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<div class="card" style="margin-top: 20px;">
+    <h2>How it works</h2>
+    <ol style="font-size: 14px; line-height: 2; padding-left: 20px;">
+        <li>Type your message and optionally attach a photo or video</li>
+        <li>Hit "Send to TV Now"</li>
+        <li>A notification pops up on the TV immediately: "New Message from [Your Name]!"</li>
+        <li>When they press OK, they see the full message with any photo/video</li>
+        <li>Messages are saved in the "Messages" section of the TV menu</li>
+    </ol>
+</div>
+{% endblock %}
