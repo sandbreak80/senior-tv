@@ -53,7 +53,7 @@ def _update_presence(person_detected):
             hour = now.hour
             _presence_state["hourly"][hour] = _presence_state["hourly"].get(hour, 0) + 1
             if was_occupied:
-                _presence_state["today_minutes"] += 0.5  # Called every 30 sec
+                _presence_state["today_minutes"] += 1/6  # Called every 10 sec
         else:
             if was_occupied:
                 _presence_state["last_empty"] = now
@@ -86,7 +86,7 @@ def start_presence_monitor(alert_queue=None):
                     last_occupied = person_now
             except Exception:
                 pass
-            time.sleep(30)
+            time.sleep(10)
 
     t = threading.Thread(target=_poll, daemon=True)
     t.start()
