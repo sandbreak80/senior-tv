@@ -267,22 +267,47 @@
             }
         }, 30000);
 
-        // Load quote and On This Day into left panel
-        fetch("/api/daily-digest")
-            .then(r => r.json())
-            .then(data => {
-                if (data.quote) {
-                    const q = document.getElementById('home-quote');
-                    if (q) q.textContent = '\u{1F4AC} "' + data.quote.text + '" \u2014 ' + data.quote.author;
-                    const ql = document.getElementById('home-quote-large');
-                    if (ql) ql.textContent = '"' + data.quote.text + '" \u2014 ' + data.quote.author;
-                }
-                if (data.history) {
-                    const f = document.getElementById('home-fact');
-                    if (f) f.textContent = '\u{1F4DC} On this day in ' + data.history.year + ': ' + data.history.text.substring(0, 150) + '...';
-                }
-            })
-            .catch(() => {});
+        // Load quote and On This Day — rotate every 5 minutes
+        function refreshDigest(fresh) {
+            var url = fresh ? "/api/daily-digest?fresh=1" : "/api/daily-digest";
+            fetch(url)
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.quote) {
+                        var q = document.getElementById('home-quote');
+                        if (q) q.textContent = '\u{1F4AC} "' + data.quote.text + '" \u2014 ' + data.quote.author;
+                        var ql = document.getElementById('home-quote-large');
+                        if (ql) ql.textContent = '"' + data.quote.text + '" \u2014 ' + data.quote.author;
+                    }
+                    if (data.history) {
+                        var f = document.getElementById('home-fact');
+                        if (f) f.textContent = '\u{1F4DC} On this day in ' + data.history.year + ': ' + data.history.text.substring(0, 150) + '...';
+                    }
+                })
+                .catch(function() {});
+        }
+        refreshDigest(false);
+        setInterval(function() { refreshDigest(true); }, 300000); // 5 min
+
+        // Rotate family photo every 30 seconds
+        var photoEl = document.getElementById('home-family-photo');
+        if (photoEl) {
+            setInterval(function() {
+                fetch('/api/immich-slideshow?count=1')
+                    .then(function(r) { return r.json(); })
+                    .then(function(photos) {
+                        if (photos.length > 0) {
+                            photoEl.style.opacity = '0';
+                            setTimeout(function() {
+                                photoEl.src = photos[0].url;
+                                photoEl.style.opacity = '0.9';
+                            }, 500);
+                        }
+                    })
+                    .catch(function() {});
+            }, 30000);
+            photoEl.style.transition = 'opacity 0.5s ease';
+        }
     </script>
 </body>
 </html>

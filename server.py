@@ -1432,9 +1432,11 @@ def api_daily_digest():
     except Exception:
         pass
 
-    # Daily quote
+    # Daily quote — use /api/random for rotation, /api/today for daily
     try:
-        resp = requests.get("https://zenquotes.io/api/today", timeout=5)
+        fresh = request.args.get("fresh", "0") == "1"
+        quote_url = "https://zenquotes.io/api/random" if fresh else "https://zenquotes.io/api/today"
+        resp = requests.get(quote_url, timeout=5)
         if resp.status_code == 200:
             quotes = resp.json()
             if quotes:
