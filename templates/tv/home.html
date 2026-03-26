@@ -62,24 +62,24 @@
                     {% if la_news_video_id %}
                     <div class="home-stream-label">🔴 LA News Live</div>
                     <div class="home-stream-frame" style="position: relative;">
-                        <iframe src="https://www.youtube.com/embed/{{ la_news_video_id }}?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&disablekb=1&iv_load_policy=3&fs=0"
+                        <iframe src="https://www.youtube.com/embed/{{ la_news_video_id }}?autoplay=1&mute=0&controls=0&modestbranding=1&rel=0&disablekb=1&iv_load_policy=3&fs=0"
                             allow="autoplay; encrypted-media" sandbox="allow-scripts allow-same-origin allow-presentation"></iframe>
                         <div style="position:absolute;inset:0;z-index:2;"></div>
                     </div>
                     <a class="home-menu-item navigable" href="/tv/news/youtube/{{ la_news_video_id }}" style="margin-top: 8px;">
-                        <span class="home-menu-icon">🔊</span>
-                        <span class="home-menu-label">Watch News with Sound</span>
+                        <span class="home-menu-icon">📺</span>
+                        <span class="home-menu-label">Watch Now</span>
                     </a>
                     {% elif wind_down_video %}
                     <div class="home-stream-label">🌙 {{ wind_down_video.name }}</div>
                     <div class="home-stream-frame" style="position: relative;">
-                        <iframe src="https://www.youtube.com/embed/{{ wind_down_video.video_id }}?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&loop=1&disablekb=1&iv_load_policy=3&fs=0"
+                        <iframe src="https://www.youtube.com/embed/{{ wind_down_video.video_id }}?autoplay=1&mute=0&controls=0&modestbranding=1&rel=0&loop=1&disablekb=1&iv_load_policy=3&fs=0"
                             allow="autoplay; encrypted-media" sandbox="allow-scripts allow-same-origin allow-presentation"></iframe>
                         <div style="position:absolute;inset:0;z-index:2;"></div>
                     </div>
                     <a class="home-menu-item navigable" href="/tv/youtube/watch/{{ wind_down_video.video_id }}" style="margin-top: 8px;">
-                        <span class="home-menu-icon">🔊</span>
-                        <span class="home-menu-label">Watch with Sound</span>
+                        <span class="home-menu-icon">📺</span>
+                        <span class="home-menu-label">Watch Now</span>
                     </a>
                     {% else %}
                     <div class="home-evening-panel">
@@ -123,9 +123,9 @@
                         <div class="poster-title">{{ item.series_name or item.title }}</div>
                     </a>
                     {% endfor %}
-                    <a class="poster-card navigable" href="/tv/plex/daily" style="min-width: 160px;">
-                        <div class="poster-img poster-placeholder" style="font-size: 48px;">🎲</div>
-                        <div class="poster-title">20 More Movies</div>
+                    <a class="poster-card navigable" href="/tv/plex/daily">
+                        <div class="poster-img poster-placeholder">🎲</div>
+                        <div class="poster-title">More Movies</div>
                     </a>
                 </div>
             </div>
@@ -141,19 +141,19 @@
                 </div>
                 <div class="home-poster-row">
                     {% for ch in time_youtube %}
-                    <a class="poster-card navigable" href="/tv/youtube/channel/{{ ch.channel_id }}">
+                    <a class="poster-card poster-wide navigable" href="/tv/youtube/channel/{{ ch.channel_id }}">
                         {% if ch.thumbnail_url and 'default-user' not in ch.thumbnail_url %}
-                        <img class="poster-img" src="{{ ch.thumbnail_url }}" alt="{{ ch.name }}" loading="lazy" style="aspect-ratio: 16/9; object-fit: cover;">
+                        <img class="poster-img" src="{{ ch.thumbnail_url }}" alt="{{ ch.name }}" loading="lazy">
                         {% else %}
-                        <div class="poster-img poster-placeholder" style="aspect-ratio: 16/9; font-size: 40px;">{{ ch.name[0] }}</div>
+                        <div class="poster-img poster-placeholder">{{ ch.name }}</div>
                         {% endif %}
                         <div class="poster-title">{{ ch.name }}</div>
                         <div class="poster-subtitle">{{ ch.description }}</div>
                     </a>
                     {% endfor %}
-                    <a class="poster-card navigable" href="/tv/youtube" style="min-width: 160px;">
-                        <div class="poster-img poster-placeholder" style="aspect-ratio: 16/9; font-size: 32px;">📺</div>
-                        <div class="poster-title">All Channels</div>
+                    <a class="poster-card poster-wide navigable" href="/tv/youtube">
+                        <div class="poster-img poster-placeholder">All Channels</div>
+                        <div class="poster-title">YouTube</div>
                     </a>
                 </div>
             </div>
@@ -165,11 +165,11 @@
                 <div class="home-section-label">🔍 Crime & Drama</div>
                 <div class="home-poster-row">
                     {% for ch in crime_youtube %}
-                    <a class="poster-card navigable" href="/tv/youtube/channel/{{ ch.channel_id }}">
+                    <a class="poster-card poster-wide navigable" href="/tv/youtube/channel/{{ ch.channel_id }}">
                         {% if ch.thumbnail_url and 'default-user' not in ch.thumbnail_url %}
-                        <img class="poster-img" src="{{ ch.thumbnail_url }}" alt="{{ ch.name }}" loading="lazy" style="aspect-ratio: 16/9; object-fit: cover;">
+                        <img class="poster-img" src="{{ ch.thumbnail_url }}" alt="{{ ch.name }}" loading="lazy">
                         {% else %}
-                        <div class="poster-img poster-placeholder" style="aspect-ratio: 16/9; font-size: 40px;">{{ ch.name[0] }}</div>
+                        <div class="poster-img poster-placeholder">{{ ch.name }}</div>
                         {% endif %}
                         <div class="poster-title">{{ ch.name }}</div>
                         <div class="poster-subtitle">{{ ch.description }}</div>
@@ -185,11 +185,11 @@
                 <div class="home-section-label">😂 Comedy</div>
                 <div class="home-poster-row">
                     {% for ch in comedy_youtube %}
-                    <a class="poster-card navigable" href="/tv/youtube/channel/{{ ch.channel_id }}">
+                    <a class="poster-card poster-wide navigable" href="/tv/youtube/channel/{{ ch.channel_id }}">
                         {% if ch.thumbnail_url and 'default-user' not in ch.thumbnail_url %}
-                        <img class="poster-img" src="{{ ch.thumbnail_url }}" alt="{{ ch.name }}" loading="lazy" style="aspect-ratio: 16/9; object-fit: cover;">
+                        <img class="poster-img" src="{{ ch.thumbnail_url }}" alt="{{ ch.name }}" loading="lazy">
                         {% else %}
-                        <div class="poster-img poster-placeholder" style="aspect-ratio: 16/9; font-size: 40px;">{{ ch.name[0] }}</div>
+                        <div class="poster-img poster-placeholder">{{ ch.name }}</div>
                         {% endif %}
                         <div class="poster-title">{{ ch.name }}</div>
                         <div class="poster-subtitle">{{ ch.description }}</div>
@@ -205,14 +205,14 @@
                 <div class="home-section-label">📺 Live TV — 400+ Free Channels</div>
                 <div class="home-poster-row">
                     {% for cat in suggested_pluto %}
-                    <a class="poster-card navigable" href="/tv/live?category={{ cat }}">
-                        <div class="poster-img poster-placeholder" style="aspect-ratio: 16/9; font-size: 22px; font-weight: 700; line-height: 1.3;">{{ cat }}</div>
-                        <div class="poster-title">Live Channels</div>
+                    <a class="poster-card poster-wide navigable" href="/tv/live?category={{ cat }}">
+                        <div class="poster-img poster-placeholder">{{ cat }}</div>
+                        <div class="poster-title">Live TV</div>
                     </a>
                     {% endfor %}
-                    <a class="poster-card navigable" href="/tv/live" style="min-width: 160px;">
-                        <div class="poster-img poster-placeholder" style="aspect-ratio: 16/9; font-size: 32px;">📡</div>
-                        <div class="poster-title">All Channels</div>
+                    <a class="poster-card poster-wide navigable" href="/tv/live">
+                        <div class="poster-img poster-placeholder">All Channels</div>
+                        <div class="poster-title">Browse All</div>
                     </a>
                 </div>
             </div>
@@ -224,11 +224,11 @@
                 <div class="home-section-label">📰 Local & National News</div>
                 <div class="home-poster-row">
                     {% for ch in local_youtube %}
-                    <a class="poster-card navigable" href="/tv/youtube/channel/{{ ch.channel_id }}">
+                    <a class="poster-card poster-wide navigable" href="/tv/youtube/channel/{{ ch.channel_id }}">
                         {% if ch.thumbnail_url and 'default-user' not in ch.thumbnail_url %}
-                        <img class="poster-img" src="{{ ch.thumbnail_url }}" alt="{{ ch.name }}" loading="lazy" style="aspect-ratio: 16/9; object-fit: cover;">
+                        <img class="poster-img" src="{{ ch.thumbnail_url }}" alt="{{ ch.name }}" loading="lazy">
                         {% else %}
-                        <div class="poster-img poster-placeholder" style="aspect-ratio: 16/9; font-size: 40px;">{{ ch.name[0] }}</div>
+                        <div class="poster-img poster-placeholder">{{ ch.name }}</div>
                         {% endif %}
                         <div class="poster-title">{{ ch.name }}</div>
                     </a>

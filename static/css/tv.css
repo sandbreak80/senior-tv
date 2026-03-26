@@ -299,18 +299,26 @@ html, body {
 .home-poster-row::-webkit-scrollbar { display: none; }
 
 .home-poster-row .poster-card {
-    min-width: 140px;
-    max-width: 160px;
-}
-
-.home-poster-row .poster-card .poster-img {
-    aspect-ratio: 2/3;
-    height: auto;
+    min-width: 150px;
+    max-width: 170px;
 }
 
 .home-poster-row .poster-card .poster-title {
-    font-size: 22px;
-    padding: 4px 8px;
+    font-size: 20px;
+    padding: 6px 8px 2px;
+    white-space: normal;
+    line-height: 1.2;
+    max-height: 50px;
+    overflow: hidden;
+}
+
+.home-poster-row .poster-card .poster-subtitle {
+    font-size: 16px;
+    padding: 0 8px 6px;
+    white-space: normal;
+    line-height: 1.2;
+    max-height: 38px;
+    overflow: hidden;
 }
 
 .daily-digest {
@@ -828,6 +836,16 @@ html, body {
     color: rgba(255,255,255,0.5);
 }
 
+/* Wide cards (YouTube channels, Pluto categories) */
+.poster-card.poster-wide .poster-img {
+    aspect-ratio: 16/9;
+}
+
+.poster-card.poster-wide .poster-placeholder {
+    font-size: 28px;
+    font-weight: 700;
+}
+
 /* Sort bar */
 .sort-bar {
     display: flex;
@@ -891,19 +909,17 @@ html, body {
 }
 
 .poster-title {
-    font-size: 28px;
+    font-size: 26px;
     font-weight: 600;
-    padding: 12px 16px 4px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    padding: 10px 12px 4px;
+    line-height: 1.2;
 }
 
 .poster-subtitle {
-    font-size: 22px;
+    font-size: 20px;
     color: var(--text-muted);
-    padding: 0 16px 12px;
-    white-space: nowrap;
+    padding: 0 12px 10px;
+    line-height: 1.2;
     overflow: hidden;
     text-overflow: ellipsis;
 }

@@ -188,10 +188,10 @@ def tv_home():
             libs = jf.get_libraries()
             genre_picks = []
             for lib in libs:
-                for genre in jf_genres[:2]:
+                for genre in jf_genres[:3]:
                     try:
                         items = jf.get_library_items(lib["id"], sort="Random",
-                                                     sort_order="Ascending", genre=genre, limit=4)
+                                                     sort_order="Ascending", genre=genre, limit=6)
                         genre_picks.extend(items)
                     except Exception:
                         pass
@@ -307,7 +307,7 @@ def tv_home():
         weather_icon=weather_icon,
         next_pill=next_pill,
         menu_items=menu_items,
-        jf_recommendations=jf_recommendations[:15],
+        jf_recommendations=jf_recommendations[:20],
         la_news_video_id=la_news_video_id,
         wind_down_video=wind_down_video,
         next_event=next_event,

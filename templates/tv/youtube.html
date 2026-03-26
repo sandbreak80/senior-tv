@@ -34,12 +34,11 @@
                 <div class="section-label">{{ cat_name }}</div>
                 <div class="poster-row">
                     {% for ch in cat_channels %}
-                    <a class="poster-card navigable" href="/tv/youtube/channel/{{ ch.channel_id }}">
+                    <a class="poster-card poster-wide navigable" href="/tv/youtube/channel/{{ ch.channel_id }}">
                         {% if ch.thumbnail_url and 'default-user' not in ch.thumbnail_url %}
-                        <img class="poster-img" src="{{ ch.thumbnail_url }}" alt="{{ ch.name }}" loading="lazy"
-                             style="aspect-ratio: 16/9; object-fit: cover;">
+                        <img class="poster-img" src="{{ ch.thumbnail_url }}" alt="{{ ch.name }}" loading="lazy">
                         {% else %}
-                        <div class="poster-img poster-placeholder" style="aspect-ratio: 16/9; font-size: 48px;">{{ ch.name[0] }}</div>
+                        <div class="poster-img poster-placeholder">{{ ch.name }}</div>
                         {% endif %}
                         <div class="poster-title">{{ ch.name }}</div>
                         {% if ch.description %}
