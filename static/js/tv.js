@@ -222,10 +222,25 @@ window.quickNav = function(url) {
     // --- Key Handling ---
 
     function handleKeyDown(e) {
-        // If reminder is active, only OK/Enter dismisses it (unless blocked)
+        // If reminder is active, handle dismiss/action
         if (reminderActive) {
-            if (!reminderBlocked && (e.key === "Enter" || e.key === " ")) {
-                dismissReminder();
+            if (!reminderBlocked) {
+                if (e.key === "Enter" || e.key === " ") {
+                    // For show alerts: Enter = Watch Now (navigate to channel)
+                    if (showAlertChannelId) {
+                        var chId = showAlertChannelId;
+                        showAlertChannelId = null;
+                        dismissReminder();
+                        window.quickNav("/tv/live/play/" + chId);
+                        e.preventDefault();
+                        return;
+                    }
+                    dismissReminder();
+                } else if (e.key === "ArrowDown" && showAlertChannelId) {
+                    // Down = just dismiss (don't watch)
+                    showAlertChannelId = null;
+                    dismissReminder();
+                }
             }
             e.preventDefault();
             return;
@@ -591,20 +606,23 @@ window.quickNav = function(url) {
 
     // --- Show Alert ---
 
+    var showAlertChannelId = null;
+
     function showShowAlert(data) {
         const overlay = document.getElementById("reminder-overlay");
         if (!overlay) return;
 
         currentReminderId = data.reminder_id;
+        showAlertChannelId = data.channel_id || null;
 
         const iconEl = overlay.querySelector(".reminder-icon");
         if (iconEl) iconEl.textContent = "📺";
         const titleEl = overlay.querySelector(".reminder-title");
         if (titleEl) titleEl.textContent = data.show_name + " is on now!";
 
-        document.getElementById("reminder-name").textContent = "Channel: " + data.channel_name;
+        document.getElementById("reminder-name").textContent = data.channel_name;
         document.getElementById("reminder-dosage").textContent = "";
-        document.getElementById("reminder-message").textContent = "Press OK to dismiss";
+        document.getElementById("reminder-message").textContent = "Press OK to Watch Now\n\u25BC Press Down to close";
 
         const videoEl = document.getElementById("reminder-video");
         const imageEl = document.getElementById("reminder-image");
@@ -615,8 +633,8 @@ window.quickNav = function(url) {
         reminderActive = true;
         playChime();
 
-        // Auto-dismiss after 20 seconds
-        setTimeout(() => { if (reminderActive) dismissReminder(); }, 20000);
+        // Auto-dismiss after 30 seconds
+        setTimeout(function() { if (reminderActive) dismissReminder(); }, 30000);
     }
 
     // --- Family Message Alert ---

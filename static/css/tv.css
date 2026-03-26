@@ -299,8 +299,8 @@ html, body {
 .home-poster-row::-webkit-scrollbar { display: none; }
 
 .home-poster-row .poster-card {
-    min-width: 150px;
-    max-width: 170px;
+    min-width: 210px;
+    max-width: 240px;
 }
 
 .home-poster-row .poster-card .poster-title {
@@ -809,8 +809,8 @@ html, body {
     transition: all 0.15s ease;
     text-decoration: none;
     color: var(--text);
-    min-width: 200px;
-    max-width: 260px;
+    min-width: 300px;
+    max-width: 390px;
 }
 
 .poster-card.selected {

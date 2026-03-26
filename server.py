@@ -178,24 +178,29 @@ def tv_home():
         {"label": "Photo Frame", "icon": "📷", "url": "/tv/photos"},
     ]
 
-    # Jellyfin recommendations — genre-aware by time of day
-    jf_recommendations = []
+    # Jellyfin recommendations — separate movies and shows
+    jf_movies = []
+    jf_shows = []
     jf = _get_jellyfin()
     if jf:
         try:
             resume = jf.get_resume(limit=5)
-            # Get genre-specific picks for this time of day
             libs = jf.get_libraries()
-            genre_picks = []
             for lib in libs:
+                lib_type = lib.get("type", "")
                 for genre in jf_genres[:3]:
                     try:
                         items = jf.get_library_items(lib["id"], sort="Random",
-                                                     sort_order="Ascending", genre=genre, limit=6)
-                        genre_picks.extend(items)
+                                                     sort_order="Ascending", genre=genre, limit=8)
+                        for item in items:
+                            if item.get("type") == "series" or lib_type == "tvshows":
+                                jf_shows.append(item)
+                            else:
+                                jf_movies.append(item)
                     except Exception:
                         pass
-            jf_recommendations = resume + genre_picks
+            # Prepend resume items to movies
+            jf_movies = resume + jf_movies
         except Exception:
             pass
 
@@ -307,7 +312,8 @@ def tv_home():
         weather_icon=weather_icon,
         next_pill=next_pill,
         menu_items=menu_items,
-        jf_recommendations=jf_recommendations[:20],
+        jf_movies=jf_movies[:15],
+        jf_shows=jf_shows[:15],
         la_news_video_id=la_news_video_id,
         wind_down_video=wind_down_video,
         next_event=next_event,

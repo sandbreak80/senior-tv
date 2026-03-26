@@ -108,24 +108,46 @@
             <!-- CONTENT ROWS -->
 
             <!-- Movies from Jellyfin -->
-            {% if jf_recommendations %}
+            {% if jf_movies %}
             <div class="home-content-section">
-                <div class="home-section-label">🎬 Movies & Shows — Pick One!</div>
+                <div class="home-section-label">🎬 Movies</div>
                 <div class="home-poster-row">
-                    {% for item in jf_recommendations %}
-                    <a class="poster-card navigable"
-                       href="{% if item.type == 'series' %}/tv/plex/show/{{ item.id }}{% else %}/tv/plex/play/{{ item.id }}{% endif %}">
+                    {% for item in jf_movies %}
+                    <a class="poster-card navigable" href="/tv/plex/play/{{ item.id }}">
                         {% if item.thumb %}
                         <img class="poster-img" src="{{ item.thumb }}" alt="{{ item.title }}" loading="lazy">
                         {% else %}
                         <div class="poster-img poster-placeholder">🎬</div>
                         {% endif %}
-                        <div class="poster-title">{{ item.series_name or item.title }}</div>
+                        <div class="poster-title">{{ item.title }}</div>
                     </a>
                     {% endfor %}
                     <a class="poster-card navigable" href="/tv/plex/daily">
                         <div class="poster-img poster-placeholder">🎲</div>
                         <div class="poster-title">More Movies</div>
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- TV Shows from Jellyfin -->
+            {% if jf_shows %}
+            <div class="home-content-section">
+                <div class="home-section-label">📺 TV Shows</div>
+                <div class="home-poster-row">
+                    {% for item in jf_shows %}
+                    <a class="poster-card navigable" href="/tv/plex/show/{{ item.id }}">
+                        {% if item.thumb %}
+                        <img class="poster-img" src="{{ item.thumb }}" alt="{{ item.title }}" loading="lazy">
+                        {% else %}
+                        <div class="poster-img poster-placeholder">📺</div>
+                        {% endif %}
+                        <div class="poster-title">{{ item.series_name or item.title }}</div>
+                    </a>
+                    {% endfor %}
+                    <a class="poster-card navigable" href="/tv/plex">
+                        <div class="poster-img poster-placeholder">📺</div>
+                        <div class="poster-title">Browse All</div>
                     </a>
                 </div>
             </div>
