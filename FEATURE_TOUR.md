@@ -15,6 +15,8 @@ The home screen is a hotel-TV-style welcome page that adapts throughout the day.
 - Current weather for Sun City, CA
 - Next pill reminder and upcoming calendar event
 - Menu on the left, live LA news stream on the right (morning only — hidden after 3 PM per care plan)
+- After 3 PM: calming ambient video from Wind Down channels (Bob Ross, BBC Earth, nature, fireplace)
+- Family photo from Immich in the left panel (clickable to open full slideshow)
 - Below: full-width navigation + content recommendations that change by time of day
 
 **Time-of-day intelligence:**
@@ -190,11 +192,18 @@ Cameras monitored: `front_door` (configurable to add `back_patio`, `garage`, etc
 
 ## 📷 Photo Frame / Screensaver
 
-- Upload family photos via admin panel or point to a NAS folder
-- Full-screen slideshow with crossfade transitions
-- Clock overlay
+**Three photo sources:**
+1. **Immich** — 143,350 family photos from the Immich server, fetched in random batches
+2. **Uploaded** — photos uploaded via the admin panel
+3. **NAS** — photos from a mounted NAS folder
+
+**Features:**
+- Full-screen slideshow with crossfade transitions between two preloaded images
+- Dynamic fetching: loads 20 random Immich photos at a time, fetches more as needed
+- Clock overlay (top-right)
 - After 10 minutes of inactivity on the home screen, auto-activates as screensaver
-- Any key press returns to home
+- Any key press returns to home instantly (kills in-flight image downloads for fast exit)
+- Family photo widget on home page shows a random photo from Immich
 
 ---
 
@@ -239,11 +248,15 @@ Accessible from any device on the network at **http://192.168.50.159:5000/admin*
 - **Browser:** Google Chrome kiosk mode (dedicated profile, uBlock Origin ad blocker)
 - **Backend:** Python/Flask, SQLite, APScheduler
 - **Media:** Jellyfin (5,112 movies + 108 shows on 192.168.50.20)
-- **Live TV:** Pluto TV (421 channels, HLS proxy for CORS bypass)
-- **Smart Home:** Frigate (9 cameras, 192.168.50.114), Home Assistant (192.168.50.76)
-- **Remote:** Samsung TV remote via HDMI-CEC (or FLIRC USB IR receiver recommended)
-- **Auto-start:** systemd service — boots directly into the app
+- **Live TV:** Pluto TV (421 channels with logos, HLS proxy for CORS bypass)
+- **Photos:** Immich (143,350 family photos on 192.168.50.165)
+- **Smart Home:** Frigate (doorbell camera, 192.168.50.114), Home Assistant (TV control, 192.168.50.76)
+- **Remote:** Samsung TV remote via HDMI-CEC → keyboard events via xdotool
+- **Auto-start:** systemd service with process supervision (Flask + Chrome + CEC bridge)
+- **Self-healing:** Local watchdog (3 min) + Claude AI health agent (hourly) + HDMI audio persistence
+- **Remote access:** SSH + Tailscale mesh VPN
 - **Navigation:** 6 buttons only — Up, Down, Left, Right, OK, Back
+- **YouTube security:** Sandboxed iframes, click-blocking overlays, no popups, disabled keyboard/annotations
 
 ---
 
