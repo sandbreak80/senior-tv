@@ -1111,6 +1111,51 @@ def admin_activity():
     return render_template("admin/activity.html", logs=logs)
 
 
+@app.route("/admin/cameras")
+def admin_cameras():
+    """Live camera view with snapshots from Frigate."""
+    cameras = []
+    try:
+        resp = requests.get("http://localhost:5001/api/stats", timeout=5)
+        if resp.ok:
+            stats = resp.json()
+            config_resp = requests.get("http://localhost:5001/api/config", timeout=5)
+            cam_config = config_resp.json().get("cameras", {}) if config_resp.ok else {}
+            for name, info in sorted(stats.get("cameras", {}).items()):
+                detect = cam_config.get(name, {}).get("detect", {})
+                cameras.append({
+                    "name": name,
+                    "camera_fps": round(info.get("camera_fps", 0), 1),
+                    "detection_fps": round(info.get("detection_fps", 0), 1),
+                    "width": detect.get("width", "?"),
+                    "height": detect.get("height", "?"),
+                    "fps": detect.get("fps", "?"),
+                })
+    except Exception:
+        pass
+    return render_template("admin/cameras.html", cameras=cameras)
+
+
+@app.route("/admin/cameras/snapshot/<camera_name>")
+def admin_camera_snapshot(camera_name):
+    """Proxy camera snapshot from Frigate."""
+    import re
+    if not re.match(r'^[a-z_]+$', camera_name):
+        return "", 400
+    try:
+        resp = requests.get(
+            f"http://localhost:5001/api/{camera_name}/latest.jpg",
+            params={"h": 480},
+            timeout=5,
+        )
+        if resp.ok:
+            return Response(resp.content, mimetype="image/jpeg",
+                            headers={"Cache-Control": "no-cache"})
+    except Exception:
+        pass
+    return "", 404
+
+
 @app.route("/admin/services")
 def admin_services():
     """Docker service management page."""

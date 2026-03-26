@@ -1,0 +1,47 @@
+{% extends "admin/base.html" %}
+{% block title %}Cameras{% endblock %}
+{% block content %}
+<h1 style="margin: 20px 0;">Cameras <span style="font-size: 16px; color: #666;">({{ cameras | length }} active)</span></h1>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 16px;">
+    {% for cam in cameras %}
+    <div class="card" style="padding: 0; overflow: hidden;">
+        <div style="position: relative; background: #1a1a2e;">
+            <img src="/admin/cameras/snapshot/{{ cam.name }}" alt="{{ cam.name }}"
+                 style="width: 100%; display: block; aspect-ratio: 16/9; object-fit: cover;"
+                 id="cam-{{ cam.name }}"
+                 onerror="this.style.opacity='0.3'; this.alt='No feed'">
+        </div>
+        <div style="padding: 10px 14px; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <div style="font-weight: 700; font-size: 16px;">{{ cam.name | replace('_', ' ') | title }}</div>
+                <div style="font-size: 13px; color: #666;">
+                    {{ cam.width }}x{{ cam.height }} @ {{ cam.fps }}fps
+                    {% if cam.detection_fps > 0 %}
+                    &nbsp; | &nbsp; Det: {{ cam.detection_fps }}fps
+                    {% endif %}
+                </div>
+            </div>
+            <div style="font-size: 12px; color: {{ '#4caf50' if cam.camera_fps > 0 else '#f44336' }};">
+                {{ 'Live' if cam.camera_fps > 0 else 'Offline' }}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% if not cameras %}
+<div class="card" style="text-align: center; padding: 40px; color: #666;">
+    No cameras configured. Set up Frigate in <a href="/admin/services">Services</a>.
+</div>
+{% endif %}
+
+<script>
+// Auto-refresh snapshots every 10 seconds
+setInterval(function() {
+    document.querySelectorAll('img[id^="cam-"]').forEach(function(img) {
+        img.src = img.src.split('?')[0] + '?t=' + Date.now();
+    });
+}, 10000);
+</script>
+{% endblock %}
