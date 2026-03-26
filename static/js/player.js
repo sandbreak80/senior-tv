@@ -16,6 +16,31 @@
 
     if (!video) return;
 
+    // --- Activity Logging ---
+    const container = document.getElementById("player-container");
+    const logItemId = container ? container.dataset.itemId : "";
+    const logItemTitle = container ? container.dataset.itemTitle : "";
+    const logItemType = container ? container.dataset.itemType : "video";
+
+    function logPlay() {
+        fetch("/api/log-activity", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({type: "playback_start", item_id: logItemId, title: logItemTitle, item_type: logItemType})
+        }).catch(function(){});
+    }
+    function logStop() {
+        var dur = Math.floor(video.currentTime || 0);
+        fetch("/api/log-activity", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({type: "playback_stop", item_id: logItemId, title: logItemTitle, item_type: logItemType, duration: dur})
+        }).catch(function(){});
+    }
+    video.addEventListener("play", logPlay);
+    video.addEventListener("ended", logStop);
+    window.addEventListener("beforeunload", logStop);
+
     // --- Controls ---
 
     function togglePlayPause() {

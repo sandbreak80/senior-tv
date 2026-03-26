@@ -50,12 +50,21 @@ CEC_KEY_MAP = {
 }
 
 
-def send_key(key_name):
-    """Send a keyboard event using xdotool."""
+def send_key(key_name, cec_code=None, description=""):
+    """Send a keyboard event using xdotool and log it."""
     try:
         subprocess.run(["xdotool", "key", key_name], timeout=2, check=False)
     except Exception as e:
         print(f"xdotool error: {e}", file=sys.stderr)
+    # Log button press (non-blocking, fire and forget)
+    if cec_code:
+        try:
+            import requests as _req
+            _req.post("http://localhost:5000/api/log-remote",
+                      json={"cec_code": cec_code, "key": key_name, "description": description},
+                      timeout=1)
+        except Exception:
+            pass
 
 
 def try_kernel_cec():
@@ -94,7 +103,7 @@ def try_kernel_cec():
             x_key = CEC_KEY_MAP.get(key_code)
             if x_key:
                 print(f"CEC kernel: {match.group(1)} ({key_code}) -> {x_key}")
-                send_key(x_key)
+                send_key(x_key, cec_code=key_code, description=match.group(1))
 
     return True
 
@@ -138,7 +147,7 @@ def try_libcec():
             x_key = CEC_KEY_MAP.get(key_code)
             if x_key:
                 print(f"CEC: {match.group(1)} ({key_code}) -> {x_key}")
-                send_key(x_key)
+                send_key(x_key, cec_code=key_code, description=match.group(1))
             continue
 
         match = traffic_pattern.search(line)
@@ -147,7 +156,7 @@ def try_libcec():
             x_key = CEC_KEY_MAP.get(key_code)
             if x_key:
                 print(f"CEC raw: {key_code} -> {x_key}")
-                send_key(x_key)
+                send_key(x_key, cec_code=key_code)
 
     return True
 

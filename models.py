@@ -111,9 +111,86 @@ def init_db():
             recurring TEXT,            -- null, daily, weekly, monthly, yearly
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+
+        CREATE TABLE IF NOT EXISTS activity_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            activity_type TEXT NOT NULL,
+            item_id TEXT,
+            item_title TEXT,
+            item_type TEXT,
+            duration_seconds INTEGER,
+            started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            stopped_at TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS remote_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cec_code TEXT,
+            x_key TEXT,
+            button_description TEXT,
+            logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
     """)
     db.commit()
     db.close()
+
+
+def log_activity(activity_type, item_id=None, item_title=None, item_type=None, duration_seconds=None):
+    with get_db_safe() as db:
+        db.execute(
+            """INSERT INTO activity_logs (activity_type, item_id, item_title, item_type, duration_seconds)
+               VALUES (?, ?, ?, ?, ?)""",
+            (activity_type, item_id, item_title, item_type, duration_seconds),
+        )
+        db.commit()
+
+
+def log_activity_stop(item_id, duration_seconds):
+    with get_db_safe() as db:
+        db.execute(
+            """UPDATE activity_logs SET stopped_at = CURRENT_TIMESTAMP, duration_seconds = ?
+               WHERE item_id = ? AND stopped_at IS NULL
+               ORDER BY id DESC LIMIT 1""",
+            (duration_seconds, item_id),
+        )
+        db.commit()
+
+
+def log_remote_button(cec_code, x_key, description):
+    with get_db_safe() as db:
+        db.execute(
+            "INSERT INTO remote_logs (cec_code, x_key, button_description) VALUES (?, ?, ?)",
+            (cec_code, x_key, description),
+        )
+        db.commit()
+
+
+def get_activity_logs(days=7, limit=200):
+    with get_db_safe() as db:
+        rows = db.execute(
+            """SELECT * FROM activity_logs
+               WHERE started_at >= datetime('now', ? || ' days')
+               ORDER BY started_at DESC LIMIT ?""",
+            (f"-{days}", limit),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_last_activity_time():
+    with get_db_safe() as db:
+        row = db.execute(
+            "SELECT MAX(started_at) as last_time FROM activity_logs"
+        ).fetchone()
+        return row["last_time"] if row else None
+
+
+def get_remote_log_count(hours=1):
+    with get_db_safe() as db:
+        row = db.execute(
+            "SELECT COUNT(*) as c FROM remote_logs WHERE logged_at >= datetime('now', ? || ' hours')",
+            (f"-{hours}",),
+        ).fetchone()
+        return row["c"] if row else 0
 
 
 # --- Settings helpers ---

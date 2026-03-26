@@ -7,7 +7,10 @@
     <link rel="stylesheet" href="/static/css/tv.css">
 </head>
 <body class="player-body">
-    <div class="player-container" id="player-container">
+    <div class="player-container" id="player-container"
+         data-item-id="{{ item.id }}"
+         data-item-title="{{ item.series_name ~ ' - ' ~ item.title if item.series_name else item.title }}"
+         data-item-type="{{ item.type or 'video' }}">
         <video id="video-player" autoplay>
             {% if stream_url %}<source src="{{ stream_url }}" type="video/mp4">{% endif %}
             {% if transcode_url %}<source src="{{ transcode_url }}" type="application/x-mpegURL">{% endif %}

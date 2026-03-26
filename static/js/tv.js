@@ -8,6 +8,18 @@
    - On all pages: Escape/Back returns home
 */
 
+// Global activity logger — fire and forget
+window.logActivity = function(type, title, itemType) {
+    fetch("/api/log-activity", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({type: type, title: title, item_type: itemType})
+    }).catch(function(){});
+};
+
+// Log page visit
+window.logActivity("page_visit", document.title, window.location.pathname);
+
 // Global fast navigation — kills iframes, fades out, then navigates
 window.quickNav = function(url) {
     // Kill iframes, videos, and in-flight image downloads
@@ -288,6 +300,9 @@ window.quickNav = function(url) {
                         showShowAlert(data);
                     } else if (data.type === "family_message") {
                         showFamilyMessage(data);
+                    } else if (data.type === "auto_play") {
+                        // Auto-navigate to content (e.g. classical music)
+                        if (data.url) window.quickNav(data.url);
                     }
                 } catch (e) {
                     console.error("SSE parse error:", e);
@@ -322,7 +337,11 @@ window.quickNav = function(url) {
         const iconEl = overlay.querySelector(".reminder-icon");
         if (iconEl) iconEl.textContent = data.icon || "💊";
         const titleEl = overlay.querySelector(".reminder-title");
-        if (titleEl) titleEl.textContent = data.icon === "🚿" ? "Shower Time!" : "Time For Your Medicine";
+        if (titleEl) {
+            if (data.icon === "🚿") titleEl.textContent = "Shower Time!";
+            else if (data.icon === "🧘") titleEl.textContent = "Stretch Break!";
+            else titleEl.textContent = "Time For Your Medicine";
+        }
 
         document.getElementById("reminder-name").textContent = data.name;
         document.getElementById("reminder-dosage").textContent = data.dosage || "";

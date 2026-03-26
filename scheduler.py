@@ -47,8 +47,11 @@ def trigger_reminder(pill, scheduled_time):
             "triggered_at": datetime.now().isoformat(),
         }
 
-    # Shower Time is a blocking reminder — 15 minutes, can't dismiss
-    is_shower = "shower" in pill["name"].lower()
+    # Blocking reminders: shower time and stretch breaks — 15 minutes, can't dismiss
+    name_lower = pill["name"].lower()
+    is_blocking = "shower" in name_lower or "stretch" in name_lower
+    is_shower = "shower" in name_lower
+    is_stretch = "stretch" in name_lower
 
     event_data = {
         "type": "pill_reminder",
@@ -60,8 +63,8 @@ def trigger_reminder(pill, scheduled_time):
         "reminder_type": pill["reminder_type"],
         "reminder_media": pill["reminder_media"],
         "reminder_message": pill["reminder_message"] or f"Time to take your {pill['name']}!",
-        "block_minutes": 15 if is_shower else 0,
-        "icon": "🚿" if is_shower else "💊",
+        "block_minutes": 15 if is_blocking else 0,
+        "icon": "🚿" if is_shower else ("🧘" if is_stretch else "💊"),
     }
     reminder_queue.put(event_data)
 
@@ -197,11 +200,43 @@ def _cache_cleanup():
     import cache
     cache.cleanup()
 
+
+def trigger_classical_music():
+    """Daily 1 hour of classical music (doctor's orders). Triggers at 10 AM."""
+    import feedparser
+    import random as _random
+    from models import get_setting
+
+    enabled = get_setting("classical_music_enabled", "1")
+    if enabled != "1":
+        return
+
+    # Get a random classical video from the HALIDONMUSIC channel or similar
+    channel_id = "UCJ5v_MCY6GNUBTO8-D3XoAg"  # HALIDONMUSIC
+    try:
+        feed = feedparser.parse(f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}")
+        if feed.entries:
+            entry = _random.choice(feed.entries[:15])
+            vid_id = entry.get("yt_videoid", "")
+            if vid_id:
+                event_data = {
+                    "type": "auto_play",
+                    "url": f"/tv/youtube/watch/{vid_id}",
+                    "title": "Classical Music Time",
+                    "message": "Doctor says: 1 hour of classical music daily",
+                    "icon": "🎵",
+                }
+                reminder_queue.put(event_data)
+    except Exception:
+        pass
+
+
 scheduler = BackgroundScheduler()
 scheduler.add_job(check_pills, "interval", minutes=1, id="pill_checker")
 scheduler.add_job(check_birthdays, "interval", hours=1, id="birthday_checker")
 scheduler.add_job(check_favorite_shows, "interval", minutes=10, id="show_checker")
 scheduler.add_job(_cache_cleanup, "interval", minutes=30, id="cache_cleanup")
+scheduler.add_job(trigger_classical_music, "cron", hour=10, minute=0, id="classical_music")
 
 
 def start_scheduler():

@@ -945,6 +945,43 @@ def api_acknowledge():
     return jsonify({"status": "not_found"}), 404
 
 
+@app.route("/api/log-activity", methods=["POST"])
+def api_log_activity():
+    """Log playback/navigation activity from the TV client."""
+    data = request.get_json() or {}
+    models.log_activity(
+        activity_type=data.get("type", "unknown"),
+        item_id=data.get("item_id"),
+        item_title=data.get("title"),
+        item_type=data.get("item_type"),
+        duration_seconds=data.get("duration"),
+    )
+    return jsonify({"status": "logged"})
+
+
+@app.route("/api/log-activity-stop", methods=["POST"])
+def api_log_activity_stop():
+    """Log playback stop with duration."""
+    data = request.get_json() or {}
+    models.log_activity_stop(
+        item_id=data.get("item_id"),
+        duration_seconds=data.get("duration"),
+    )
+    return jsonify({"status": "logged"})
+
+
+@app.route("/api/log-remote", methods=["POST"])
+def api_log_remote():
+    """Log CEC remote button presses."""
+    data = request.get_json() or {}
+    models.log_remote_button(
+        cec_code=data.get("cec_code"),
+        x_key=data.get("key"),
+        description=data.get("description"),
+    )
+    return jsonify({"status": "logged"})
+
+
 # ========================================
 # Admin Panel Routes
 # ========================================
@@ -956,7 +993,17 @@ def admin_dashboard():
         pill["schedule_times_display"] = ", ".join(json.loads(pill["schedule_times"]))
     events = models.get_upcoming_events(days=14)
     settings = models.get_all_settings()
-    return render_template("admin/dashboard.html", pills=pills, events=events, settings=settings)
+    last_activity = models.get_last_activity_time()
+    remote_count_1h = models.get_remote_log_count(hours=1)
+    return render_template("admin/dashboard.html", pills=pills, events=events, settings=settings,
+                           last_activity=last_activity, remote_count_1h=remote_count_1h)
+
+
+@app.route("/admin/activity")
+def admin_activity():
+    """View activity and remote button logs."""
+    logs = models.get_activity_logs(days=7)
+    return render_template("admin/activity.html", logs=logs)
 
 
 # --- Pills CRUD ---
