@@ -836,14 +836,17 @@ html, body {
     color: rgba(255,255,255,0.5);
 }
 
-/* Wide cards (YouTube channels, Pluto categories) */
+/* Wide cards (YouTube channels, Pluto categories) — same height as movie posters */
 .poster-card.poster-wide .poster-img {
-    aspect-ratio: 16/9;
+    aspect-ratio: 2/3;
 }
 
 .poster-card.poster-wide .poster-placeholder {
-    font-size: 28px;
+    font-size: 26px;
     font-weight: 700;
+    line-height: 1.4;
+    padding: 20px 12px;
+    text-align: center;
 }
 
 /* Sort bar */
