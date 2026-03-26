@@ -1076,6 +1076,38 @@ def admin_dashboard():
     last_activity = models.get_last_activity_time()
     remote_count_1h = models.get_remote_log_count(hours=1)
 
+    # System metrics
+    system_metrics = {}
+    try:
+        import psutil
+        system_metrics = {
+            "cpu_percent": psutil.cpu_percent(interval=0.5),
+            "mem_total_gb": round(psutil.virtual_memory().total / (1024**3), 1),
+            "mem_used_gb": round(psutil.virtual_memory().used / (1024**3), 1),
+            "mem_percent": psutil.virtual_memory().percent,
+            "disk_total_gb": round(shutil.disk_usage("/").total / (1024**3)),
+            "disk_used_gb": round(shutil.disk_usage("/").used / (1024**3)),
+            "disk_percent": round(shutil.disk_usage("/").used / shutil.disk_usage("/").total * 100, 1),
+            "uptime": "",
+            "containers_running": 0,
+        }
+        # Uptime
+        uptime_sec = int(psutil.boot_time())
+        from datetime import datetime as _dt
+        boot = _dt.fromtimestamp(uptime_sec)
+        delta = _dt.now() - boot
+        days = delta.days
+        hours = delta.seconds // 3600
+        system_metrics["uptime"] = f"{days}d {hours}h" if days else f"{hours}h {(delta.seconds % 3600) // 60}m"
+        # Docker containers
+        try:
+            result = subprocess.run(["docker", "ps", "-q"], capture_output=True, text=True, timeout=3)
+            system_metrics["containers_running"] = len(result.stdout.strip().split("\n")) if result.stdout.strip() else 0
+        except Exception:
+            pass
+    except Exception:
+        pass
+
     # Recent doorbell events from Frigate
     doorbell_events = []
     frigate_url = get_setting_or_default("frigate_url")
@@ -1101,7 +1133,7 @@ def admin_dashboard():
 
     return render_template("admin/dashboard.html", pills=pills, events=events, settings=settings,
                            last_activity=last_activity, remote_count_1h=remote_count_1h,
-                           doorbell_events=doorbell_events)
+                           doorbell_events=doorbell_events, system_metrics=system_metrics)
 
 
 @app.route("/admin/activity")

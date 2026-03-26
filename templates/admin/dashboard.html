@@ -3,6 +3,19 @@
 {% block content %}
 <h1 style="margin: 20px 0;">Dashboard</h1>
 
+<!-- System Metrics -->
+{% if system_metrics %}
+<div class="card" style="margin-bottom: 16px; padding: 14px 20px;">
+    <div style="display: flex; gap: 30px; flex-wrap: wrap; font-size: 14px;">
+        <span>CPU: <strong>{{ system_metrics.cpu_percent }}%</strong></span>
+        <span>RAM: <strong>{{ system_metrics.mem_used_gb }}GB / {{ system_metrics.mem_total_gb }}GB</strong> ({{ system_metrics.mem_percent }}%)</span>
+        <span>Disk: <strong>{{ system_metrics.disk_used_gb }}GB / {{ system_metrics.disk_total_gb }}GB</strong> ({{ system_metrics.disk_percent }}%)</span>
+        <span>Uptime: <strong>{{ system_metrics.uptime }}</strong></span>
+        <span>Containers: <strong style="color: {{ '#4caf50' if system_metrics.containers_running > 0 else '#f44336' }};">{{ system_metrics.containers_running }} running</strong></span>
+    </div>
+</div>
+{% endif %}
+
 <div class="stats-row">
     <div class="stat-card">
         <div class="stat-num">{{ pills | length }}</div>
