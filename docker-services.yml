@@ -110,6 +110,8 @@ services:
       - FRIGATE_RTSP_PASSWORD=Neotys1!
     devices:
       - /dev/dri:/dev/dri  # AMD GPU for detection
+      - /dev/video0:/dev/video0  # USB webcam (Logitech C920)
+      - /dev/video1:/dev/video1
     shm_size: "256mb"
 
   # =============================================
