@@ -64,6 +64,7 @@ start_chrome() {
         --no-first-run \
         --start-fullscreen \
         --autoplay-policy=no-user-gesture-required \
+        --password-store=basic \
         --user-data-dir=/home/media/.config/senior-tv-chrome \
         http://localhost:5000 &
     CHROME_PID=$!
