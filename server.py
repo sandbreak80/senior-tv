@@ -1137,6 +1137,22 @@ def admin_dashboard():
     except Exception:
         pass
 
+    # TV room presence
+    def _get_tv_presence():
+        try:
+            from smart_home import get_presence
+            p = get_presence()
+            result = dict(p)
+            if p["last_seen"]:
+                result["last_seen_str"] = p["last_seen"].strftime("%I:%M %p")
+            else:
+                result["last_seen_str"] = "Not yet today"
+            mins = int(p["today_minutes"])
+            result["today_hours"] = f"{mins // 60}h {mins % 60}m" if mins >= 60 else f"{mins}m"
+            return result
+        except Exception:
+            return None
+
     # Recent doorbell events from Frigate
     doorbell_events = []
     frigate_url = get_setting_or_default("frigate_url")
@@ -1163,7 +1179,7 @@ def admin_dashboard():
     return render_template("admin/dashboard.html", pills=pills, events=events, settings=settings,
                            last_activity=last_activity, remote_count_1h=remote_count_1h,
                            doorbell_events=doorbell_events, system_metrics=system_metrics,
-                           presence=presence)
+                           presence=presence, tv_presence=_get_tv_presence())
 
 
 @app.route("/admin/activity")
@@ -2096,6 +2112,10 @@ if __name__ == "__main__":
             models.set_setting(key, val)
     start_scheduler()
     _start_smart_home()
+    # Start TV room presence monitor
+    from smart_home import start_presence_monitor
+    start_presence_monitor(alert_queue=reminder_queue)
+    print("Presence monitor started (tv_room webcam)")
     try:
         debug_mode = os.environ.get("SENIOR_TV_DEBUG", "0") == "1"
         app.run(host="0.0.0.0", port=5000, debug=debug_mode, threaded=True)

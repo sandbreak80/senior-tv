@@ -29,15 +29,56 @@
         <div class="stat-num">{{ remote_count_1h }}</div>
         <div class="stat-label">Remote Presses (1hr)</div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card" style="border-left: 4px solid {{ presence.color if presence else '#999' }};">
         {% if presence %}
         <div class="stat-num" style="font-size: 20px; color: {{ presence.color }};">{{ presence.label }}</div>
         {% else %}
         <div class="stat-num" style="font-size: 20px;">—</div>
         {% endif %}
-        <div class="stat-label">Presence</div>
+        <div class="stat-label">TV Room</div>
     </div>
 </div>
+
+<!-- TV Room Presence -->
+{% if tv_presence %}
+<div class="card">
+    <h2>👀 TV Room Presence</h2>
+    <div style="display: flex; gap: 30px; flex-wrap: wrap; align-items: center;">
+        <div style="text-align: center;">
+            <div style="font-size: 48px;">{{ '🟢' if tv_presence.occupied else '⚫' }}</div>
+            <div style="font-size: 14px; font-weight: 600; color: {{ '#4caf50' if tv_presence.occupied else '#999' }};">
+                {{ 'Someone is watching' if tv_presence.occupied else 'Room is empty' }}
+            </div>
+        </div>
+        {% if tv_presence.last_seen %}
+        <div>
+            <div style="font-size: 14px; color: #666;">Last seen</div>
+            <div style="font-size: 18px; font-weight: 600;">{{ tv_presence.last_seen_str }}</div>
+        </div>
+        {% endif %}
+        <div>
+            <div style="font-size: 14px; color: #666;">Watched today</div>
+            <div style="font-size: 18px; font-weight: 600;">{{ tv_presence.today_hours }}</div>
+        </div>
+        {% if tv_presence.hourly %}
+        <div style="flex: 1; min-width: 200px;">
+            <div style="font-size: 14px; color: #666; margin-bottom: 4px;">Today's activity</div>
+            <div style="display: flex; gap: 2px; align-items: end; height: 40px;">
+                {% for h in range(6, 23) %}
+                <div style="flex: 1; background: {{ '#4caf50' if h in tv_presence.hourly else '#eee' }};
+                            height: {{ (tv_presence.hourly.get(h, 0) * 100 // 60)|int }}%;
+                            min-height: 2px; border-radius: 2px;"
+                     title="{{ h }}:00 — {{ tv_presence.hourly.get(h, 0) }} min"></div>
+                {% endfor %}
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 10px; color: #999;">
+                <span>6am</span><span>12pm</span><span>6pm</span><span>10pm</span>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
 
 <!-- Doorbell / Camera Events -->
 <div class="card">

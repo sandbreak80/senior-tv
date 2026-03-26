@@ -316,8 +316,26 @@ window.quickNav = function(url) {
                     } else if (data.type === "family_message") {
                         showFamilyMessage(data);
                     } else if (data.type === "auto_play") {
-                        // Auto-navigate to content (e.g. classical music)
                         if (data.url) window.quickNav(data.url);
+                    } else if (data.type === "presence_change") {
+                        if (!data.occupied && window.location.pathname === "/") {
+                            // Room empty — start photo screensaver in 2 min
+                            if (!window._presenceTimeout) {
+                                window._presenceTimeout = setTimeout(function() {
+                                    window.quickNav("/tv/photos?screensaver=1");
+                                }, 120000);
+                            }
+                        } else if (data.occupied) {
+                            // Someone sat down — cancel screensaver
+                            if (window._presenceTimeout) {
+                                clearTimeout(window._presenceTimeout);
+                                window._presenceTimeout = null;
+                            }
+                            // Wake from screensaver
+                            if (window.location.search.indexOf("screensaver") > -1) {
+                                window.quickNav("/");
+                            }
+                        }
                     }
                 } catch (e) {
                     console.error("SSE parse error:", e);

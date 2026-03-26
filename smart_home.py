@@ -1,6 +1,7 @@
 """Home Assistant + Frigate integration for Senior TV.
 
 Polls Frigate for person detection events (doorbell alerts).
+TV room presence tracking via webcam.
 Connects to Home Assistant for entity states.
 Pushes notifications via the SSE reminder queue.
 """
@@ -13,6 +14,83 @@ from datetime import datetime
 # Frigate session
 _frigate_cookies = {}
 _last_event_id = None
+
+# --- TV Room Presence Tracking ---
+_presence_state = {
+    "occupied": False,
+    "last_seen": None,         # datetime when person last detected
+    "last_empty": None,        # datetime when room became empty
+    "today_minutes": 0,        # total occupied minutes today
+    "today_date": None,        # date for resetting counter
+    "hourly": {},              # {hour: minutes_occupied}
+}
+_presence_lock = threading.Lock()
+
+
+def get_presence():
+    """Get current presence state (thread-safe copy)."""
+    with _presence_lock:
+        return dict(_presence_state)
+
+
+def _update_presence(person_detected):
+    """Update presence state based on detection."""
+    now = datetime.now()
+    with _presence_lock:
+        # Reset daily counter at midnight
+        today = now.strftime("%Y-%m-%d")
+        if _presence_state["today_date"] != today:
+            _presence_state["today_date"] = today
+            _presence_state["today_minutes"] = 0
+            _presence_state["hourly"] = {}
+
+        was_occupied = _presence_state["occupied"]
+        _presence_state["occupied"] = person_detected
+
+        if person_detected:
+            _presence_state["last_seen"] = now
+            # Accumulate occupied time
+            hour = now.hour
+            _presence_state["hourly"][hour] = _presence_state["hourly"].get(hour, 0) + 1
+            if was_occupied:
+                _presence_state["today_minutes"] += 0.5  # Called every 30 sec
+        else:
+            if was_occupied:
+                _presence_state["last_empty"] = now
+
+
+def start_presence_monitor(alert_queue=None):
+    """Start background thread that tracks TV room presence."""
+    def _poll():
+        last_occupied = False
+        while True:
+            try:
+                resp = requests.get(
+                    "http://localhost:5001/api/events",
+                    params={"camera": "tv_room", "label": "person", "limit": 1,
+                            "after": time.time() - 60},
+                    timeout=5,
+                )
+                if resp.ok:
+                    events = resp.json()
+                    person_now = len(events) > 0
+                    _update_presence(person_now)
+
+                    # Push SSE event when presence changes
+                    if alert_queue and person_now != last_occupied:
+                        alert_queue.put({
+                            "type": "presence_change",
+                            "occupied": person_now,
+                            "timestamp": datetime.now().strftime("%I:%M %p"),
+                        })
+                    last_occupied = person_now
+            except Exception:
+                pass
+            time.sleep(30)
+
+    t = threading.Thread(target=_poll, daemon=True)
+    t.start()
+    return t
 
 
 def frigate_login(base_url, username, password):
