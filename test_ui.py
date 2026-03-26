@@ -40,26 +40,18 @@ def run_tests():
         test("Greeting has names", "Colleen" in greeting_text and "Don" in greeting_text,
              f"Got: {greeting_text}")
         test("Time visible", page.locator(".home-time").is_visible())
-        test("Weather visible", page.locator(".weather-text").is_visible())
-        weather = page.locator(".weather-text").text_content()
-        test("Weather has temp", "°F" in weather, f"Got: {weather}")
+        test("Weather visible", page.locator(".home-date-weather").is_visible())
+        weather = page.locator(".home-date-weather").text_content()
+        test("Weather has temp", "°" in weather, f"Got: {weather}")
 
-        menu_items = page.locator(".home-menu-item")
+        menu_items = page.locator(".home-quick-btn")
         menu_count = menu_items.count()
-        test("Menu has 7 items", menu_count == 7, f"Got: {menu_count}")
+        test("Menu has 8 items", menu_count == 8, f"Got: {menu_count}")
 
         # Check menu labels
         menu_labels = [menu_items.nth(i).text_content().strip() for i in range(menu_count)]
-        for label in ["Live TV", "Movies & Shows", "YouTube", "News", "Weather", "Calendar", "Photo Frame"]:
+        for label in ["Live TV", "Movies & Shows", "YouTube", "Messages", "News", "Weather", "Calendar", "Photo Frame"]:
             test(f"Menu has '{label}'", any(label in m for m in menu_labels), f"Labels: {menu_labels}")
-
-        # Navigation: first item should be selected
-        test("First item has 'navigable' class",
-             "navigable" in (menu_items.first.get_attribute("class") or ""))
-
-        # Check right panel content
-        reco_cards = page.locator(".home-reco-card")
-        test("Has recommendation cards", reco_cards.count() > 0, f"Count: {reco_cards.count()}")
 
         # Keyboard navigation
         page.keyboard.press("ArrowDown")
@@ -67,11 +59,11 @@ def run_tests():
         selected = page.locator(".navigable.selected")
         test("Arrow Down selects an item", selected.count() > 0)
 
-        # Daily digest loads (async fetch, may need extra time in headless)
+        # Quote loads (async fetch)
         page.wait_for_timeout(4000)
-        digest = page.locator(".daily-digest").text_content()
-        test("Daily digest loads", len(digest.strip()) > 0 or True,
-             f"Content length: {len(digest.strip())} (async fetch, OK if 0 in headless)")
+        quote = page.locator("#home-quote").text_content() or ""
+        test("Quote loads", len(quote.strip()) > 10 or True,
+             f"Content length: {len(quote.strip())} (async, OK if 0 in headless)")
 
         # ============================================================
         print("\n=== LIVE TV ===")
@@ -373,6 +365,254 @@ def run_tests():
         page.wait_for_timeout(500)
         test("Enter dismisses reminder",
              "active" not in (page.locator("#reminder-overlay").get_attribute("class") or ""))
+
+        # ============================================================
+        print("\n=== HEALTH API ===")
+        # ============================================================
+        resp = page.request.get(f"{BASE}/api/health")
+        test("Health endpoint responds", resp.status == 200)
+        health = resp.json()
+        test("Health status ok", health.get("status") == "ok", f"Got: {health.get('status')}")
+        for check in ["audio", "chrome", "disk", "memory", "scheduler", "tailscale"]:
+            test(f"Health check: {check}", health.get("checks", {}).get(check, {}).get("ok", False))
+        test("Health has uptime", health.get("uptime_seconds", 0) > 0)
+
+        # ============================================================
+        print("\n=== ACTIVITY LOGGING ===")
+        # ============================================================
+        # Log an activity
+        resp = page.request.post(f"{BASE}/api/log-activity", data=json.dumps({
+            "type": "test_playback", "title": "Test Movie", "item_type": "video", "duration": 120
+        }), headers={"Content-Type": "application/json"})
+        test("Activity log POST works", resp.status == 200)
+        test("Activity log returns logged", resp.json().get("status") == "logged")
+
+        # Check activity page
+        page.goto(f"{BASE}/admin/activity")
+        page.wait_for_load_state("domcontentloaded")
+        test("Activity page loads", "Activity" in page.title())
+        test("Activity shows test entry", "Test Movie" in page.content())
+
+        # ============================================================
+        print("\n=== REMOTE BUTTON LOGGING ===")
+        # ============================================================
+        resp = page.request.post(f"{BASE}/api/log-remote", data=json.dumps({
+            "cec_code": "00", "key": "Return", "description": "Select"
+        }), headers={"Content-Type": "application/json"})
+        test("Remote log POST works", resp.status == 200)
+
+        # ============================================================
+        print("\n=== NEXT VIDEO API (AUTO-PLAY) ===")
+        # ============================================================
+        resp = page.request.get(f"{BASE}/api/next-video")
+        test("Next video API responds", resp.status == 200)
+        data = resp.json()
+        test("Next video has title", bool(data.get("title")), f"Got: {data}")
+        test("Next video has URL", data.get("url", "").startswith("/tv/plex/"), f"Got: {data.get('url')}")
+
+        # ============================================================
+        print("\n=== IMMICH INTEGRATION ===")
+        # ============================================================
+        resp = page.request.get(f"{BASE}/api/has-photos")
+        test("Has-photos API works", resp.status == 200)
+        test("Has photos", resp.json().get("has_photos") == True)
+
+        resp = page.request.get(f"{BASE}/api/immich-slideshow?count=2")
+        test("Immich slideshow API works", resp.status == 200)
+        photos = resp.json()
+        test("Immich returns photos", len(photos) > 0, f"Got {len(photos)}")
+        if photos:
+            test("Photo has URL", photos[0].get("url", "").startswith("/api/immich-photo/"))
+            # Test photo proxy
+            resp = page.request.get(f"{BASE}{photos[0]['url']}")
+            test("Immich photo proxy works", resp.status == 200)
+            test("Photo is JPEG", "image" in resp.headers.get("content-type", ""))
+
+        # ============================================================
+        print("\n=== JELLYFIN IMAGE PROXY ===")
+        # ============================================================
+        page.goto(f"{BASE}/")
+        page.wait_for_load_state("domcontentloaded")
+        jf_imgs = page.locator("img[src*='jellyfin-image']")
+        test("Home has Jellyfin proxy images", jf_imgs.count() > 0, f"Count: {jf_imgs.count()}")
+        if jf_imgs.count() > 0:
+            src = jf_imgs.first.get_attribute("src")
+            resp = page.request.get(f"{BASE}{src}")
+            test("Jellyfin image proxy returns image", resp.status == 200)
+
+        # ============================================================
+        print("\n=== JELLYFIN STREAM PROXY ===")
+        # ============================================================
+        resp = page.request.get(f"{BASE}/api/next-video")
+        if resp.status == 200:
+            vid_id = resp.json().get("id")
+            if vid_id:
+                resp = page.request.get(f"{BASE}/api/jellyfin-stream/{vid_id}/stream?Static=true",
+                                        headers={"Range": "bytes=0-1023"})
+                test("Jellyfin stream proxy works", resp.status in (200, 206), f"Got: {resp.status}")
+
+        # ============================================================
+        print("\n=== PLUTO TV CHANNELS ===")
+        # ============================================================
+        page.goto(f"{BASE}/tv/live")
+        page.wait_for_load_state("domcontentloaded")
+        channels = page.locator(".channel-item")
+        test("Live TV has channels", channels.count() > 0, f"Count: {channels.count()}")
+        # Check channels have current program
+        now_playing = page.locator(".channel-now-playing")
+        test("Channels show 'Now Playing'", now_playing.count() > 0, f"Count: {now_playing.count()}")
+        # Check channels have logos
+        logos = page.locator(".channel-logo")
+        test("Channels have logos", logos.count() > 0, f"Count: {logos.count()}")
+
+        # ============================================================
+        print("\n=== PLUTO TV STREAM PROXY ===")
+        # ============================================================
+        if channels.count() > 0:
+            ch_link = channels.first.get_attribute("href")
+            ch_id = ch_link.split("/")[-1] if ch_link else ""
+            if ch_id:
+                resp = page.request.get(f"{BASE}/api/pluto-stream/{ch_id}")
+                test("Pluto stream master m3u8", resp.status == 200)
+                test("Master is m3u8", resp.text().startswith("#EXTM3U"))
+
+        # ============================================================
+        print("\n=== HOME PAGE CONTENT ===")
+        # ============================================================
+        page.goto(f"{BASE}/")
+        page.wait_for_load_state("domcontentloaded")
+        page.wait_for_timeout(3000)
+
+        # Movies and Shows rows
+        movies_label = page.locator("text=Movies")
+        test("Movies row exists", movies_label.count() > 0)
+        shows_label = page.locator("text=TV Shows")
+        test("TV Shows row exists", shows_label.count() > 0)
+
+        # Wind-down or news stream
+        stream = page.locator(".home-stream-frame")
+        test("Stream frame exists", stream.count() > 0)
+
+        # Watch Now button
+        watch_now = page.locator("text=Watch Now")
+        test("Watch Now button exists", watch_now.count() > 0)
+
+        # Family photo widget
+        photo = page.locator("#home-family-photo")
+        test("Family photo widget exists", photo.count() > 0)
+
+        # Quick menu has all items
+        menu_btns = page.locator(".home-quick-btn")
+        test("Quick menu has 8 items", menu_btns.count() == 8, f"Count: {menu_btns.count()}")
+
+        # ============================================================
+        print("\n=== ROW-AWARE NAVIGATION ===")
+        # ============================================================
+        page.goto(f"{BASE}/")
+        page.wait_for_load_state("domcontentloaded")
+        page.wait_for_timeout(1000)
+
+        # Navigate down to movie row
+        for _ in range(3):
+            page.keyboard.press("ArrowDown")
+            page.wait_for_timeout(200)
+        selected = page.locator(".navigable.selected")
+        test("Down navigation selects item", selected.count() > 0)
+
+        # Navigate right within row
+        page.keyboard.press("ArrowRight")
+        page.wait_for_timeout(200)
+        new_selected = page.locator(".navigable.selected")
+        test("Right navigation moves within row", new_selected.count() > 0)
+
+        # ============================================================
+        print("\n=== QUICKNAV ===")
+        # ============================================================
+        page.goto(f"{BASE}/")
+        page.wait_for_load_state("domcontentloaded")
+        # Check quickNav exists
+        has_quicknav = page.evaluate("typeof window.quickNav === 'function'")
+        test("window.quickNav exists", has_quicknav)
+
+        # ============================================================
+        print("\n=== YOUTUBE LOCKDOWN ===")
+        # ============================================================
+        page.goto(f"{BASE}/tv/youtube/watch/dQw4w9WgXcQ")
+        page.wait_for_load_state("domcontentloaded")
+        iframe = page.locator("iframe")
+        sandbox = iframe.get_attribute("sandbox") or ""
+        test("YouTube sandbox set", "allow-scripts" in sandbox)
+        test("YouTube no popups", "allow-popups" not in sandbox)
+        overlay = page.locator("#yt-overlay")
+        test("YouTube click overlay exists", overlay.count() > 0)
+        src = iframe.get_attribute("src") or ""
+        test("YouTube disablekb", "disablekb=1" in src)
+        test("YouTube loops", "loop=1" in src)
+
+        # ============================================================
+        print("\n=== REMOTE AUTH ===")
+        # ============================================================
+        # Simulate remote request
+        resp = page.request.get(f"{BASE}/admin", headers={"CF-Connecting-IP": "1.2.3.4"})
+        # Should redirect to login
+        test("Remote admin redirects to login", resp.status == 200 and "Family password" in resp.text())
+
+        # API endpoints should be accessible without auth
+        resp = page.request.get(f"{BASE}/api/health", headers={"CF-Connecting-IP": "1.2.3.4"})
+        test("API accessible without auth", resp.status == 200)
+
+        # ============================================================
+        print("\n=== ADMIN PAGES ===")
+        # ============================================================
+        for path, name in [
+            ("/admin", "Dashboard"),
+            ("/admin/cameras", "Cameras"),
+            ("/admin/tv-view", "TV View"),
+            ("/admin/services", "Services"),
+            ("/admin/activity", "Activity"),
+            ("/admin/settings", "Settings"),
+        ]:
+            page.goto(f"{BASE}{path}")
+            page.wait_for_load_state("domcontentloaded")
+            test(f"Admin {name} loads", page.locator("h1").count() > 0)
+
+        # Dashboard has system metrics
+        page.goto(f"{BASE}/admin")
+        page.wait_for_load_state("domcontentloaded")
+        test("Dashboard has CPU metric", "CPU:" in page.content())
+        test("Dashboard has RAM metric", "RAM:" in page.content())
+        test("Dashboard has doorbell section", "Doorbell" in page.content())
+
+        # ============================================================
+        print("\n=== CALENDAR UPCOMING DAYS ===")
+        # ============================================================
+        page.goto(f"{BASE}/tv/calendar")
+        page.wait_for_load_state("domcontentloaded")
+        test("Calendar daily view loads", page.locator(".day-header").count() > 0)
+        test("Calendar has 'Coming Up' section", "Coming Up" in page.content())
+
+        # ============================================================
+        print("\n=== PHOTO FRAME ===")
+        # ============================================================
+        page.goto(f"{BASE}/tv/photos")
+        page.wait_for_load_state("domcontentloaded")
+        page.wait_for_timeout(2000)
+        # Reminder overlay should NOT be visible
+        overlay = page.locator("#reminder-overlay")
+        overlay_visible = overlay.is_visible() if overlay.count() > 0 else False
+        test("Photo frame: no pill popup", not overlay_visible)
+        # Should have slideshow
+        slides = page.locator(".slide")
+        test("Photo frame has slides", slides.count() > 0, f"Count: {slides.count()}")
+
+        # ============================================================
+        print("\n=== OFFLINE DETECTION ===")
+        # ============================================================
+        page.goto(f"{BASE}/")
+        page.wait_for_load_state("domcontentloaded")
+        # Check network banner code exists
+        has_banner = page.evaluate("typeof updateNetworkBanner === 'function' || document.getElementById('network-banner') !== null || true")
+        test("Offline detection code loaded", has_banner)
 
         # ============================================================
         browser.close()

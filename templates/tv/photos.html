@@ -6,6 +6,17 @@
     <title>Photos - Senior TV</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        .reminder-overlay { display: none; position: fixed; inset: 0; z-index: 9999;
+            background: rgba(0,0,0,0.95); flex-direction: column; align-items: center;
+            justify-content: center; text-align: center; padding: 80px;
+            font-family: 'Segoe UI', sans-serif; color: #f0f0f0; }
+        .reminder-overlay.active { display: flex; }
+        .reminder-icon { font-size: 120px; margin-bottom: 40px; }
+        .reminder-title { font-size: 72px; font-weight: 700; margin-bottom: 20px; color: #e94560; }
+        .reminder-name { font-size: 80px; font-weight: 800; margin-bottom: 30px; }
+        .reminder-dosage { font-size: 52px; color: #a0a0b0; margin-bottom: 20px; }
+        .reminder-message { font-size: 48px; margin-bottom: 50px; }
+        .reminder-dismiss { font-size: 40px; color: #4ecca3; }
         body {
             background: #000;
             overflow: hidden;
