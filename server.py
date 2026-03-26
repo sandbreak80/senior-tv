@@ -541,8 +541,20 @@ def tv_calendar():
             ampm = f"{h % 12 or 12}:00 {'AM' if h < 12 else 'PM'}"
             hour_events = [e for e in today_events if e.get("event_time", "").startswith(f"{h:02d}:")]
             day_hours.append({"label": ampm, "events": hour_events})
+        # Next 5 days
+        from datetime import timedelta as _td
+        upcoming_days = []
+        for d in range(1, 6):
+            day = now + _td(days=d)
+            day_date = day.strftime("%Y-%m-%d")
+            day_events = [e for e in events if e["event_date"] == day_date]
+            upcoming_days.append({
+                "label": day.strftime("%A, %B %d"),
+                "events": day_events,
+            })
+
         return render_template("tv/calendar.html", view="daily", today_str=today_str,
-                               day_hours=day_hours, events=events)
+                               day_hours=day_hours, events=events, upcoming_days=upcoming_days)
 
     elif view == "monthly":
         month_name = now.strftime("%B")
@@ -1764,6 +1776,34 @@ def immich_photo_proxy(asset_id):
     response = app.response_class(data, mimetype=content_type)
     response.headers["Cache-Control"] = "public, max-age=86400"
     return response
+
+
+@app.route("/api/next-video")
+def api_next_video():
+    """Get a random video to auto-play when current one ends."""
+    jf = _get_jellyfin()
+    if not jf:
+        return jsonify({"error": "not configured"}), 400
+    try:
+        libs = jf.get_libraries()
+        import random
+        for lib in libs:
+            items = jf.get_library_items(lib["id"], sort="Random",
+                                         sort_order="Ascending", limit=1)
+            if items:
+                item = items[0]
+                url = f"/tv/plex/play/{item['id']}"
+                if item.get("type") == "series":
+                    url = f"/tv/plex/show/{item['id']}"
+                return jsonify({
+                    "id": item["id"],
+                    "title": item.get("title", ""),
+                    "type": item.get("type", ""),
+                    "url": url,
+                })
+    except Exception:
+        pass
+    return jsonify({"error": "no content"}), 404
 
 
 @app.route("/api/immich-slideshow")

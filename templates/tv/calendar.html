@@ -83,6 +83,25 @@
                 {% endfor %}
             </div>
 
+            <!-- Next 5 Days -->
+            {% if upcoming_days %}
+            <div style="margin-top: 30px;">
+                <div style="font-size: 36px; font-weight: 700; margin-bottom: 16px; color: var(--text-muted);">Coming Up</div>
+                {% for day in upcoming_days %}
+                <div style="margin-bottom: 12px; padding: 14px 20px; background: var(--bg-card); border-radius: 14px;">
+                    <div style="font-size: 30px; font-weight: 600;">{{ day.label }}</div>
+                    {% if day.events %}
+                        {% for ev in day.events %}
+                        <div style="font-size: 26px; color: var(--success); margin-top: 4px;">{{ ev.event_time or '' }} {{ ev.title }}</div>
+                        {% endfor %}
+                    {% else %}
+                    <div style="font-size: 24px; color: var(--text-muted);">No events</div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
             {% elif view == 'monthly' %}
             <!-- Monthly View -->
             <div class="month-header">{{ month_name }} {{ year }}</div>

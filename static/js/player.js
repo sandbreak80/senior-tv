@@ -170,10 +170,24 @@
     });
 
     video.addEventListener("ended", function () {
-        showCenterIcon("✓ Finished");
+        logStop();
+        showCenterIcon("Up Next...");
         showOverlay();
-        // Auto-go-back after 5 seconds
-        setTimeout(goBack, 5000);
+        // Auto-play next random content after 3 seconds
+        fetch("/api/next-video")
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.url) {
+                    setTimeout(function() { window.quickNav(data.url); }, 3000);
+                } else {
+                    showCenterIcon("✓ Finished");
+                    setTimeout(goBack, 5000);
+                }
+            })
+            .catch(function() {
+                showCenterIcon("✓ Finished");
+                setTimeout(goBack, 5000);
+            });
     });
 
     var videoRetries = 0;

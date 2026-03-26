@@ -88,15 +88,15 @@
     {% endif %}
 
     <!-- Pill Reminder Overlay -->
-    <div class="reminder-overlay" id="reminder-overlay" style="position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.95); flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:80px; font-family:'Segoe UI',sans-serif; color:#f0f0f0;">
-        <div class="reminder-icon" style="font-size:120px; margin-bottom:40px;">💊</div>
-        <div class="reminder-title" style="font-size:72px; font-weight:700; margin-bottom:20px; color:#e94560;">Time For Your Medicine</div>
-        <div class="reminder-name" id="reminder-name" style="font-size:80px; font-weight:800; margin-bottom:30px;"></div>
-        <div class="reminder-dosage" id="reminder-dosage" style="font-size:52px; color:#a0a0b0; margin-bottom:20px;"></div>
+    <div class="reminder-overlay" id="reminder-overlay">
+        <div class="reminder-icon">💊</div>
+        <div class="reminder-title">Time For Your Medicine</div>
+        <div class="reminder-name" id="reminder-name"></div>
+        <div class="reminder-dosage" id="reminder-dosage"></div>
         <video class="reminder-video" id="reminder-video" style="display:none" autoplay></video>
-        <img class="reminder-image" id="reminder-image" style="display:none; max-width:70%; max-height:50vh; border-radius:20px; margin-bottom:40px;" alt="Reminder">
-        <div class="reminder-message" id="reminder-message" style="font-size:48px; margin-bottom:50px;"></div>
-        <div class="reminder-dismiss" style="font-size:40px; color:#4ecca3;">Press OK to dismiss</div>
+        <img class="reminder-image" id="reminder-image" style="display:none" alt="Reminder">
+        <div class="reminder-message" id="reminder-message"></div>
+        <div class="reminder-dismiss">Press OK to dismiss</div>
     </div>
 
     <script src="/static/js/tv.js?v=2"></script>
