@@ -98,6 +98,7 @@ Goal: Non-technical families can buy a box, plug it in, and it works.
 
 ### Content
 - [ ] **Managed media library** — Most families won't run Jellyfin. Curated free content (YouTube, Pluto TV, Internet Archive) as default. Streaming partnerships optional.
+- [ ] **Spotify integration** — OAuth flow, Spotify Web Playback SDK, background music playlists (classical, oldies, ambient). Requires Spotify Premium. Would replace YouTube for music.
 - [ ] **Content curation engine** — Auto-recommend based on care profile. "Dementia-friendly" ratings.
 - [ ] **YouTube ToS compliance** — Clarify kiosk embedding legality or use YouTube Data API.
 

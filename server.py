@@ -1067,13 +1067,41 @@ def api_log_remote():
 def admin_dashboard():
     pills = models.get_pills()
     for pill in pills:
-        pill["schedule_times_display"] = ", ".join(json.loads(pill["schedule_times"]))
+        try:
+            pill["schedule_times_display"] = ", ".join(json.loads(pill["schedule_times"]))
+        except (json.JSONDecodeError, TypeError):
+            pill["schedule_times_display"] = "—"
     events = models.get_upcoming_events(days=14)
     settings = models.get_all_settings()
     last_activity = models.get_last_activity_time()
     remote_count_1h = models.get_remote_log_count(hours=1)
+
+    # Recent doorbell events from Frigate
+    doorbell_events = []
+    frigate_url = get_setting_or_default("frigate_url")
+    if frigate_url:
+        try:
+            from smart_home import frigate_get_events
+            raw_events = frigate_get_events(frigate_url, label="person", limit=6)
+            if raw_events:
+                for evt in raw_events:
+                    from datetime import datetime as _dt
+                    ts = evt.get("start_time", 0)
+                    try:
+                        time_str = _dt.fromtimestamp(ts).strftime("%b %d, %I:%M %p")
+                    except Exception:
+                        time_str = "Unknown"
+                    doorbell_events.append({
+                        "id": evt.get("id", ""),
+                        "camera": evt.get("camera", "unknown"),
+                        "time": time_str,
+                    })
+        except Exception:
+            pass
+
     return render_template("admin/dashboard.html", pills=pills, events=events, settings=settings,
-                           last_activity=last_activity, remote_count_1h=remote_count_1h)
+                           last_activity=last_activity, remote_count_1h=remote_count_1h,
+                           doorbell_events=doorbell_events)
 
 
 @app.route("/admin/activity")
