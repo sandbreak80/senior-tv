@@ -171,8 +171,17 @@ def get_channels(category_filter=None):
             "current_program": current_program,
         })
 
-    # Filter out dead channels (no current program = "c'est fini" slate)
-    channels = [c for c in channels if c["current_program"]]
+    # Filter out dead/test channels
+    def _is_active(c):
+        prog = c.get("current_program")
+        if not prog:
+            return False
+        title = prog.get("title", "").lower()
+        # Filter filler/test content
+        if any(x in title for x in ["slate", "filler", "test", "off air", "c'est fini"]):
+            return False
+        return True
+    channels = [c for c in channels if _is_active(c)]
 
     channels.sort(key=lambda c: c["number"])
 
