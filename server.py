@@ -39,13 +39,13 @@ app.config["MAX_CONTENT_LENGTH"] = config.MAX_UPLOAD_SIZE
 
 def _is_local_request():
     """Check if request is from LAN (no auth needed) vs remote (needs auth)."""
+    # If CF-Connecting-IP header exists, request came through Cloudflare tunnel = REMOTE
+    if request.headers.get("CF-Connecting-IP"):
+        return False
+    # No CF header = direct access. Check if it's from LAN.
     ip = request.remote_addr or ""
-    # Cloudflare tunnel sets CF-Connecting-IP header
-    cf_ip = request.headers.get("CF-Connecting-IP", "")
-    # Local if: direct LAN access or localhost
     if ip.startswith("192.168.") or ip.startswith("10.") or ip.startswith("172.") or ip == "127.0.0.1":
-        if not cf_ip:  # No Cloudflare header = truly local
-            return True
+        return True
     return False
 
 
