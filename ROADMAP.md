@@ -194,4 +194,15 @@ Goal: Non-technical families can buy a box, plug it in, and it works.
 | Docker: Jellyfin, Immich, HA, Frigate all running locally | Done |
 | 10 cameras (9 IP + 1 USB webcam with person detection) | Done |
 | BIOS auto-power-on after AC loss | Done |
+| TV input control via Home Assistant | Done (see known limitations) |
 | 152/154 Playwright tests passing | Done |
+
+---
+
+## Known Limitations
+
+- **Samsung TV HDMI input switching** — The HA Samsung integration for older models (MU6100) exposes a single "HDMI" source that maps to Samsung's smart hub, not individual HDMI ports. The watchdog sends `select_source: HDMI` every 3 minutes which briefly lands on HDMI2 (NucBox) but CEC-enabled devices like Roku can steal the input back. **Fix for deployment:** Unplug Roku or disable CEC on it (Roku Settings → System → Control other devices → uncheck "1-touch play"). Senior TV replaces Roku entirely.
+- **Immich remote access** — Immich's SPA doesn't support subpath proxying (`/immich/`). Works on LAN via direct port (:2283). For remote access, needs its own subdomain (e.g., `photos.riffyx.com`).
+- **Home Assistant remote access** — Similar subpath limitation. Works on LAN (:8123), needs own subdomain for remote.
+- **USB webcam resolution** — Logitech C920 outputs YUYV at max 640x480 to Frigate (via mediamtx H.264 transcode). Higher resolutions available but increase CPU load.
+- **AMD GPU CEC** — NucBox K11 AMD Phoenix GPU has kernel CEC module loaded but doesn't expose `/dev/cec0`. No native HDMI-CEC without USB adapter. TV control uses Home Assistant fallback.
