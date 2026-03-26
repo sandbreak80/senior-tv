@@ -107,7 +107,9 @@
                         if (data.fatal) {
                             hlsRetries++;
                             if (hlsRetries > 3) {
-                                showCenterIcon('Stream unavailable — press BACK');
+                                showCenterIcon('This channel is not available right now');
+                                // Auto-return to channel guide after 3 seconds
+                                setTimeout(function() { window.quickNav('/tv/live'); }, 3000);
                                 return;
                             }
                             switch (data.type) {

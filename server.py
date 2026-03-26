@@ -12,8 +12,10 @@ from flask import (
     jsonify,
     redirect,
     render_template,
+    render_template_string,
     request,
     send_from_directory,
+    session,
 )
 from werkzeug.utils import secure_filename
 
@@ -33,6 +35,74 @@ app = Flask(__name__)
 app_start_time = datetime.now()
 app.config["SECRET_KEY"] = config.SECRET_KEY
 app.config["MAX_CONTENT_LENGTH"] = config.MAX_UPLOAD_SIZE
+
+
+def _is_local_request():
+    """Check if request is from LAN (no auth needed) vs remote (needs auth)."""
+    ip = request.remote_addr or ""
+    # Cloudflare tunnel sets CF-Connecting-IP header
+    cf_ip = request.headers.get("CF-Connecting-IP", "")
+    # Local if: direct LAN access or localhost
+    if ip.startswith("192.168.") or ip.startswith("10.") or ip.startswith("172.") or ip == "127.0.0.1":
+        if not cf_ip:  # No Cloudflare header = truly local
+            return True
+    return False
+
+
+@app.before_request
+def check_remote_auth():
+    """Require password for remote (Cloudflare tunnel) access to admin."""
+    if _is_local_request():
+        return  # LAN users skip auth entirely
+    # Allow TV UI routes without auth (in case TV itself routes through tunnel)
+    if not request.path.startswith("/admin"):
+        return
+    # Check for session auth
+    if session.get("remote_auth"):
+        return
+    # Check for login attempt
+    if request.path == "/admin/login":
+        return
+    # Redirect to login
+    return redirect("/admin/login")
+
+
+@app.route("/admin/login", methods=["GET", "POST"])
+def admin_login():
+    """Simple password login for remote admin access."""
+    if request.method == "POST":
+        password = request.form.get("password", "")
+        stored = models.get_setting("admin_password") or "family2026"
+        if password == stored:
+            session["remote_auth"] = True
+            return redirect("/admin")
+        return render_template_string(LOGIN_TEMPLATE, error="Wrong password")
+    return render_template_string(LOGIN_TEMPLATE, error=None)
+
+
+LOGIN_TEMPLATE = """<!DOCTYPE html>
+<html><head><title>Senior TV Admin</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body{font-family:'Segoe UI',sans-serif;background:#1a1a2e;color:#f0f0f0;display:flex;
+align-items:center;justify-content:center;min-height:100vh;margin:0;}
+.login{background:#16213e;padding:40px;border-radius:20px;max-width:400px;width:90%;}
+h1{margin:0 0 20px;font-size:28px;}
+input{width:100%;padding:14px;font-size:18px;border:2px solid #333;border-radius:10px;
+background:#0f3460;color:#fff;margin-bottom:16px;box-sizing:border-box;}
+button{width:100%;padding:14px;font-size:18px;background:#e94560;color:#fff;border:none;
+border-radius:10px;cursor:pointer;font-weight:700;}
+.error{color:#e94560;margin-bottom:12px;}
+</style></head><body>
+<div class="login">
+<h1>Senior TV Admin</h1>
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+<form method="POST">
+<input type="password" name="password" placeholder="Family password" autofocus>
+<button type="submit">Sign In</button>
+</form>
+</div>
+</body></html>"""
 
 
 # --- Helpers ---
@@ -706,8 +776,9 @@ def tv_live():
 def tv_live_play(channel_id):
     """Play a live Pluto TV channel."""
     import pluto_tv
-    # Force fresh session token
+    # Force fresh session + clear cached channels to get fresh stream URLs
     pluto_tv.SESSION_CACHE["token"] = None
+    cache.clear("pluto_all_channels")
     channel, error = pluto_tv.get_channel_by_id(channel_id)
     if not channel:
         return redirect("/tv/live")

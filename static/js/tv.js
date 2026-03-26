@@ -236,8 +236,8 @@ window.quickNav = function(url) {
                         return;
                     }
                     dismissReminder();
-                } else if (e.key === "ArrowDown" && showAlertChannelId) {
-                    // Down = just dismiss (don't watch)
+                } else if ((e.key === "Escape" || e.key === "Backspace" || e.key === "BrowserBack" || e.key === "ArrowDown") && showAlertChannelId) {
+                    // BACK or Down = just dismiss (don't watch)
                     showAlertChannelId = null;
                     dismissReminder();
                 }
@@ -622,12 +622,16 @@ window.quickNav = function(url) {
 
         document.getElementById("reminder-name").textContent = data.channel_name;
         document.getElementById("reminder-dosage").textContent = "";
-        document.getElementById("reminder-message").textContent = "Press OK to Watch Now\n\u25BC Press Down to close";
+        document.getElementById("reminder-message").textContent = "";
 
         const videoEl = document.getElementById("reminder-video");
         const imageEl = document.getElementById("reminder-image");
         videoEl.style.display = "none";
         imageEl.style.display = "none";
+
+        // Show clear action instructions
+        const dismissEl = overlay.querySelector(".reminder-dismiss");
+        if (dismissEl) dismissEl.innerHTML = '<span style="font-size:48px;display:block;margin-bottom:12px;">Press OK to Watch</span><span style="font-size:30px;opacity:0.6;">Press BACK to close</span>';
 
         overlay.classList.add("active");
         reminderActive = true;

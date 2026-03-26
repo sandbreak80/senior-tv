@@ -27,4 +27,5 @@ DEFAULTS = {
     "photo_nas_path": "",
     "immich_url": "",
     "immich_api_key": "",
+    "admin_password": "family2026",
 }
