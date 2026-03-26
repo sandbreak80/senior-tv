@@ -37,7 +37,7 @@ fi
 
 # --- 3. HDMI Audio ---
 AUDIO_OK=false
-DEFAULT_SINK=$(sudo -u media XDG_RUNTIME_DIR=/run/user/1000 wpctl status 2>/dev/null | grep '^ \*' | head -1)
+DEFAULT_SINK=$(sudo -u media XDG_RUNTIME_DIR=/run/user/1000 wpctl status 2>/dev/null | grep -E '^\s*│?\s*\*' | head -1)
 if echo "$DEFAULT_SINK" | grep -qi "hdmi\|radeon\|rembrandt\|samsung"; then
     AUDIO_OK=true
 fi
@@ -93,19 +93,23 @@ if command -v tailscale > /dev/null 2>&1; then
     fi
 fi
 
-# --- 8. TV Power/Input (CEC, if available) ---
-if [ -e /dev/cec0 ] && command -v cec-ctl > /dev/null 2>&1; then
-    HOUR=$(date +%H)
-    if [ "$HOUR" -ge 7 ] && [ "$HOUR" -lt 22 ]; then
-        TV_POWER=$(cec-ctl --to 0 --give-device-power-status 2>/dev/null | grep "pwr-state:" | awk '{print $NF}')
-        if [ "$TV_POWER" = "standby" ] || [ "$TV_POWER" = "standby-to-on" ]; then
-            log "WARN: TV in standby during active hours"
-            repair "Turning TV on and setting input via CEC"
-            cec-ctl --to 0 --image-view-on 2>/dev/null
-            sleep 2
-            cec-ctl --to 0 --active-source phys-addr=0x1000 2>/dev/null
-            ISSUES=$((ISSUES + 1))
-        fi
+# --- 8. TV Power/Input (via Home Assistant) ---
+HOUR=$(date +%H)
+if [ "$HOUR" -ge 7 ] && [ "$HOUR" -lt 22 ]; then
+    TV_STATUS=$(cd "$PROJECT_DIR" && source venv/bin/activate && python3 -c "
+from cec_control import tv_get_power_status
+print(tv_get_power_status())
+" 2>/dev/null)
+    if [ "$TV_STATUS" = "standby" ] || [ "$TV_STATUS" = "off" ]; then
+        log "WARN: TV in standby during active hours"
+        repair "Turning TV on and setting HDMI input via Home Assistant"
+        cd "$PROJECT_DIR" && source venv/bin/activate && python3 -c "
+from cec_control import tv_power_on, tv_set_input
+tv_power_on()
+import time; time.sleep(3)
+tv_set_input()
+" 2>/dev/null
+        ISSUES=$((ISSUES + 1))
     fi
 fi
 

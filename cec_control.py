@@ -77,7 +77,7 @@ def tv_set_input():
         return True
     cfg = _get_ha_config()
     return _ha_call_service("media_player", "select_source",
-                            {"entity_id": cfg["entity"], "source": "HDMI1"})
+                            {"entity_id": cfg["entity"], "source": "HDMI"})
 
 
 def tv_get_power_status():

@@ -14,6 +14,9 @@ fi
 # Fix audio routing on startup
 bash fix_audio.sh 2>/dev/null
 
+# Ensure TV is on and set to HDMI input (via Home Assistant)
+python3 -c "from cec_control import tv_power_on, tv_set_input; tv_power_on(); tv_set_input()" 2>/dev/null &
+
 # --- Process PIDs ---
 CEC_PID=0
 SERVER_PID=0
