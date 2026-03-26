@@ -1203,17 +1203,22 @@ def admin_camera_snapshot(camera_name):
 @app.route("/admin/services")
 def admin_services():
     """Docker service management page."""
-    # Use direct ports for LAN, nginx subpaths for remote
-    # Use direct ports — works from LAN. Frigate uses 5001 (API port, remapped from 5000)
-    host = request.host.split(":")[0]
     if _is_local_request():
-        host = "192.168.50.159"
-    services = [
-        {"name": "Jellyfin", "icon": "🎬", "url": f"http://{host}:8096", "check": "http://localhost:8096"},
-        {"name": "Immich", "icon": "📸", "url": f"http://{host}:2283", "check": "http://localhost:2283"},
-        {"name": "Frigate", "icon": "📹", "url": f"http://{host}:5001", "check": "http://localhost:5001"},
-        {"name": "Home Assistant", "icon": "🏠", "url": f"http://{host}:8123", "check": "http://localhost:8123"},
-    ]
+        # LAN: direct port access
+        services = [
+            {"name": "Jellyfin", "icon": "🎬", "url": "http://192.168.50.159:8096", "check": "http://localhost:8096"},
+            {"name": "Immich", "icon": "📸", "url": "http://192.168.50.159:2283", "check": "http://localhost:2283"},
+            {"name": "Frigate", "icon": "📹", "url": "http://192.168.50.159:5001", "check": "http://localhost:5001"},
+            {"name": "Home Assistant", "icon": "🏠", "url": "http://192.168.50.159:8123", "check": "http://localhost:8123"},
+        ]
+    else:
+        # Remote: nginx subpath routes (only port 80 is tunneled)
+        services = [
+            {"name": "Jellyfin", "icon": "🎬", "url": "/jellyfin/", "check": "http://localhost:8096"},
+            {"name": "Immich", "icon": "📸", "url": "/immich/", "check": "http://localhost:2283"},
+            {"name": "Frigate", "icon": "📹", "url": "/frigate/", "check": "http://localhost:5001"},
+            {"name": "Home Assistant", "icon": "🏠", "url": "/ha/", "check": "http://localhost:8123"},
+        ]
     for svc in services:
         try:
             resp = requests.get(svc["check"], timeout=3, allow_redirects=True)
