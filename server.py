@@ -51,19 +51,19 @@ def _is_local_request():
 
 @app.before_request
 def check_remote_auth():
-    """Require password for remote (Cloudflare tunnel) access to admin."""
+    """Require password for ALL remote (Cloudflare tunnel) access."""
     if _is_local_request():
-        return  # LAN users skip auth entirely
-    # Allow TV UI routes without auth (in case TV itself routes through tunnel)
-    if not request.path.startswith("/admin"):
+        return  # LAN users skip auth entirely — Don & Colleen never see login
+    # Allow the login page and static assets without auth
+    if request.path == "/admin/login" or request.path.startswith("/static/"):
+        return
+    # Allow health endpoint for monitoring
+    if request.path == "/api/health":
         return
     # Check for session auth
     if session.get("remote_auth"):
         return
-    # Check for login attempt
-    if request.path == "/admin/login":
-        return
-    # Redirect to login
+    # Remote user not authenticated — redirect to login
     return redirect("/admin/login")
 
 
