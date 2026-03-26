@@ -54,11 +54,11 @@ def check_remote_auth():
     """Require password for ALL remote (Cloudflare tunnel) access."""
     if _is_local_request():
         return  # LAN users skip auth entirely — Don & Colleen never see login
-    # Allow the login page and static assets without auth
-    if request.path == "/admin/login" or request.path.startswith("/static/"):
-        return
-    # Allow health endpoint for monitoring
-    if request.path == "/api/health":
+    # Allow login page, static assets, and API endpoints without auth
+    # APIs are used by HLS player, image proxies, SSE, etc.
+    if (request.path == "/admin/login"
+            or request.path.startswith("/static/")
+            or request.path.startswith("/api/")):
         return
     # Check for session auth
     if session.get("remote_auth"):
