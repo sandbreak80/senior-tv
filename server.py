@@ -1111,6 +1111,33 @@ def admin_activity():
     return render_template("admin/activity.html", logs=logs)
 
 
+@app.route("/admin/services")
+def admin_services():
+    """Docker service management page."""
+    # Use direct ports for LAN, nginx subpaths for remote
+    if _is_local_request():
+        services = [
+            {"name": "Jellyfin", "icon": "🎬", "url": "http://192.168.50.159:8096", "check": "http://localhost:8096"},
+            {"name": "Immich", "icon": "📸", "url": "http://192.168.50.159:2283", "check": "http://localhost:2283"},
+            {"name": "Frigate", "icon": "📹", "url": "http://192.168.50.159:8971", "check": "http://localhost:8971"},
+            {"name": "Home Assistant", "icon": "🏠", "url": "http://192.168.50.159:8123", "check": "http://localhost:8123"},
+        ]
+    else:
+        services = [
+            {"name": "Jellyfin", "icon": "🎬", "url": "/jellyfin/", "check": "http://localhost:8096"},
+            {"name": "Immich", "icon": "📸", "url": "/immich/", "check": "http://localhost:2283"},
+            {"name": "Frigate", "icon": "📹", "url": "/frigate/", "check": "http://localhost:8971"},
+            {"name": "Home Assistant", "icon": "🏠", "url": "/ha/", "check": "http://localhost:8123"},
+        ]
+    for svc in services:
+        try:
+            resp = requests.get(svc["check"], timeout=3, allow_redirects=True)
+            svc["ok"] = resp.status_code < 500
+        except Exception:
+            svc["ok"] = False
+    return render_template("admin/services.html", services=services)
+
+
 @app.route("/admin/tv-view")
 def admin_tv_view():
     """Live TV view and screenshot history."""
