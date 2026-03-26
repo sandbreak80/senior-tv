@@ -94,15 +94,17 @@ if command -v tailscale > /dev/null 2>&1; then
 fi
 
 # --- 8. TV Power/Input (via Home Assistant) ---
+# DISABLED: Samsung MU6100 HA integration's "HDMI" source maps to Samsung TV+,
+# not the physical HDMI2 port. No way to select a specific HDMI port via HA API
+# on this model. Needs CEC adapter or newer Samsung TV for reliable input control.
+# Power on still works — just can't select the correct input.
 HOUR=$(date +%H)
 if [ "$HOUR" -ge 7 ] && [ "$HOUR" -lt 22 ]; then
     cd "$PROJECT_DIR" && source venv/bin/activate && python3 -c "
-from cec_control import tv_power_on, tv_set_input, tv_get_power_status
+from cec_control import tv_power_on, tv_get_power_status
 status = tv_get_power_status()
 if status in ('standby', 'off'):
     tv_power_on()
-    import time; time.sleep(3)
-tv_set_input()
 " 2>/dev/null
 fi
 
