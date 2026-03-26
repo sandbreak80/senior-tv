@@ -840,7 +840,7 @@ def pluto_proxy():
     """Proxy any Pluto TV URL (segments, sub-playlists) to bypass CORS."""
     from urllib.parse import urljoin, quote
     url = request.args.get("url")
-    if not url or not any(d in url for d in ("pluto.tv", "plutotv.com", "pluto-prod-")):
+    if not url or not any(d in url for d in ("pluto.tv", "plutotv.com", "plutotv.net", "pluto-prod-")):
         return "", 403
     try:
         resp = requests.get(url, timeout=15, stream=True)
