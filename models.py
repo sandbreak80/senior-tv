@@ -119,49 +119,42 @@ def init_db():
 # --- Settings helpers ---
 
 def get_setting(key, default=None):
-    db = get_db()
-    row = db.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
-    db.close()
-    if row:
-        return row["value"]
-    return default
+    with get_db_safe() as db:
+        row = db.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+        return row["value"] if row else default
 
 
 def set_setting(key, value):
-    db = get_db()
-    db.execute(
-        "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?",
-        (key, value, value),
-    )
-    db.commit()
-    db.close()
+    with get_db_safe() as db:
+        db.execute(
+            "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?",
+            (key, value, value),
+        )
+        db.commit()
 
 
 def get_all_settings():
-    db = get_db()
-    rows = db.execute("SELECT key, value FROM settings").fetchall()
-    db.close()
-    return {row["key"]: row["value"] for row in rows}
+    with get_db_safe() as db:
+        rows = db.execute("SELECT key, value FROM settings").fetchall()
+        return {row["key"]: row["value"] for row in rows}
 
 
 # --- Pills helpers ---
 
 def get_pills(enabled_only=False):
-    db = get_db()
-    query = "SELECT * FROM pills"
-    if enabled_only:
-        query += " WHERE enabled = 1"
-    query += " ORDER BY name"
-    rows = db.execute(query).fetchall()
-    db.close()
-    return [dict(r) for r in rows]
+    with get_db_safe() as db:
+        query = "SELECT * FROM pills"
+        if enabled_only:
+            query += " WHERE enabled = 1"
+        query += " ORDER BY name"
+        rows = db.execute(query).fetchall()
+        return [dict(r) for r in rows]
 
 
 def get_pill(pill_id):
-    db = get_db()
-    row = db.execute("SELECT * FROM pills WHERE id = ?", (pill_id,)).fetchone()
-    db.close()
-    return dict(row) if row else None
+    with get_db_safe() as db:
+        row = db.execute("SELECT * FROM pills WHERE id = ?", (pill_id,)).fetchone()
+        return dict(row) if row else None
 
 
 def create_pill(data):
@@ -205,49 +198,44 @@ def update_pill(pill_id, data):
 
 
 def delete_pill(pill_id):
-    db = get_db()
-    db.execute("DELETE FROM pills WHERE id = ?", (pill_id,))
-    db.execute("DELETE FROM pill_logs WHERE pill_id = ?", (pill_id,))
-    db.commit()
-    db.close()
+    with get_db_safe() as db:
+        db.execute("DELETE FROM pills WHERE id = ?", (pill_id,))
+        db.execute("DELETE FROM pill_logs WHERE pill_id = ?", (pill_id,))
+        db.commit()
 
 
 def log_pill_acknowledgment(pill_id, scheduled_time):
-    db = get_db()
-    db.execute(
-        "INSERT INTO pill_logs (pill_id, scheduled_time, acknowledged_at) VALUES (?, ?, CURRENT_TIMESTAMP)",
-        (pill_id, scheduled_time),
-    )
-    db.commit()
-    db.close()
+    with get_db_safe() as db:
+        db.execute(
+            "INSERT INTO pill_logs (pill_id, scheduled_time, acknowledged_at) VALUES (?, ?, CURRENT_TIMESTAMP)",
+            (pill_id, scheduled_time),
+        )
+        db.commit()
 
 
 # --- Calendar helpers ---
 
 def get_upcoming_events(days=14):
-    db = get_db()
-    rows = db.execute(
-        """SELECT * FROM calendar_events
-           WHERE event_date >= date('now') AND event_date <= date('now', ? || ' days')
-           ORDER BY event_date, event_time""",
-        (str(days),),
-    ).fetchall()
-    db.close()
-    return [dict(r) for r in rows]
+    with get_db_safe() as db:
+        rows = db.execute(
+            """SELECT * FROM calendar_events
+               WHERE event_date >= date('now') AND event_date <= date('now', ? || ' days')
+               ORDER BY event_date, event_time""",
+            (str(days),),
+        ).fetchall()
+        return [dict(r) for r in rows]
 
 
 def get_all_events():
-    db = get_db()
-    rows = db.execute("SELECT * FROM calendar_events ORDER BY event_date DESC, event_time").fetchall()
-    db.close()
-    return [dict(r) for r in rows]
+    with get_db_safe() as db:
+        rows = db.execute("SELECT * FROM calendar_events ORDER BY event_date DESC, event_time").fetchall()
+        return [dict(r) for r in rows]
 
 
 def get_event(event_id):
-    db = get_db()
-    row = db.execute("SELECT * FROM calendar_events WHERE id = ?", (event_id,)).fetchone()
-    db.close()
-    return dict(row) if row else None
+    with get_db_safe() as db:
+        row = db.execute("SELECT * FROM calendar_events WHERE id = ?", (event_id,)).fetchone()
+        return dict(row) if row else None
 
 
 def create_event(data):
@@ -262,47 +250,43 @@ def create_event(data):
 
 
 def update_event(event_id, data):
-    db = get_db()
-    fields = []
-    values = []
-    for key in ["title", "description", "event_date", "event_time", "recurring"]:
-        if key in data:
-            fields.append(f"{key} = ?")
-            values.append(data[key])
-    if fields:
-        values.append(event_id)
-        db.execute(f"UPDATE calendar_events SET {', '.join(fields)} WHERE id = ?", values)
-        db.commit()
-    db.close()
+    with get_db_safe() as db:
+        fields = []
+        values = []
+        for key in ["title", "description", "event_date", "event_time", "recurring"]:
+            if key in data:
+                fields.append(f"{key} = ?")
+                values.append(data[key])
+        if fields:
+            values.append(event_id)
+            db.execute(f"UPDATE calendar_events SET {', '.join(fields)} WHERE id = ?", values)
+            db.commit()
 
 
 def delete_event(event_id):
-    db = get_db()
-    db.execute("DELETE FROM calendar_events WHERE id = ?", (event_id,))
-    db.commit()
-    db.close()
+    with get_db_safe() as db:
+        db.execute("DELETE FROM calendar_events WHERE id = ?", (event_id,))
+        db.commit()
 
 
 # --- Favorites helpers ---
 
 def get_favorites(platform=None):
-    db = get_db()
-    if platform:
-        rows = db.execute(
-            "SELECT * FROM favorites WHERE platform = ? ORDER BY category, sort_order, title",
-            (platform,),
-        ).fetchall()
-    else:
-        rows = db.execute("SELECT * FROM favorites ORDER BY platform, category, sort_order, title").fetchall()
-    db.close()
-    return [dict(r) for r in rows]
+    with get_db_safe() as db:
+        if platform:
+            rows = db.execute(
+                "SELECT * FROM favorites WHERE platform = ? ORDER BY category, sort_order, title",
+                (platform,),
+            ).fetchall()
+        else:
+            rows = db.execute("SELECT * FROM favorites ORDER BY platform, category, sort_order, title").fetchall()
+        return [dict(r) for r in rows]
 
 
 def get_favorite(fav_id):
-    db = get_db()
-    row = db.execute("SELECT * FROM favorites WHERE id = ?", (fav_id,)).fetchone()
-    db.close()
-    return dict(row) if row else None
+    with get_db_safe() as db:
+        row = db.execute("SELECT * FROM favorites WHERE id = ?", (fav_id,)).fetchone()
+        return dict(row) if row else None
 
 
 def create_favorite(data):
@@ -325,40 +309,37 @@ def create_favorite(data):
 
 
 def update_favorite(fav_id, data):
-    db = get_db()
-    fields = []
-    values = []
-    for key in ["platform", "title", "description", "thumbnail_url", "url", "category", "sort_order"]:
-        if key in data:
-            fields.append(f"{key} = ?")
-            values.append(data[key])
-    if fields:
-        values.append(fav_id)
-        db.execute(f"UPDATE favorites SET {', '.join(fields)} WHERE id = ?", values)
-        db.commit()
-    db.close()
+    with get_db_safe() as db:
+        fields = []
+        values = []
+        for key in ["platform", "title", "description", "thumbnail_url", "url", "category", "sort_order"]:
+            if key in data:
+                fields.append(f"{key} = ?")
+                values.append(data[key])
+        if fields:
+            values.append(fav_id)
+            db.execute(f"UPDATE favorites SET {', '.join(fields)} WHERE id = ?", values)
+            db.commit()
 
 
 # --- YouTube channel helpers ---
 
 def get_youtube_channels(category=None):
-    db = get_db()
-    if category:
-        rows = db.execute(
-            "SELECT * FROM youtube_channels WHERE category = ? ORDER BY sort_order, name",
-            (category,),
-        ).fetchall()
-    else:
-        rows = db.execute("SELECT * FROM youtube_channels ORDER BY category, sort_order, name").fetchall()
-    db.close()
-    return [dict(r) for r in rows]
+    with get_db_safe() as db:
+        if category:
+            rows = db.execute(
+                "SELECT * FROM youtube_channels WHERE category = ? ORDER BY sort_order, name",
+                (category,),
+            ).fetchall()
+        else:
+            rows = db.execute("SELECT * FROM youtube_channels ORDER BY category, sort_order, name").fetchall()
+        return [dict(r) for r in rows]
 
 
 def get_youtube_channel(ch_id):
-    db = get_db()
-    row = db.execute("SELECT * FROM youtube_channels WHERE id = ?", (ch_id,)).fetchone()
-    db.close()
-    return dict(row) if row else None
+    with get_db_safe() as db:
+        row = db.execute("SELECT * FROM youtube_channels WHERE id = ?", (ch_id,)).fetchone()
+        return dict(row) if row else None
 
 
 def create_youtube_channel(data):
@@ -375,45 +356,41 @@ def create_youtube_channel(data):
 
 
 def update_youtube_channel(ch_id, data):
-    db = get_db()
-    fields = []
-    values = []
-    for key in ["name", "channel_id", "description", "thumbnail_url", "category", "sort_order"]:
-        if key in data:
-            fields.append(f"{key} = ?")
-            values.append(data[key])
-    if fields:
-        values.append(ch_id)
-        db.execute(f"UPDATE youtube_channels SET {', '.join(fields)} WHERE id = ?", values)
-        db.commit()
-    db.close()
+    with get_db_safe() as db:
+        fields = []
+        values = []
+        for key in ["name", "channel_id", "description", "thumbnail_url", "category", "sort_order"]:
+            if key in data:
+                fields.append(f"{key} = ?")
+                values.append(data[key])
+        if fields:
+            values.append(ch_id)
+            db.execute(f"UPDATE youtube_channels SET {', '.join(fields)} WHERE id = ?", values)
+            db.commit()
 
 
 # --- Family message helpers ---
 
 def get_messages(unread_only=False, limit=50):
-    db = get_db()
-    query = "SELECT * FROM family_messages"
-    if unread_only:
-        query += " WHERE read_at IS NULL"
-    query += " ORDER BY created_at DESC LIMIT ?"
-    rows = db.execute(query, (limit,)).fetchall()
-    db.close()
-    return [dict(r) for r in rows]
+    with get_db_safe() as db:
+        query = "SELECT * FROM family_messages"
+        if unread_only:
+            query += " WHERE read_at IS NULL"
+        query += " ORDER BY created_at DESC LIMIT ?"
+        rows = db.execute(query, (limit,)).fetchall()
+        return [dict(r) for r in rows]
 
 
 def get_unread_count():
-    db = get_db()
-    row = db.execute("SELECT COUNT(*) as c FROM family_messages WHERE read_at IS NULL").fetchone()
-    db.close()
-    return row["c"] if row else 0
+    with get_db_safe() as db:
+        row = db.execute("SELECT COUNT(*) as c FROM family_messages WHERE read_at IS NULL").fetchone()
+        return row["c"] if row else 0
 
 
 def get_message(msg_id):
-    db = get_db()
-    row = db.execute("SELECT * FROM family_messages WHERE id = ?", (msg_id,)).fetchone()
-    db.close()
-    return dict(row) if row else None
+    with get_db_safe() as db:
+        row = db.execute("SELECT * FROM family_messages WHERE id = ?", (msg_id,)).fetchone()
+        return dict(row) if row else None
 
 
 def create_message(data):
@@ -441,19 +418,17 @@ def delete_message(msg_id):
 # --- Birthday helpers ---
 
 def get_birthdays():
-    db = get_db()
-    rows = db.execute("SELECT * FROM birthdays ORDER BY birth_date").fetchall()
-    db.close()
-    return [dict(r) for r in rows]
+    with get_db_safe() as db:
+        rows = db.execute("SELECT * FROM birthdays ORDER BY birth_date").fetchall()
+        return [dict(r) for r in rows]
 
 
 def get_todays_birthdays():
     from datetime import datetime
     today_mmdd = datetime.now().strftime("%m-%d")
-    db = get_db()
-    rows = db.execute("SELECT * FROM birthdays WHERE birth_date = ?", (today_mmdd,)).fetchall()
-    db.close()
-    return [dict(r) for r in rows]
+    with get_db_safe() as db:
+        rows = db.execute("SELECT * FROM birthdays WHERE birth_date = ?", (today_mmdd,)).fetchall()
+        return [dict(r) for r in rows]
 
 
 def create_birthday(data):
@@ -475,14 +450,13 @@ def delete_birthday(b_id):
 # --- Favorite shows helpers ---
 
 def get_favorite_shows(enabled_only=False):
-    db = get_db()
-    query = "SELECT * FROM favorite_shows"
-    if enabled_only:
-        query += " WHERE enabled = 1"
-    query += " ORDER BY name"
-    rows = db.execute(query).fetchall()
-    db.close()
-    return [dict(r) for r in rows]
+    with get_db_safe() as db:
+        query = "SELECT * FROM favorite_shows"
+        if enabled_only:
+            query += " WHERE enabled = 1"
+        query += " ORDER BY name"
+        rows = db.execute(query).fetchall()
+        return [dict(r) for r in rows]
 
 
 def create_favorite_show(data):
@@ -502,14 +476,12 @@ def delete_favorite_show(s_id):
 
 
 def delete_youtube_channel(ch_id):
-    db = get_db()
-    db.execute("DELETE FROM youtube_channels WHERE id = ?", (ch_id,))
-    db.commit()
-    db.close()
+    with get_db_safe() as db:
+        db.execute("DELETE FROM youtube_channels WHERE id = ?", (ch_id,))
+        db.commit()
 
 
 def delete_favorite(fav_id):
-    db = get_db()
-    db.execute("DELETE FROM favorites WHERE id = ?", (fav_id,))
-    db.commit()
-    db.close()
+    with get_db_safe() as db:
+        db.execute("DELETE FROM favorites WHERE id = ?", (fav_id,))
+        db.commit()

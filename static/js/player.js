@@ -151,9 +151,16 @@
         setTimeout(goBack, 5000);
     });
 
+    var videoRetries = 0;
     video.addEventListener("error", function () {
-        showCenterIcon("Unable to play");
-        overlay.classList.add("visible");
+        if (videoRetries < 2) {
+            videoRetries++;
+            showCenterIcon("Retrying...");
+            setTimeout(function() { video.load(); video.play().catch(function(){}); }, 2000);
+        } else {
+            showCenterIcon("Unable to play — press BACK");
+            overlay.classList.add("visible");
+        }
     });
 
     // Show overlay initially

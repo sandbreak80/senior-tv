@@ -30,3 +30,13 @@ def clear(key=None):
             _cache.pop(key, None)
         else:
             _cache.clear()
+
+
+def cleanup():
+    """Remove all expired entries. Called periodically to prevent unbounded growth."""
+    now = time.time()
+    with _lock:
+        expired = [k for k, v in _cache.items() if now >= v["expires"]]
+        for k in expired:
+            del _cache[k]
+    return len(expired)

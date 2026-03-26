@@ -193,10 +193,15 @@ def check_favorite_shows():
                 break  # Only alert once per show
 
 
+def _cache_cleanup():
+    import cache
+    cache.cleanup()
+
 scheduler = BackgroundScheduler()
 scheduler.add_job(check_pills, "interval", minutes=1, id="pill_checker")
 scheduler.add_job(check_birthdays, "interval", hours=1, id="birthday_checker")
 scheduler.add_job(check_favorite_shows, "interval", minutes=10, id="show_checker")
+scheduler.add_job(_cache_cleanup, "interval", minutes=30, id="cache_cleanup")
 
 
 def start_scheduler():

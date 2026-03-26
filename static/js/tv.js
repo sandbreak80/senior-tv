@@ -295,11 +295,18 @@ window.quickNav = function(url) {
             };
 
             evtSource.onerror = function () {
-                console.log("SSE connection lost, reconnecting in 5s...");
                 evtSource.close();
-                setTimeout(connectSSE, 5000);
+                // Exponential backoff: 5s, 10s, 20s, 40s, max 60s
+                sseDelay = Math.min(sseDelay * 2, 60000);
+                console.log("SSE lost, reconnecting in " + (sseDelay/1000) + "s...");
+                setTimeout(connectSSE, sseDelay);
+            };
+
+            evtSource.onopen = function () {
+                sseDelay = 5000; // Reset on successful connection
             };
         }
+        var sseDelay = 5000;
         connectSSE();
     }
 

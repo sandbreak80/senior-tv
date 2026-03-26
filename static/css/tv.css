@@ -149,13 +149,13 @@ html, body {
     border-radius: 10px;
 }
 
-.mini-day-name { font-size: 20px; font-weight: 600; color: var(--text-muted); }
+.mini-day-name { font-size: 22px; font-weight: 600; color: var(--text-muted); }
 .mini-day-icon { font-size: 28px; margin: 4px 0; }
-.mini-day-temp { font-size: 20px; font-weight: 600; }
+.mini-day-temp { font-size: 22px; font-weight: 600; }
 
 /* Quote in left panel */
 .home-quote {
-    font-size: 24px;
+    font-size: 26px;
     color: var(--text-muted);
     font-style: italic;
     line-height: 1.5;
@@ -168,7 +168,7 @@ html, body {
 
 /* On This Day fact */
 .home-fact {
-    font-size: 22px;
+    font-size: 24px;
     color: var(--text-muted);
     line-height: 1.4;
     margin-top: 10px;
