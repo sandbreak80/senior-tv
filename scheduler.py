@@ -206,7 +206,7 @@ def _cache_cleanup():
 
 
 def trigger_classical_music():
-    """Daily 1 hour of classical music (doctor's orders). Triggers at 10 AM."""
+    """Daily classical music (doctor's orders). Checks hourly, plays at configured time."""
     import feedparser
     import random as _random
     from models import get_setting
@@ -215,8 +215,13 @@ def trigger_classical_music():
     if enabled != "1":
         return
 
-    # Get a random classical video from the HALIDONMUSIC channel or similar
-    channel_id = "UCJ5v_MCY6GNUBTO8-D3XoAg"  # HALIDONMUSIC
+    # Check if current hour matches the configured time
+    target_hour = int(get_setting("classical_music_hour", "10"))
+    if datetime.now().hour != target_hour:
+        return
+
+    # Get a random classical video
+    channel_id = get_setting("classical_music_channel", "UCJ5v_MCY6GNUBTO8-D3XoAg")
     try:
         feed = feedparser.parse(f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}")
         if feed.entries:
@@ -240,7 +245,7 @@ scheduler.add_job(check_pills, "interval", minutes=1, id="pill_checker")
 scheduler.add_job(check_birthdays, "interval", hours=1, id="birthday_checker")
 scheduler.add_job(check_favorite_shows, "interval", minutes=10, id="show_checker")
 scheduler.add_job(_cache_cleanup, "interval", minutes=30, id="cache_cleanup")
-scheduler.add_job(trigger_classical_music, "cron", hour=10, minute=0, id="classical_music")
+scheduler.add_job(trigger_classical_music, "interval", hours=1, id="classical_music")
 
 
 def start_scheduler():

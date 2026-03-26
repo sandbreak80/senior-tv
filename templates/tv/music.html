@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Music - Senior TV</title>
+    <link rel="stylesheet" href="/static/css/tv.css?v=2">
+    <style>
+        .music-player {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0,0,0,0.95);
+            padding: 20px 40px;
+            display: none;
+            align-items: center;
+            gap: 20px;
+            z-index: 100;
+        }
+        .music-player.active { display: flex; }
+        .music-thumb { width: 80px; height: 80px; border-radius: 10px; object-fit: cover; background: var(--bg-selected); }
+        .music-info { flex: 1; }
+        .music-title { font-size: 32px; font-weight: 700; }
+        .music-artist { font-size: 24px; color: var(--text-muted); }
+        .music-controls { font-size: 28px; color: var(--text-muted); }
+        .track-item {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 16px 30px;
+            background: var(--bg-card);
+            border: 3px solid transparent;
+            border-radius: 14px;
+            margin-bottom: 10px;
+            transition: all 0.15s;
+            text-decoration: none;
+            color: var(--text);
+            cursor: pointer;
+        }
+        .track-item.selected { border-color: var(--accent); background: var(--bg-selected); box-shadow: var(--glow); }
+        .track-item.playing { border-color: var(--success); }
+        .track-thumb { width: 60px; height: 60px; border-radius: 8px; object-fit: cover; background: var(--bg-selected); }
+        .track-title { font-size: 30px; font-weight: 600; }
+        .track-artist { font-size: 24px; color: var(--text-muted); }
+        .track-duration { font-size: 24px; color: var(--text-muted); margin-left: auto; }
+        .genre-tabs { display: flex; gap: 10px; margin-bottom: 20px; overflow-x: auto; scrollbar-width: none; }
+        .genre-tab {
+            padding: 10px 20px; background: var(--bg-card); border: 2px solid transparent;
+            border-radius: 20px; font-size: 26px; color: var(--text-muted);
+            text-decoration: none; white-space: nowrap; transition: all 0.15s;
+        }
+        .genre-tab.active { background: var(--bg-selected); border-color: var(--accent); color: var(--text); }
+        .genre-tab.selected { border-color: var(--accent); box-shadow: var(--glow); }
+    </style>
+</head>
+<body>
+    <div class="content-page">
+        <div class="page-header">
+            <span class="page-title">🎵 Music</span>
+            <span class="back-hint">Press BACK to return home</span>
+        </div>
+
+        <div class="genre-tabs">
+            <a class="genre-tab navigable {% if not genre %}active{% endif %}" href="/tv/music">Shuffle All</a>
+            <a class="genre-tab navigable {% if genre == 'Classical' %}active{% endif %}" href="/tv/music?genre=Classical">Classical</a>
+            <a class="genre-tab navigable {% if genre == 'Country' %}active{% endif %}" href="/tv/music?genre=Country">Country</a>
+            <a class="genre-tab navigable {% if genre == 'Jazz' %}active{% endif %}" href="/tv/music?genre=Jazz">Jazz</a>
+            <a class="genre-tab navigable {% if genre == 'Rock' %}active{% endif %}" href="/tv/music?genre=Rock">Rock</a>
+            <a class="genre-tab navigable {% if genre == 'Pop' %}active{% endif %}" href="/tv/music?genre=Pop">Pop</a>
+            <a class="genre-tab navigable {% if genre == 'Blues' %}active{% endif %}" href="/tv/music?genre=Blues">Blues</a>
+            <a class="genre-tab navigable {% if genre == 'Oldies' %}active{% endif %}" href="/tv/music?genre=Oldies">Oldies</a>
+        </div>
+
+        <div class="content-body scroll-container">
+            {% if tracks %}
+                {% for track in tracks %}
+                <div class="track-item navigable" data-stream="{{ track.stream_url }}" data-title="{{ track.title }}" data-artist="{{ track.artist }}" data-thumb="{{ track.thumb }}" data-id="{{ track.id }}">
+                    {% if track.thumb %}
+                    <img class="track-thumb" src="{{ track.thumb }}" alt="" loading="lazy">
+                    {% else %}
+                    <div class="track-thumb" style="display:flex;align-items:center;justify-content:center;font-size:28px;">🎵</div>
+                    {% endif %}
+                    <div>
+                        <div class="track-title">{{ track.title }}</div>
+                        <div class="track-artist">{{ track.artist }}</div>
+                    </div>
+                    <div class="track-duration">{{ track.duration }}</div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">No music found{% if genre %} for "{{ genre }}"{% endif %}.</div>
+            {% endif %}
+        </div>
+
+        <div class="nav-hint">▲ ▼ Browse &nbsp; OK = Play &nbsp; BACK = Home</div>
+    </div>
+
+    <!-- Music Player Bar -->
+    <div class="music-player" id="music-player">
+        <img class="music-thumb" id="player-thumb" src="" alt="">
+        <div class="music-info">
+            <div class="music-title" id="player-title"></div>
+            <div class="music-artist" id="player-artist"></div>
+        </div>
+        <div class="music-controls">Now Playing</div>
+    </div>
+
+    <audio id="audio-player" style="display:none;"></audio>
+
+    <!-- Pill Reminder Overlay -->
+    <div class="reminder-overlay" id="reminder-overlay">
+        <div class="reminder-icon">💊</div>
+        <div class="reminder-title">Time For Your Medicine</div>
+        <div class="reminder-name" id="reminder-name"></div>
+        <div class="reminder-dosage" id="reminder-dosage"></div>
+        <video class="reminder-video" id="reminder-video" style="display:none" autoplay></video>
+        <img class="reminder-image" id="reminder-image" style="display:none" alt="Reminder">
+        <div class="reminder-message" id="reminder-message"></div>
+        <div class="reminder-dismiss">Press OK to dismiss</div>
+    </div>
+
+    <script src="/static/js/tv.js?v=2"></script>
+    <script>
+        (function() {
+            var audio = document.getElementById('audio-player');
+            var playerBar = document.getElementById('music-player');
+            var tracks = document.querySelectorAll('.track-item');
+            var currentIndex = -1;
+
+            function playTrack(index) {
+                if (index < 0 || index >= tracks.length) return;
+                // Remove playing class from all
+                tracks.forEach(function(t) { t.classList.remove('playing'); });
+                currentIndex = index;
+                var track = tracks[index];
+                track.classList.add('playing');
+
+                audio.src = track.dataset.stream;
+                audio.play().catch(function(){});
+
+                document.getElementById('player-title').textContent = track.dataset.title;
+                document.getElementById('player-artist').textContent = track.dataset.artist;
+                var thumb = document.getElementById('player-thumb');
+                if (track.dataset.thumb) thumb.src = track.dataset.thumb;
+                playerBar.classList.add('active');
+
+                // Log activity
+                window.logActivity('music_play', track.dataset.title, 'audio');
+            }
+
+            // Auto-play next track when current ends
+            audio.addEventListener('ended', function() {
+                if (currentIndex < tracks.length - 1) {
+                    playTrack(currentIndex + 1);
+                } else {
+                    // Reload with new random tracks
+                    window.location.reload();
+                }
+            });
+
+            // Override Enter to play track instead of navigate
+            document.addEventListener('keydown', function(e) {
+                var overlay = document.getElementById('reminder-overlay');
+                if (overlay && overlay.classList.contains('active')) return;
+
+                if (e.key === 'Enter' || e.key === ' ') {
+                    var selected = document.querySelector('.track-item.selected');
+                    if (selected) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        var idx = Array.from(tracks).indexOf(selected);
+                        if (idx >= 0) playTrack(idx);
+                    }
+                }
+            }, true);
+        })();
+    </script>
+</body>
+</html>

@@ -60,7 +60,7 @@ def send_key(key_name, cec_code=None, description=""):
     if cec_code:
         try:
             import requests as _req
-            _req.post("http://localhost:5000/api/log-remote",
+            _req.post(f"http://localhost:{os.environ.get('SENIOR_TV_PORT', '5000')}/api/log-remote",
                       json={"cec_code": cec_code, "key": key_name, "description": description},
                       timeout=1)
         except Exception:

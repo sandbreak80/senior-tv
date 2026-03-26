@@ -1088,6 +1088,23 @@ def admin_dashboard():
     last_activity = models.get_last_activity_time()
     remote_count_1h = models.get_remote_log_count(hours=1)
 
+    # Presence inference
+    presence = None
+    if last_activity:
+        try:
+            from datetime import datetime as _dt
+            last_dt = _dt.strptime(last_activity[:19], "%Y-%m-%d %H:%M:%S")
+            mins_ago = int((datetime.now() - last_dt).total_seconds() / 60)
+            if mins_ago < 30:
+                presence = {"label": f"Active ({mins_ago}m ago)", "color": "#4caf50"}
+            elif mins_ago < 120:
+                presence = {"label": f"Idle ({mins_ago}m ago)", "color": "#ff9800"}
+            else:
+                hours = mins_ago // 60
+                presence = {"label": f"Away ({hours}h ago)", "color": "#f44336"}
+        except Exception:
+            pass
+
     # System metrics
     system_metrics = {}
     try:
@@ -1145,7 +1162,8 @@ def admin_dashboard():
 
     return render_template("admin/dashboard.html", pills=pills, events=events, settings=settings,
                            last_activity=last_activity, remote_count_1h=remote_count_1h,
-                           doorbell_events=doorbell_events, system_metrics=system_metrics)
+                           doorbell_events=doorbell_events, system_metrics=system_metrics,
+                           presence=presence)
 
 
 @app.route("/admin/activity")
@@ -1550,7 +1568,8 @@ def admin_settings():
                      "ha_url", "ha_token", "ha_tv_entity",
                      "photo_interval", "photo_nas_path",
                      "immich_url", "immich_api_key", "immich_album_id",
-                     "admin_password"]:
+                     "admin_password",
+                     "classical_music_enabled", "classical_music_hour"]:
             val = request.form.get(key)
             if val is not None:
                 models.set_setting(key, val)
@@ -1559,7 +1578,8 @@ def admin_settings():
     for key in config.DEFAULTS:
         settings[key] = get_setting_or_default(key)
     # Also get non-default settings
-    for key in ["ha_tv_entity", "immich_album_id", "admin_password"]:
+    for key in ["ha_tv_entity", "immich_album_id", "admin_password",
+                 "classical_music_enabled", "classical_music_hour"]:
         settings[key] = models.get_setting(key) or ""
 
     # Immich status and albums
@@ -1638,6 +1658,20 @@ def frigate_snapshot_proxy(path):
 
 
 # --- Photo Gallery ---
+
+@app.route("/tv/music")
+def tv_music():
+    """Music player with genre browsing."""
+    genre = request.args.get("genre", "")
+    jf = _get_jellyfin()
+    tracks = []
+    if jf:
+        try:
+            tracks = jf.get_music_tracks(genre=genre or None, limit=30)
+        except Exception:
+            pass
+    return render_template("tv/music.html", tracks=tracks, genre=genre)
+
 
 @app.route("/tv/photos")
 def tv_photos():

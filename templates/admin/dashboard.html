@@ -30,12 +30,12 @@
         <div class="stat-label">Remote Presses (1hr)</div>
     </div>
     <div class="stat-card">
-        {% if last_activity %}
-        <div class="stat-num" style="font-size: 20px;">{{ last_activity[:16] }}</div>
+        {% if presence %}
+        <div class="stat-num" style="font-size: 20px; color: {{ presence.color }};">{{ presence.label }}</div>
         {% else %}
         <div class="stat-num" style="font-size: 20px;">—</div>
         {% endif %}
-        <div class="stat-label">Last Activity</div>
+        <div class="stat-label">Presence</div>
     </div>
 </div>
 

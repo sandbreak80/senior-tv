@@ -172,6 +172,31 @@ class JellyfinAPI:
             })
         return episodes
 
+    def get_music_tracks(self, genre=None, limit=20):
+        """Get random music tracks, optionally filtered by genre."""
+        params = {
+            "IncludeItemTypes": "Audio",
+            "Recursive": "true",
+            "SortBy": "Random",
+            "Limit": limit,
+            "Fields": "RunTimeTicks,Artists,Album,AlbumId",
+        }
+        if genre:
+            params["Genres"] = genre
+        data = self._get(f"/Users/{self.user_id}/Items", params=params)
+        tracks = []
+        for item in data.get("Items", []):
+            tracks.append({
+                "id": item.get("Id", ""),
+                "title": item.get("Name", ""),
+                "artist": ", ".join(item.get("Artists", []) or ["Unknown"]),
+                "album": item.get("Album", ""),
+                "duration": _format_duration(item.get("RunTimeTicks")),
+                "stream_url": f"/api/jellyfin-stream/{item.get('Id', '')}/stream?Static=true",
+                "thumb": _image_url(item, self.base_url, self.api_key, "Primary", 200),
+            })
+        return tracks
+
     def get_stream_url(self, item_id):
         """Get a proxied stream URL that works from both LAN and remote."""
         return f"/api/jellyfin-stream/{item_id}/stream?Static=true"

@@ -123,6 +123,37 @@
     </div>
 
     <div class="card">
+        <h2>🎵 Classical Music (Doctor's Orders)</h2>
+        <div class="form-group">
+            <label for="classical_music_enabled">Enable Daily Classical Music</label>
+            <select id="classical_music_enabled" name="classical_music_enabled">
+                <option value="1" {% if settings.classical_music_enabled != '0' %}selected{% endif %}>Enabled</option>
+                <option value="0" {% if settings.classical_music_enabled == '0' %}selected{% endif %}>Disabled</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="classical_music_hour">Play Time</label>
+            <select id="classical_music_hour" name="classical_music_hour">
+                {% for h in range(6, 21) %}
+                <option value="{{ h }}" {% if settings.classical_music_hour == h|string %}selected{% endif %}>
+                    {{ (h % 12) or 12 }}:00 {{ 'AM' if h < 12 else 'PM' }}
+                </option>
+                {% endfor %}
+            </select>
+            <div class="hint">TV will auto-play calming classical music at this time daily</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>🔐 Security</h2>
+        <div class="form-group">
+            <label for="admin_password">Remote Access Password</label>
+            <input type="text" id="admin_password" name="admin_password" value="{{ settings.admin_password }}" placeholder="family2026">
+            <div class="hint">Password for accessing the admin panel remotely via Cloudflare tunnel</div>
+        </div>
+    </div>
+
+    <div class="card">
         <h2>📷 Photos</h2>
         <div class="form-group">
             <label for="photo_interval">Slideshow Interval (seconds)</label>
