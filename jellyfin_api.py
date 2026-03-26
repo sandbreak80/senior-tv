@@ -173,31 +173,18 @@ class JellyfinAPI:
         return episodes
 
     def get_stream_url(self, item_id):
-        """Get a direct stream URL for an item (plays in HTML5 video)."""
-        return (
-            f"{self.base_url}/Videos/{item_id}/stream"
-            f"?Static=true&api_key={self.api_key}"
-        )
+        """Get a proxied stream URL that works from both LAN and remote."""
+        return f"/api/jellyfin-stream/{item_id}/stream?Static=true"
 
     def get_subtitle_url(self, item_id):
-        """Get English subtitle URL if available."""
-        try:
-            data = self._get(f"/Videos/{item_id}/Subtitles")
-            # This endpoint may not exist — try item metadata instead
-        except Exception:
-            pass
-        # Use the built-in subtitle delivery
-        return (
-            f"{self.base_url}/Videos/{item_id}/Subtitles/0/0/Stream.vtt"
-            f"?api_key={self.api_key}"
-        )
+        """Get proxied subtitle URL."""
+        return f"/api/jellyfin-stream/{item_id}/Subtitles/0/0/Stream.vtt"
 
     def get_transcode_url(self, item_id):
-        """Get an HLS transcode URL as fallback."""
+        """Get a proxied HLS transcode URL as fallback."""
         return (
-            f"{self.base_url}/Videos/{item_id}/master.m3u8"
-            f"?api_key={self.api_key}"
-            f"&MediaSourceId={item_id}"
+            f"/api/jellyfin-stream/{item_id}/master.m3u8"
+            f"?MediaSourceId={item_id}"
             f"&VideoCodec=h264"
             f"&AudioCodec=aac"
             f"&MaxStreamingBitrate=20000000"

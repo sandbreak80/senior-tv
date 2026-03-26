@@ -1677,6 +1677,49 @@ def nas_photo(filename):
     return send_from_directory(nas_path, safe_name)
 
 
+@app.route("/api/jellyfin-stream/<item_id>/<path:rest>")
+def jellyfin_stream_proxy(item_id, rest):
+    """Proxy Jellyfin video/audio/subtitle streams for remote access."""
+    import re
+    if not re.match(r'^[a-f0-9]+$', item_id):
+        return "", 400
+    jf_url = get_setting_or_default("jellyfin_url")
+    jf_key = get_setting_or_default("jellyfin_api_key")
+    if not jf_url or not jf_key:
+        return "", 404
+
+    # Build the upstream URL
+    upstream = f"{jf_url}/Videos/{item_id}/{rest}"
+    params = dict(request.args)
+    params["api_key"] = jf_key
+
+    try:
+        # Forward Range header for video seeking
+        headers = {}
+        if "Range" in request.headers:
+            headers["Range"] = request.headers["Range"]
+
+        # Stream the response (don't buffer entire video in memory)
+        upstream_resp = requests.get(upstream, params=params, stream=True, timeout=30, headers=headers)
+        if not upstream_resp.ok:
+            return "", upstream_resp.status_code
+
+        def generate():
+            for chunk in upstream_resp.iter_content(chunk_size=64 * 1024):
+                yield chunk
+
+        content_type = upstream_resp.headers.get("Content-Type", "video/mp4")
+        resp_headers = {}
+        for h in ("Content-Length", "Accept-Ranges", "Content-Range"):
+            if h in upstream_resp.headers:
+                resp_headers[h] = upstream_resp.headers[h]
+
+        return Response(generate(), status=upstream_resp.status_code,
+                        mimetype=content_type, headers=resp_headers)
+    except Exception:
+        return "", 502
+
+
 @app.route("/api/jellyfin-image/<item_id>/<image_type>")
 def jellyfin_image_proxy(item_id, image_type):
     """Proxy Jellyfin images so they work from remote access."""
