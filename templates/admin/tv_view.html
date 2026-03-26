@@ -1,0 +1,37 @@
+{% extends "admin/base.html" %}
+{% block title %}TV View{% endblock %}
+{% block content %}
+<h1 style="margin: 20px 0;">TV View</h1>
+
+<!-- Live View -->
+<div class="card">
+    <h2>Live View</h2>
+    <p style="color: #666; margin-bottom: 12px;">This shows exactly what Don & Colleen see right now.</p>
+    <div style="position: relative; width: 100%; padding-bottom: 56.25%; background: #000; border-radius: 12px; overflow: hidden;">
+        <iframe src="/" style="position: absolute; inset: 0; width: 100%; height: 100%; border: none;"></iframe>
+    </div>
+    <div style="margin-top: 8px; text-align: center;">
+        <a href="/" target="_blank" style="color: #e94560;">Open full screen in new tab</a>
+    </div>
+</div>
+
+<!-- Screenshot History -->
+<div class="card" style="margin-top: 20px;">
+    <h2>Screenshot History <span style="font-size: 14px; color: #666;">(every 15 min, {{ screenshots | length }} saved)</span></h2>
+    {% if screenshots %}
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-top: 12px;">
+        {% for ss in screenshots %}
+        <div style="background: #f5f5f5; border-radius: 8px; overflow: hidden;">
+            <a href="/static/screenshots/{{ ss.file }}" target="_blank">
+                <img src="/static/screenshots/{{ ss.file }}" alt="{{ ss.time }}"
+                     style="width: 100%; display: block;" loading="lazy">
+            </a>
+            <div style="padding: 6px 10px; font-size: 13px; color: #666;">{{ ss.time }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p style="color: #666; text-align: center; padding: 30px;">No screenshots yet. First one will appear in ~15 minutes.</p>
+    {% endif %}
+</div>
+{% endblock %}

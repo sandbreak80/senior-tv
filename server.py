@@ -1083,6 +1083,26 @@ def admin_activity():
     return render_template("admin/activity.html", logs=logs)
 
 
+@app.route("/admin/tv-view")
+def admin_tv_view():
+    """Live TV view and screenshot history."""
+    ss_dir = os.path.join(config.BASE_DIR, "static", "screenshots")
+    screenshots = []
+    if os.path.isdir(ss_dir):
+        for f in sorted(os.listdir(ss_dir), reverse=True):
+            if f.startswith("screen_") and f.endswith(".png"):
+                # Parse timestamp from filename: screen_20260326_065011.png
+                ts = f.replace("screen_", "").replace(".png", "")
+                try:
+                    from datetime import datetime as _dt
+                    dt = _dt.strptime(ts, "%Y%m%d_%H%M%S")
+                    time_str = dt.strftime("%b %d, %I:%M %p")
+                except Exception:
+                    time_str = ts
+                screenshots.append({"file": f, "time": time_str})
+    return render_template("admin/tv_view.html", screenshots=screenshots[:50])
+
+
 # --- Pills CRUD ---
 
 @app.route("/admin/pills")
@@ -1357,7 +1377,10 @@ def admin_settings():
         for key in ["greeting_names", "weather_lat", "weather_lon", "weather_unit",
                      "news_feeds", "jellyfin_url",
                      "frigate_url", "frigate_user", "frigate_pass", "frigate_cameras",
-                     "ha_url", "ha_token", "photo_interval", "photo_nas_path"]:
+                     "ha_url", "ha_token", "ha_tv_entity",
+                     "photo_interval", "photo_nas_path",
+                     "immich_url", "immich_api_key", "immich_album_id",
+                     "admin_password"]:
             val = request.form.get(key)
             if val is not None:
                 models.set_setting(key, val)
@@ -1365,7 +1388,37 @@ def admin_settings():
     settings = {}
     for key in config.DEFAULTS:
         settings[key] = get_setting_or_default(key)
-    return render_template("admin/settings.html", settings=settings)
+    # Also get non-default settings
+    for key in ["ha_tv_entity", "immich_album_id", "admin_password"]:
+        settings[key] = models.get_setting(key) or ""
+
+    # Immich status and albums
+    immich_status = None
+    immich_albums = []
+    immich_photo_count = 0
+    import immich_api
+    if immich_api.is_configured():
+        ok, msg = immich_api.test_connection()
+        immich_status = {"ok": ok, "message": msg}
+        immich_photo_count = immich_api.get_photo_count()
+        # Fetch albums
+        try:
+            im_url, im_key = immich_api._get_config()
+            resp = requests.get(f"{im_url}/api/albums",
+                                headers={"x-api-key": im_key}, timeout=5)
+            if resp.ok:
+                for a in resp.json():
+                    immich_albums.append({
+                        "id": a["id"],
+                        "name": a["albumName"],
+                        "count": a.get("assetCount", 0),
+                    })
+        except Exception:
+            pass
+
+    return render_template("admin/settings.html", settings=settings,
+                           immich_status=immich_status, immich_albums=immich_albums,
+                           immich_photo_count=immich_photo_count)
 
 
 # --- API for TV UI ---

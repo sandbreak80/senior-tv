@@ -99,6 +99,27 @@
             <input type="text" id="immich_api_key" name="immich_api_key" value="{{ settings.immich_api_key }}" placeholder="Your Immich API key">
             <div class="hint">Generate in Immich: User Settings > API Keys</div>
         </div>
+        {% if immich_status %}
+        <div style="margin-top: 10px; padding: 10px 16px; border-radius: 8px;
+                    background: {{ '#e8f5e9' if immich_status.ok else '#ffebee' }};
+                    color: {{ '#2e7d32' if immich_status.ok else '#c62828' }};">
+            {{ immich_status.message }}
+        </div>
+        {% endif %}
+        {% if immich_albums %}
+        <div class="form-group" style="margin-top: 12px;">
+            <label for="immich_album_id">Photo Album (optional)</label>
+            <select id="immich_album_id" name="immich_album_id">
+                <option value="">All Photos ({{ immich_photo_count | default(0) }} photos)</option>
+                {% for album in immich_albums %}
+                <option value="{{ album.id }}" {% if settings.immich_album_id == album.id %}selected{% endif %}>
+                    {{ album.name }} ({{ album.count }} photos)
+                </option>
+                {% endfor %}
+            </select>
+            <div class="hint">Select a specific album, or leave blank to show all photos</div>
+        </div>
+        {% endif %}
     </div>
 
     <div class="card">
