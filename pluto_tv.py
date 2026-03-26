@@ -5,7 +5,7 @@ Streams are HLS and play directly in HTML5 video.
 """
 
 import requests
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 SESSION_CACHE = {"token": None, "stitcher": None}
 
@@ -83,9 +83,16 @@ def get_channels(category_filter=None):
     cached = _cache.get(cache_key)
     if cached is None:
         try:
+            # Include start/stop to get EPG timeline data
+            now = datetime.now(timezone.utc)
+            params = {
+                "start": now.strftime("%Y-%m-%dT%H:00:00.000Z"),
+                "stop": (now + timedelta(hours=4)).strftime("%Y-%m-%dT%H:00:00.000Z"),
+            }
             resp = requests.get(
                 "https://api.pluto.tv/v2/channels",
                 headers={"Authorization": f"Bearer {token}"},
+                params=params,
                 timeout=15,
             )
             # Retry with fresh token on auth failure
@@ -94,6 +101,7 @@ def get_channels(category_filter=None):
                 resp = requests.get(
                     "https://api.pluto.tv/v2/channels",
                     headers={"Authorization": f"Bearer {token}"},
+                    params=params,
                     timeout=15,
                 )
             resp.raise_for_status()
@@ -162,6 +170,9 @@ def get_channels(category_filter=None):
             "stream_url": stream_url,
             "current_program": current_program,
         })
+
+    # Filter out dead channels (no current program = "c'est fini" slate)
+    channels = [c for c in channels if c["current_program"]]
 
     channels.sort(key=lambda c: c["number"])
 
