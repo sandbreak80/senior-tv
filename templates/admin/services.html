@@ -15,22 +15,57 @@
     {% endfor %}
 </div>
 
-{% for svc in services %}
-<div class="card" style="margin-top: 16px;">
-    <h2>{{ svc.icon }} {{ svc.name }}
-        <span style="font-size: 14px; color: {{ '#4caf50' if svc.ok else '#f44336' }}; margin-left: 8px;">
-            {{ 'Online' if svc.ok else 'Offline' }}
-        </span>
-        <a href="{{ svc.url }}" target="_blank" style="float: right; font-size: 14px; color: #e94560;">Open in new tab</a>
-    </h2>
-    {% if svc.ok %}
-    <div style="position: relative; width: 100%; padding-bottom: 50%; background: #1a1a2e; border-radius: 8px; overflow: hidden; margin-top: 12px;">
-        <iframe src="{{ svc.url }}" style="position: absolute; top: 0; left: 0; width: 1920px; height: 1080px; border: none; transform-origin: top left;"
-                onload="this.style.transform='scale('+(this.parentElement.offsetWidth/1920)+')'"></iframe>
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 16px;">
+    {% for svc in services %}
+    <div class="card" style="padding: 0; overflow: hidden;">
+        <div style="padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee;">
+            <div>
+                <span style="font-size: 20px;">{{ svc.icon }}</span>
+                <strong>{{ svc.name }}</strong>
+                <span style="font-size: 12px; color: {{ '#4caf50' if svc.ok else '#f44336' }}; margin-left: 6px;">
+                    {{ 'Online' if svc.ok else 'Offline' }}
+                </span>
+            </div>
+            <a href="{{ svc.url }}" target="_blank" style="font-size: 13px; color: #e94560; text-decoration: none;">Open &rarr;</a>
+        </div>
+        {% if svc.ok %}
+        <div style="padding: 16px; text-align: center;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px; text-align: left; margin-bottom: 12px;">
+                <div><strong>Status:</strong> <span style="color: #4caf50;">Running</span></div>
+                <div><strong>Port:</strong> {{ svc.port }}</div>
+                {% if svc.detail %}
+                <div style="grid-column: span 2;"><strong>Info:</strong> {{ svc.detail }}</div>
+                {% endif %}
+            </div>
+            <a href="{{ svc.url }}" target="_blank"
+               style="display: inline-block; padding: 10px 24px; background: #e94560; color: white;
+                      border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">
+                Open {{ svc.name }}
+            </a>
+        </div>
+        {% else %}
+        <div style="padding: 30px; text-align: center; color: #999;">Service is not responding.</div>
+        {% endif %}
     </div>
-    {% else %}
-    <p style="color: #666; padding: 20px; text-align: center;">Service is not responding.</p>
-    {% endif %}
+    {% endfor %}
 </div>
-{% endfor %}
+
+{% if docker_stats %}
+<div class="card" style="margin-top: 20px;">
+    <h2>Container Resources</h2>
+    <div class="table-wrap">
+        <table>
+            <tr><th>Container</th><th>Status</th><th>CPU</th><th>Memory</th></tr>
+            {% for c in docker_stats %}
+            <tr>
+                <td>{{ c.name }}</td>
+                <td style="color: {{ '#4caf50' if 'Up' in c.status else '#f44336' }};">{{ c.status[:20] }}</td>
+                <td>{{ c.cpu }}</td>
+                <td>{{ c.mem }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+</div>
+{% endif %}
 {% endblock %}

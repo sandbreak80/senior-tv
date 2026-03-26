@@ -1204,20 +1204,18 @@ def admin_camera_snapshot(camera_name):
 def admin_services():
     """Docker service management page."""
     if _is_local_request():
-        # LAN: direct port access
         services = [
-            {"name": "Jellyfin", "icon": "🎬", "url": "http://192.168.50.159:8096", "check": "http://localhost:8096"},
-            {"name": "Immich", "icon": "📸", "url": "http://192.168.50.159:2283", "check": "http://localhost:2283"},
-            {"name": "Frigate", "icon": "📹", "url": "http://192.168.50.159:5001", "check": "http://localhost:5001"},
-            {"name": "Home Assistant", "icon": "🏠", "url": "http://192.168.50.159:8123", "check": "http://localhost:8123"},
+            {"name": "Jellyfin", "icon": "🎬", "url": "http://192.168.50.159:8096", "check": "http://localhost:8096", "port": "8096", "detail": "Media server — movies, shows, music"},
+            {"name": "Immich", "icon": "📸", "url": "http://192.168.50.159:2283", "check": "http://localhost:2283", "port": "2283", "detail": "Photo library — 143K family photos"},
+            {"name": "Frigate", "icon": "📹", "url": "http://192.168.50.159:5001", "check": "http://localhost:5001", "port": "5001/8971", "detail": "NVR — 10 cameras, person detection"},
+            {"name": "Home Assistant", "icon": "🏠", "url": "http://192.168.50.159:8123", "check": "http://localhost:8123", "port": "8123", "detail": "Smart home — TV control, automations"},
         ]
     else:
-        # Remote: nginx subpath routes (only port 80 is tunneled)
         services = [
-            {"name": "Jellyfin", "icon": "🎬", "url": "/jellyfin/", "check": "http://localhost:8096"},
-            {"name": "Immich", "icon": "📸", "url": "/immich/", "check": "http://localhost:2283"},
-            {"name": "Frigate", "icon": "📹", "url": "/frigate/", "check": "http://localhost:5001"},
-            {"name": "Home Assistant", "icon": "🏠", "url": "/ha/", "check": "http://localhost:8123"},
+            {"name": "Jellyfin", "icon": "🎬", "url": "/jellyfin/", "check": "http://localhost:8096", "port": "8096", "detail": "Media server — movies, shows, music"},
+            {"name": "Immich", "icon": "📸", "url": "/immich/", "check": "http://localhost:2283", "port": "2283", "detail": "Photo library — 143K family photos"},
+            {"name": "Frigate", "icon": "📹", "url": "/frigate/", "check": "http://localhost:5001", "port": "5001/8971", "detail": "NVR — 10 cameras, person detection"},
+            {"name": "Home Assistant", "icon": "🏠", "url": "/ha/", "check": "http://localhost:8123", "port": "8123", "detail": "Smart home — TV control, automations"},
         ]
     for svc in services:
         try:
@@ -1225,7 +1223,34 @@ def admin_services():
             svc["ok"] = resp.status_code < 500
         except Exception:
             svc["ok"] = False
-    return render_template("admin/services.html", services=services)
+
+    # Docker container stats
+    docker_stats = []
+    try:
+        result = subprocess.run(
+            ["docker", "stats", "--no-stream", "--format", "{{.Name}}\t{{.Status}}\t{{.CPUPerc}}\t{{.MemUsage}}"],
+            capture_output=True, text=True, timeout=10,
+        )
+        # Fallback to docker ps if stats fails
+        if not result.stdout.strip():
+            result = subprocess.run(
+                ["docker", "ps", "--format", "{{.Names}}\t{{.Status}}\t-\t-"],
+                capture_output=True, text=True, timeout=5,
+            )
+        for line in result.stdout.strip().split("\n"):
+            if line:
+                parts = line.split("\t")
+                if len(parts) >= 4:
+                    docker_stats.append({
+                        "name": parts[0],
+                        "status": parts[1] if len(parts) > 1 else "?",
+                        "cpu": parts[2] if len(parts) > 2 else "?",
+                        "mem": parts[3] if len(parts) > 3 else "?",
+                    })
+    except Exception:
+        pass
+
+    return render_template("admin/services.html", services=services, docker_stats=docker_stats)
 
 
 @app.route("/admin/tv-view")
