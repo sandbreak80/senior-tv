@@ -96,21 +96,15 @@ fi
 # --- 8. TV Power/Input (via Home Assistant) ---
 HOUR=$(date +%H)
 if [ "$HOUR" -ge 7 ] && [ "$HOUR" -lt 22 ]; then
-    TV_STATUS=$(cd "$PROJECT_DIR" && source venv/bin/activate && python3 -c "
-from cec_control import tv_get_power_status
-print(tv_get_power_status())
-" 2>/dev/null)
-    if [ "$TV_STATUS" = "standby" ] || [ "$TV_STATUS" = "off" ]; then
-        log "WARN: TV in standby during active hours"
-        repair "Turning TV on and setting HDMI input via Home Assistant"
-        cd "$PROJECT_DIR" && source venv/bin/activate && python3 -c "
-from cec_control import tv_power_on, tv_set_input
-tv_power_on()
-import time; time.sleep(3)
+    cd "$PROJECT_DIR" && source venv/bin/activate && python3 -c "
+from cec_control import tv_power_on, tv_set_input, tv_get_power_status
+status = tv_get_power_status()
+if status in ('standby', 'off'):
+    tv_power_on()
+    import time; time.sleep(3)
+# Always ensure HDMI input (can't read current source reliably)
 tv_set_input()
 " 2>/dev/null
-        ISSUES=$((ISSUES + 1))
-    fi
 fi
 
 # --- Track repair count ---
