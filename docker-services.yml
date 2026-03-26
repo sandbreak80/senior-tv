@@ -73,6 +73,27 @@ services:
       - POSTGRES_INITDB_ARGS=--data-checksums
 
   # =============================================
+  # Frigate — Camera NVR + Person Detection
+  # =============================================
+  frigate:
+    image: ghcr.io/blakeblackshear/frigate:stable
+    container_name: frigate
+    restart: unless-stopped
+    ports:
+      - "8971:8971"   # Web UI
+      - "5001:5000"   # API (remapped — 5000 is Senior TV)
+      - "8554:8554"   # RTSP restream
+    volumes:
+      - ./frigate/config:/config
+      - ./frigate/storage:/media/frigate
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      - FRIGATE_RTSP_PASSWORD=seniortvfrigate
+    devices:
+      - /dev/dri:/dev/dri  # AMD GPU for detection
+    shm_size: "256mb"
+
+  # =============================================
   # Home Assistant — Smart Home Control
   # =============================================
   homeassistant:
