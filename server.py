@@ -1930,7 +1930,8 @@ def api_next_video():
     """Get a random video to auto-play. All genres welcome — the library was curated for them.
 
     Tries a time-of-day preferred genre first (soft preference, not a filter).
-    Falls back to any random item if preferred genre has nothing new.
+    Validates stream URL before recommending (prevents dead streams).
+    Tries up to 5 candidates to find one that works.
     """
     import random as _random
     hour = datetime.now().hour
@@ -1944,28 +1945,47 @@ def api_next_video():
     jf = _get_jellyfin()
     if not jf:
         return jsonify({"error": "not configured"}), 400
+
+    def _validate_and_return(item, genre=None):
+        """Check stream URL is reachable before recommending."""
+        if item.get("type") == "series":
+            # Series use shuffle — always valid (picks random episode server-side)
+            url = f"/tv/plex/shuffle/{item['id']}"
+            result = {"id": item["id"], "title": item.get("title", ""),
+                      "type": item.get("type", ""), "url": url}
+            if genre:
+                result["genre"] = genre
+            return result
+        # Movie — verify stream URL exists
+        try:
+            stream_url = jf.get_stream_url(item["id"])
+            resp = requests.head(stream_url, timeout=5, allow_redirects=True)
+            if resp.status_code < 400:
+                url = f"/tv/plex/play/{item['id']}"
+                result = {"id": item["id"], "title": item.get("title", ""),
+                          "type": item.get("type", ""), "url": url}
+                if genre:
+                    result["genre"] = genre
+                return result
+        except Exception:
+            pass
+        return None
+
     try:
         libs = jf.get_libraries()
-        # 50% chance: try a preferred genre first for variety
-        if _random.random() < 0.5:
-            genre = _random.choice(preferred)
-            for lib in libs:
-                items = jf.get_library_items(lib["id"], sort="Random",
-                                             genre=genre, limit=1)
-                if items:
-                    item = items[0]
-                    url = f"/tv/plex/shuffle/{item['id']}" if item.get("type") == "series" else f"/tv/plex/play/{item['id']}"
-                    return jsonify({"id": item["id"], "title": item.get("title", ""),
-                                    "type": item.get("type", ""), "genre": genre, "url": url})
+        # Try up to 5 random picks, validating each
+        for attempt in range(5):
+            genre = None
+            if attempt < 2 and _random.random() < 0.5:
+                genre = _random.choice(preferred)
 
-        # Pick anything random from the full library
-        for lib in libs:
-            items = jf.get_library_items(lib["id"], sort="Random", limit=1)
-            if items:
-                item = items[0]
-                url = f"/tv/plex/shuffle/{item['id']}" if item.get("type") == "series" else f"/tv/plex/play/{item['id']}"
-                return jsonify({"id": item["id"], "title": item.get("title", ""),
-                                "type": item.get("type", ""), "url": url})
+            for lib in libs:
+                items = jf.get_library_items(
+                    lib["id"], sort="Random", genre=genre, limit=1)
+                if items:
+                    result = _validate_and_return(items[0], genre)
+                    if result:
+                        return jsonify(result)
     except Exception:
         pass
     return jsonify({"error": "no content"}), 404

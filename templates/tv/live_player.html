@@ -108,8 +108,19 @@
                         if (data.fatal) {
                             hlsRetries++;
                             if (hlsRetries > 5) {
-                                showCenterIcon('This channel is not available right now');
-                                setTimeout(function() { window.quickNav('/tv/live'); }, 3000);
+                                // Dead stream — auto-skip to another channel (never show error)
+                                showCenterIcon('Switching channels...');
+                                window.logActivity("dead_stream", channelName, "live_tv", {item_id: channelId});
+                                fetch("/api/next-channel")
+                                    .then(function(r) { return r.ok ? r.json() : null; })
+                                    .then(function(ch) {
+                                        if (ch && ch.url) {
+                                            setTimeout(function() { window.quickNav(ch.url); }, 1500);
+                                        } else {
+                                            setTimeout(function() { window.quickNav("/"); }, 1500);
+                                        }
+                                    })
+                                    .catch(function() { setTimeout(function() { window.quickNav("/"); }, 1500); });
                                 return;
                             }
                             switch (data.type) {

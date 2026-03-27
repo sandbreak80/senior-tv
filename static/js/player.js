@@ -206,8 +206,21 @@
             showCenterIcon("Retrying...");
             setTimeout(function() { video.load(); video.play().catch(function(){}); }, 2000);
         } else {
-            showCenterIcon("Unable to play — press BACK");
-            overlay.classList.add("visible");
+            // Dead stream — auto-skip to next video (never show error to seniors)
+            showCenterIcon("Skipping...");
+            window.logActivity("dead_stream", logItemTitle, logItemType, {item_id: logItemId});
+            fetch("/api/next-video")
+                .then(function(r) { return r.ok ? r.json() : null; })
+                .then(function(data) {
+                    if (data && data.url) {
+                        setTimeout(function() { window.quickNav(data.url); }, 1500);
+                    } else {
+                        setTimeout(function() { window.quickNav("/"); }, 1500);
+                    }
+                })
+                .catch(function() {
+                    setTimeout(function() { window.quickNav("/"); }, 1500);
+                });
         }
     });
 
