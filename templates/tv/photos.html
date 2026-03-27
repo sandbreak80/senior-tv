@@ -178,6 +178,13 @@
 
             setInterval(showNext, interval);
 
+            // Refresh photo queue every 30 min (don't loop same 20 photos forever)
+            setInterval(function() {
+                queue = [];
+                idx = 0;
+                fetchMore();
+            }, 1800000);
+
             // Clock
             function updateClock() {
                 var el = document.getElementById('clock');

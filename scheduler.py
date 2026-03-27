@@ -5,12 +5,15 @@ from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 from models import get_pills, log_pill_acknowledgment
 
-# Global event queue for SSE — pill reminders push here, TV UI reads from here
-reminder_queue = queue.Queue()
+# Global event queue for SSE — bounded to prevent memory growth
+reminder_queue = queue.Queue(maxsize=50)
 
 # Track active (unacknowledged) reminders
 active_reminders = {}
 _lock = threading.Lock()
+
+# Deduplication: prevent pill from firing multiple times per scheduled slot
+_last_fired = {}  # {"pill_id_HH:MM": datetime}
 
 DAY_MAP = {"mon": 0, "tue": 1, "wed": 2, "thu": 3, "fri": 4, "sat": 5, "sun": 6}
 
@@ -20,6 +23,14 @@ def check_pills():
     now = datetime.now()
     current_time = now.strftime("%H:%M")
     current_day_num = now.weekday()
+
+    # Garbage-collect old active reminders (>2 hours = missed)
+    _gc_active_reminders(now)
+
+    # Prune dedup cache (entries older than 1 hour)
+    stale = [k for k, t in _last_fired.items() if (now - t).seconds > 3600]
+    for k in stale:
+        del _last_fired[k]
 
     pills = get_pills(enabled_only=True)
     for pill in pills:
@@ -31,6 +42,11 @@ def check_pills():
         day_nums = [DAY_MAP[d] for d in days if d in DAY_MAP]
 
         if current_day_num in day_nums and current_time in times:
+            # Dedup: only fire once per pill per time slot
+            dedup_key = f"{pill['id']}_{current_time}"
+            if dedup_key in _last_fired and (now - _last_fired[dedup_key]).seconds < 120:
+                continue
+            _last_fired[dedup_key] = now
             trigger_reminder(pill, current_time)
 
 
@@ -66,7 +82,36 @@ def trigger_reminder(pill, scheduled_time):
         "block_minutes": 15 if is_blocking else 0,
         "icon": "🚿" if is_shower else ("🧘" if is_stretch else "💊"),
     }
-    reminder_queue.put(event_data)
+    try:
+        reminder_queue.put_nowait(event_data)
+    except queue.Full:
+        pass  # Drop if queue is full — prevents memory growth
+
+
+def _gc_active_reminders(now):
+    """Remove unacknowledged reminders older than 2 hours and log as missed."""
+    with _lock:
+        to_remove = []
+        for rid, data in active_reminders.items():
+            try:
+                triggered = datetime.fromisoformat(data["triggered_at"])
+                if (now - triggered).seconds > 7200:  # 2 hours
+                    to_remove.append((rid, data))
+            except Exception:
+                to_remove.append((rid, data))
+
+        for rid, data in to_remove:
+            del active_reminders[rid]
+            # Log as missed if it was a pill (not shower/stretch)
+            if "pill" in data and "scheduled_time" in data:
+                pill = data["pill"]
+                name = pill.get("name", "").lower()
+                if "shower" not in name and "stretch" not in name:
+                    try:
+                        from models import log_missed_pill
+                        log_missed_pill(pill["id"], data["scheduled_time"])
+                    except Exception:
+                        pass
 
 
 def acknowledge_reminder(reminder_id):
@@ -235,7 +280,19 @@ def trigger_classical_music():
                     "message": "Doctor says: 1 hour of classical music daily",
                     "icon": "🎵",
                 }
-                reminder_queue.put(event_data)
+                try:
+                    reminder_queue.put_nowait(event_data)
+                except queue.Full:
+                    pass
+    except Exception:
+        pass
+
+
+def _daily_maintenance():
+    """Daily database cleanup — runs at 3 AM."""
+    try:
+        from models import prune_old_logs
+        prune_old_logs(activity_days=30, remote_days=7)
     except Exception:
         pass
 
@@ -246,6 +303,7 @@ scheduler.add_job(check_birthdays, "interval", hours=1, id="birthday_checker")
 scheduler.add_job(check_favorite_shows, "interval", minutes=10, id="show_checker")
 scheduler.add_job(_cache_cleanup, "interval", minutes=30, id="cache_cleanup")
 scheduler.add_job(trigger_classical_music, "interval", hours=1, id="classical_music")
+scheduler.add_job(_daily_maintenance, "cron", hour=3, minute=15, id="daily_maintenance")
 
 
 def start_scheduler():

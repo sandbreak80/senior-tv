@@ -6,6 +6,13 @@
 LOG="/var/log/senior-tv-claude-check.log"
 LOCK="/tmp/senior_tv_health_agent.lock"
 
+# Rotate logs if >10MB
+for logfile in "$LOG" /var/log/senior-tv-watchdog.log /var/log/senior-tv-repairs.log; do
+    if [ -f "$logfile" ] && [ "$(stat -f%z "$logfile" 2>/dev/null || stat -c%s "$logfile" 2>/dev/null)" -gt 10485760 ]; then
+        tail -1000 "$logfile" > "${logfile}.tmp" && mv "${logfile}.tmp" "$logfile"
+    fi
+done
+
 # Prevent overlapping runs
 if [ -f "$LOCK" ]; then
     PID=$(cat "$LOCK")

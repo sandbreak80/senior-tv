@@ -316,17 +316,27 @@ window.quickNav = function(url) {
                     } else if (data.type === "family_message") {
                         showFamilyMessage(data);
                     } else if (data.type === "auto_play") {
-                        if (data.url) window.quickNav(data.url);
+                        // Only auto-play if someone is watching (skip if room empty)
+                        if (data.url && !window._roomEmpty) {
+                            window.quickNav(data.url);
+                        }
                     } else if (data.type === "presence_change") {
-                        if (!data.occupied && window.location.pathname === "/") {
-                            // Room empty — start photo screensaver in 2 min
+                        window._roomEmpty = !data.occupied;
+                        if (!data.occupied) {
+                            // Room empty — start screensaver timer from ANY page
+                            var delay = window.location.pathname === "/" ? 120000 : 600000;
                             if (!window._presenceTimeout) {
                                 window._presenceTimeout = setTimeout(function() {
-                                    window.quickNav("/tv/photos?screensaver=1");
-                                }, 120000);
+                                    if (window.location.pathname !== "/") {
+                                        window.quickNav("/");
+                                        // Home page will start its own screensaver timer
+                                    } else {
+                                        window.quickNav("/tv/photos?screensaver=1");
+                                    }
+                                }, delay);
                             }
                         } else if (data.occupied) {
-                            // Someone sat down — cancel screensaver
+                            // Someone sat down — cancel screensaver timer
                             if (window._presenceTimeout) {
                                 clearTimeout(window._presenceTimeout);
                                 window._presenceTimeout = null;

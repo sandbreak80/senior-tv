@@ -169,24 +169,33 @@
         showOverlay();
     });
 
+    // Track auto-play chain depth (max 3 then go home)
+    var autoPlayCount = parseInt(new URLSearchParams(window.location.search).get("ap") || "0");
+
     video.addEventListener("ended", function () {
         logStop();
+        if (autoPlayCount >= 3) {
+            // Chain limit reached — go home, let screensaver take over
+            showCenterIcon("Returning home...");
+            setTimeout(function() { window.quickNav("/"); }, 3000);
+            return;
+        }
         showCenterIcon("Up Next...");
         showOverlay();
-        // Auto-play next random content after 3 seconds
         fetch("/api/next-video")
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data.url) {
-                    setTimeout(function() { window.quickNav(data.url); }, 3000);
+                    var sep = data.url.indexOf("?") > -1 ? "&" : "?";
+                    setTimeout(function() { window.quickNav(data.url + sep + "ap=" + (autoPlayCount + 1)); }, 3000);
                 } else {
-                    showCenterIcon("✓ Finished");
-                    setTimeout(goBack, 5000);
+                    showCenterIcon("Returning home...");
+                    setTimeout(function() { window.quickNav("/"); }, 5000);
                 }
             })
             .catch(function() {
-                showCenterIcon("✓ Finished");
-                setTimeout(goBack, 5000);
+                showCenterIcon("Returning home...");
+                setTimeout(function() { window.quickNav("/"); }, 5000);
             });
     });
 

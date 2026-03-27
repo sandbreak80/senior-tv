@@ -290,6 +290,25 @@ def log_pill_acknowledgment(pill_id, scheduled_time):
         db.commit()
 
 
+def log_missed_pill(pill_id, scheduled_time):
+    """Log a pill that was never acknowledged (expired after 2 hours)."""
+    with get_db_safe() as db:
+        db.execute(
+            "INSERT INTO pill_logs (pill_id, scheduled_time, acknowledged_at) VALUES (?, ?, 'missed')",
+            (pill_id, scheduled_time),
+        )
+        db.commit()
+
+
+def prune_old_logs(activity_days=30, remote_days=7):
+    """Delete old logs and vacuum database."""
+    with get_db_safe() as db:
+        db.execute(f"DELETE FROM activity_logs WHERE started_at < datetime('now', '-{activity_days} days')")
+        db.execute(f"DELETE FROM remote_logs WHERE logged_at < datetime('now', '-{remote_days} days')")
+        db.execute("VACUUM")
+        db.commit()
+
+
 # --- Calendar helpers ---
 
 def get_upcoming_events(days=14):
