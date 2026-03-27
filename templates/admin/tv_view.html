@@ -3,29 +3,25 @@
 {% block content %}
 <h1 style="margin: 20px 0;">TV View</h1>
 
-<!-- Live View -->
+<!-- Live Desktop Screenshot -->
 <div class="card">
-    <h2>Live View</h2>
-    <p style="color: #666; margin-bottom: 12px;">This shows exactly what Don & Colleen see right now.</p>
-    <div style="position: relative; width: 100%; padding-bottom: 56.25%; background: #000; border-radius: 12px; overflow: hidden;">
-        <iframe src="/" style="position: absolute; top: 0; left: 0; width: 1920px; height: 1080px; border: none; transform: scale(0.5); transform-origin: top left;"></iframe>
+    <h2>What's On Screen Right Now</h2>
+    <p style="color: #666; margin-bottom: 12px;">This is an actual screenshot of the TV — exactly what Don & Colleen see.</p>
+    <div id="live-screenshot" style="background: #000; border-radius: 12px; overflow: hidden; text-align: center; min-height: 200px; display: flex; align-items: center; justify-content: center;">
+        {% if screenshots %}
+        <img id="live-img" src="/static/screenshots/{{ screenshots[0].file }}" alt="Latest TV screenshot"
+             style="width: 100%; display: block;" onclick="window.open(this.src)">
+        {% else %}
+        <p style="color: #888; padding: 40px;">No screenshots yet. Click "Capture Now" to take one.</p>
+        {% endif %}
     </div>
-    <script>
-        // Scale iframe to fit container width
-        (function() {
-            var container = document.querySelector('.card div[style*="padding-bottom"]');
-            var iframe = container ? container.querySelector('iframe') : null;
-            if (!container || !iframe) return;
-            function scaleIframe() {
-                var scale = container.offsetWidth / 1920;
-                iframe.style.transform = 'scale(' + scale + ')';
-            }
-            scaleIframe();
-            window.addEventListener('resize', scaleIframe);
-        })();
-    </script>
-    <div style="margin-top: 8px; text-align: center;">
-        <a href="/" target="_blank" style="color: #e94560;">Open full screen in new tab</a>
+    <div style="margin-top: 12px; display: flex; align-items: center; gap: 16px;">
+        <button id="capture-btn" onclick="captureNow()" style="background: #e94560; color: #fff; border: none; padding: 10px 24px; border-radius: 8px; font-size: 16px; cursor: pointer;">
+            Capture Now
+        </button>
+        <span id="capture-status" style="color: #666; font-size: 14px;">
+            {% if screenshots %}Latest: {{ screenshots[0].time }}{% endif %}
+        </span>
     </div>
 </div>
 
@@ -48,4 +44,41 @@
     <p style="color: #666; text-align: center; padding: 30px;">No screenshots yet. First one will appear in ~15 minutes.</p>
     {% endif %}
 </div>
+
+<script>
+function captureNow() {
+    var btn = document.getElementById('capture-btn');
+    var status = document.getElementById('capture-status');
+    btn.disabled = true;
+    btn.textContent = 'Capturing...';
+    status.textContent = '';
+
+    fetch('/api/screenshot', { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.ok) {
+                var img = document.getElementById('live-img');
+                var container = document.getElementById('live-screenshot');
+                var src = '/static/screenshots/' + data.file + '?t=' + Date.now();
+                if (img) {
+                    img.src = src;
+                } else {
+                    container.innerHTML = '<img id="live-img" src="' + src + '" style="width:100%;display:block;" onclick="window.open(this.src)">';
+                }
+                status.textContent = 'Captured just now';
+            } else {
+                status.textContent = 'Error: ' + (data.error || 'unknown');
+                status.style.color = '#e94560';
+            }
+        })
+        .catch(function(err) {
+            status.textContent = 'Failed: ' + err;
+            status.style.color = '#e94560';
+        })
+        .finally(function() {
+            btn.disabled = false;
+            btn.textContent = 'Capture Now';
+        });
+}
+</script>
 {% endblock %}

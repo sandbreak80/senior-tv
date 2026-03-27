@@ -198,8 +198,18 @@ class JellyfinAPI:
         return tracks
 
     def get_stream_url(self, item_id):
-        """Get a proxied stream URL that works from both LAN and remote."""
-        return f"/api/jellyfin-stream/{item_id}/stream?Static=true"
+        """Get a proxied stream URL that works from both LAN and remote.
+        Uses Jellyfin transcoding to ensure audio is AAC (Chrome can't decode
+        EAC3/DTS/TrueHD). Video is copied without re-encoding."""
+        return (
+            f"/api/jellyfin-stream/{item_id}/master.m3u8"
+            f"?MediaSourceId={item_id}"
+            f"&VideoCodec=h264,hevc,mpeg4"
+            f"&AudioCodec=aac,mp3,opus"
+            f"&TranscodingProtocol=hls"
+            f"&AudioStreamIndex=1"
+            f"&MaxStreamingBitrate=100000000"
+        )
 
     def get_subtitle_url(self, item_id):
         """Get proxied subtitle URL."""

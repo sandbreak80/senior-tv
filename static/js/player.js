@@ -16,6 +16,47 @@
 
     if (!video) return;
 
+    // --- HLS.js for m3u8 streams (Jellyfin transcode) ---
+    (function initHLS() {
+        var sources = video.querySelectorAll("source");
+        var hlsSrc = null;
+        for (var i = 0; i < sources.length; i++) {
+            var src = sources[i].getAttribute("src") || "";
+            if (src.indexOf(".m3u8") > -1) {
+                hlsSrc = src;
+                break;
+            }
+        }
+        if (!hlsSrc) return;
+        if (typeof Hls !== "undefined" && Hls.isSupported()) {
+            // Remove source tags so native player doesn't interfere
+            while (video.firstChild) {
+                if (video.firstChild.tagName === "TRACK") break;
+                video.removeChild(video.firstChild);
+            }
+            var hls = new Hls({ maxBufferLength: 60, maxMaxBufferLength: 120 });
+            hls.loadSource(hlsSrc);
+            hls.attachMedia(video);
+            hls.on(Hls.Events.MANIFEST_PARSED, function () {
+                video.play().catch(function () {});
+            });
+            hls.on(Hls.Events.ERROR, function (event, data) {
+                if (data.fatal) {
+                    if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                        hls.startLoad();
+                    } else {
+                        hls.destroy();
+                    }
+                }
+            });
+            window._hls = hls;
+        } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+            // Native HLS (Safari)
+            video.src = hlsSrc;
+            video.play().catch(function () {});
+        }
+    })();
+
     // --- Activity Logging ---
     const container = document.getElementById("player-container");
     const logItemId = container ? container.dataset.itemId : "";

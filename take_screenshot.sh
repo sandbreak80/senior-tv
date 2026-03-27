@@ -7,11 +7,21 @@ CAM_DIR="/home/media/code_projectsd/senior_tv/static/camera_snaps"
 MAX_MB=100
 TIMESTAMP=$(date '+%Y%m%d_%H%M%S')
 
-# Take desktop screenshot
-export XDG_RUNTIME_DIR=/run/user/1000
-export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
-export DISPLAY=:0
-gnome-screenshot -f "$SCREEN_DIR/screen_${TIMESTAMP}.png" 2>/dev/null
+# Take screenshot via Chrome DevTools Protocol (silent, captures actual TV output)
+OUTFILE="$SCREEN_DIR/screen_${TIMESTAMP}.png"
+/home/media/code_projectsd/senior_tv/venv/bin/python3 -c "
+import json, base64, urllib.request, websocket
+tabs = json.loads(urllib.request.urlopen('http://127.0.0.1:9222/json', timeout=5).read())
+ws_url = next((t['webSocketDebuggerUrl'] for t in tabs if t.get('type') == 'page'), None)
+if ws_url:
+    ws = websocket.create_connection(ws_url, timeout=10)
+    ws.send(json.dumps({'id': 1, 'method': 'Page.captureScreenshot', 'params': {'format': 'png'}}))
+    result = json.loads(ws.recv())
+    ws.close()
+    if 'result' in result:
+        with open('$OUTFILE', 'wb') as f:
+            f.write(base64.b64decode(result['result']['data']))
+" 2>/dev/null
 
 # Save camera snapshots from Frigate (check on loved ones)
 for camera in tv_room living_room family_room kitchen; do

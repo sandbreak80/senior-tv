@@ -68,6 +68,8 @@ start_chrome() {
         --start-fullscreen \
         --autoplay-policy=no-user-gesture-required \
         --password-store=basic \
+        --remote-debugging-port=9222 \
+        --remote-allow-origins=* \
         --user-data-dir=/home/media/.config/senior-tv-chrome \
         http://localhost:5000 &
     CHROME_PID=$!

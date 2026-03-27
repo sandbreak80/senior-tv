@@ -1345,6 +1345,47 @@ def admin_tv_view():
     return render_template("admin/tv_view.html", screenshots=screenshots[:50])
 
 
+@app.route("/api/screenshot", methods=["POST"])
+def api_take_screenshot():
+    """Capture what the kiosk Chrome is displaying via DevTools Protocol."""
+    import base64
+    import urllib.request
+    from datetime import datetime as _dt
+    ss_dir = os.path.join(config.BASE_DIR, "static", "screenshots")
+    os.makedirs(ss_dir, exist_ok=True)
+    ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"screen_{ts}.png"
+    filepath = os.path.join(ss_dir, filename)
+    try:
+        # Get the first page from Chrome DevTools
+        tabs_raw = urllib.request.urlopen("http://127.0.0.1:9222/json", timeout=5).read()
+        tabs = json.loads(tabs_raw)
+        ws_url = None
+        for tab in tabs:
+            if tab.get("type") == "page":
+                ws_url = tab.get("webSocketDebuggerUrl")
+                break
+        if not ws_url:
+            return jsonify({"ok": False, "error": "No Chrome page found on debug port"}), 500
+
+        # Use websocket to send CDP command
+        import websocket
+        ws = websocket.create_connection(ws_url, timeout=10)
+        ws.send(json.dumps({"id": 1, "method": "Page.captureScreenshot", "params": {"format": "png"}}))
+        result = json.loads(ws.recv())
+        ws.close()
+
+        if "result" in result and "data" in result["result"]:
+            img_data = base64.b64decode(result["result"]["data"])
+            with open(filepath, "wb") as f:
+                f.write(img_data)
+            return jsonify({"ok": True, "file": filename})
+        else:
+            return jsonify({"ok": False, "error": "CDP screenshot failed"}), 500
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 # --- Pills CRUD ---
 
 @app.route("/admin/pills")
