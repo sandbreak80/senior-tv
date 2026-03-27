@@ -300,6 +300,68 @@ def log_missed_pill(pill_id, scheduled_time):
         db.commit()
 
 
+def get_pill_adherence_today():
+    """Get today's pill status for each enabled pill and scheduled time.
+
+    Returns list of dicts: {pill_name, scheduled_time, display_time, status, acknowledged_at}
+    where status is 'taken', 'missed', or 'pending'.
+    """
+    import json
+    from datetime import datetime
+    now = datetime.now()
+    current_day = now.strftime("%a").lower()[:3]  # mon, tue, etc.
+    current_time = now.strftime("%H:%M")
+    today_str = now.strftime("%Y-%m-%d")
+
+    pills = get_pills(enabled_only=True)
+    results = []
+
+    with get_db_safe() as db:
+        for pill in pills:
+            try:
+                times = json.loads(pill["schedule_times"])
+                days = json.loads(pill["schedule_days"])
+            except (json.JSONDecodeError, TypeError):
+                continue
+
+            if current_day not in days:
+                continue
+
+            for t in sorted(times):
+                # Check pill_logs for this pill + time today
+                log = db.execute(
+                    """SELECT acknowledged_at FROM pill_logs
+                       WHERE pill_id = ? AND scheduled_time = ?
+                       AND DATE(created_at) = ?
+                       ORDER BY created_at DESC LIMIT 1""",
+                    (pill["id"], t, today_str),
+                ).fetchone()
+
+                if log:
+                    ack = log["acknowledged_at"]
+                    if ack and ack != "missed":
+                        status = "taken"
+                    else:
+                        status = "missed"
+                else:
+                    status = "pending" if t >= current_time else "pending"
+
+                # Convert to 12h display
+                h, m = t.split(":")
+                h_int = int(h)
+                display_time = f"{h_int % 12 or 12}:{m} {'AM' if h_int < 12 else 'PM'}"
+
+                results.append({
+                    "pill_name": pill["name"],
+                    "scheduled_time": t,
+                    "display_time": display_time,
+                    "status": status,
+                    "acknowledged_at": log["acknowledged_at"] if log else None,
+                })
+
+    return results
+
+
 def prune_old_logs(activity_days=30, remote_days=7):
     """Delete old logs and vacuum database."""
     with get_db_safe() as db:

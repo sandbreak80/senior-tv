@@ -5,6 +5,7 @@ Samsung TV integration for power on/off and input switching.
 """
 
 import os
+import sys
 import subprocess
 
 import requests
@@ -37,7 +38,8 @@ def _ha_call_service(domain, service, data=None):
             timeout=10,
         )
         return resp.ok
-    except Exception:
+    except Exception as e:
+        print(f"HA service call {domain}/{service} error: {e}", file=sys.stderr)
         return False
 
 
@@ -103,7 +105,8 @@ def tv_get_power_status():
         )
         state = resp.json().get("state", "unknown")
         return "on" if state in ("playing", "on", "idle") else state
-    except Exception:
+    except Exception as e:
+        print(f"HA power status error: {e}", file=sys.stderr)
         return "unknown"
 
 
@@ -114,5 +117,5 @@ def ensure_tv_ready():
         if status != "on":
             tv_power_on()
         tv_set_input()
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"ensure_tv_ready error: {e}", file=sys.stderr)

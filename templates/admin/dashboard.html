@@ -102,31 +102,32 @@
     {% endif %}
 </div>
 
-<!-- Active Pills -->
+<!-- Today's Pills -->
 <div class="card">
-    <h2>💊 Active Pills</h2>
-    {% if pills %}
-    <div class="table-wrap">
-        <table>
-            <tr><th>Name</th><th>Dosage</th><th>Times</th><th>Status</th></tr>
-            {% for pill in pills %}
-            <tr>
-                <td>{{ pill.name }}</td>
-                <td>{{ pill.dosage or '—' }}</td>
-                <td>{{ pill.schedule_times_display }}</td>
-                <td>
-                    {% if pill.enabled %}
-                    <span class="badge badge-active">Active</span>
-                    {% else %}
-                    <span class="badge badge-inactive">Disabled</span>
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </table>
-    </div>
+    <h2>💊 Today's Pills</h2>
+    {% if pill_adherence %}
+    <ul class="adherence-list">
+        {% for entry in pill_adherence %}
+        <li class="adherence-item">
+            <span class="adherence-icon">
+                {% if entry.status == 'taken' %}✅
+                {% elif entry.status == 'missed' %}❌
+                {% else %}🕐{% endif %}
+            </span>
+            <div class="adherence-info">
+                <div class="adherence-name">{{ entry.pill_name }}</div>
+                <div class="adherence-time">{{ entry.display_time }}</div>
+            </div>
+            <span class="adherence-status {{ entry.status }}">
+                {% if entry.status == 'taken' %}Taken
+                {% elif entry.status == 'missed' %}Missed
+                {% else %}Pending{% endif %}
+            </span>
+        </li>
+        {% endfor %}
+    </ul>
     {% else %}
-    <p class="empty">No pill reminders set up yet. <a href="/admin/pills/new">Add one</a></p>
+    <p class="empty">No pills scheduled today. <a href="/admin/pills">Manage pills</a></p>
     {% endif %}
 </div>
 

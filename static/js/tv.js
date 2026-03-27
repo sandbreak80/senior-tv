@@ -9,16 +9,30 @@
 */
 
 // Global activity logger — fire and forget
-window.logActivity = function(type, title, itemType) {
+window._pageLoadTime = Date.now();
+window.logActivity = function(type, title, itemType, extra) {
+    var payload = {type: type, title: title, item_type: itemType};
+    if (extra) { for (var k in extra) payload[k] = extra[k]; }
     fetch("/api/log-activity", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({type: type, title: title, item_type: itemType})
+        body: JSON.stringify(payload)
     }).catch(function(){});
 };
 
-// Log page visit
+// Log page visit on load
 window.logActivity("page_visit", document.title, window.location.pathname);
+
+// Log page leave with duration on unload
+window.addEventListener("beforeunload", function() {
+    var duration = Math.floor((Date.now() - window._pageLoadTime) / 1000);
+    if (duration > 0) {
+        navigator.sendBeacon("/api/log-activity", JSON.stringify({
+            type: "page_leave", title: document.title,
+            item_type: window.location.pathname, duration: duration
+        }));
+    }
+});
 
 // Global fast navigation — kills iframes, fades out, then navigates
 window.quickNav = function(url) {
@@ -79,11 +93,18 @@ window.quickNav = function(url) {
     let reminderBlocked = false; // true during shower time — can't dismiss
     let blockCountdownInterval = null;
     let currentReminderId = null;
+    var ttsEnabled = true;
 
     // --- Initialization ---
 
     function init() {
         refreshNavItems();
+
+        // Fetch TTS setting from server
+        fetch("/api/tv-settings")
+            .then(function(r) { return r.json(); })
+            .then(function(data) { ttsEnabled = !!data.tts_enabled; })
+            .catch(function() {});
 
         if (navItems.length > 0) {
             selectItem(0);
@@ -92,7 +113,7 @@ window.quickNav = function(url) {
         document.addEventListener("keydown", handleKeyDown);
         initSSE();
         startAutoRefresh();
-        initIdleScreensaver();
+        initAutoPlay();
         loadDailyDigest();
     }
 
@@ -323,17 +344,13 @@ window.quickNav = function(url) {
                     } else if (data.type === "presence_change") {
                         window._roomEmpty = !data.occupied;
                         if (!data.occupied) {
-                            // Room empty — start screensaver timer from ANY page
-                            var delay = window.location.pathname === "/" ? 120000 : 600000;
+                            // Room empty — start screensaver after 15 minutes
+                            // (bathroom trips, getting food, etc. — don't interrupt too quickly)
                             if (!window._presenceTimeout) {
                                 window._presenceTimeout = setTimeout(function() {
-                                    if (window.location.pathname !== "/") {
-                                        window.quickNav("/");
-                                        // Home page will start its own screensaver timer
-                                    } else {
-                                        window.quickNav("/tv/photos?screensaver=1");
-                                    }
-                                }, delay);
+                                    window.logActivity("screensaver_start", "Room empty — screensaver", window.location.pathname);
+                                    window.quickNav("/tv/photos?screensaver=1");
+                                }, 900000);
                             }
                         } else if (data.occupied) {
                             // Someone sat down — cancel screensaver timer
@@ -341,7 +358,7 @@ window.quickNav = function(url) {
                                 clearTimeout(window._presenceTimeout);
                                 window._presenceTimeout = null;
                             }
-                            // Wake from screensaver
+                            // Wake from screensaver — go to home (which will auto-play content)
                             if (window.location.search.indexOf("screensaver") > -1) {
                                 window.quickNav("/");
                             }
@@ -446,9 +463,11 @@ window.quickNav = function(url) {
         }
 
         playChime();
+        setTimeout(function() { speakAlert("pill_reminder", data); }, 1000);
     }
 
     function dismissReminder() {
+        if (window.speechSynthesis) window.speechSynthesis.cancel();
         const overlay = document.getElementById("reminder-overlay");
         if (!overlay) return;
 
@@ -521,6 +540,51 @@ window.quickNav = function(url) {
         }
     }
 
+    function speakAlert(type, data) {
+        if (!ttsEnabled || !window.speechSynthesis) return;
+        window.speechSynthesis.cancel();
+
+        var text = "";
+        switch (type) {
+            case "pill_reminder":
+                if (data.icon === "\uD83D\uDEBF") {
+                    text = "Shower Time! Time for your shower.";
+                } else if (data.icon === "\uD83E\uDDD8") {
+                    text = "Stretch Break! Time to stretch.";
+                } else {
+                    var parts = [];
+                    if (data.name) parts.push(data.name);
+                    if (data.dosage) parts.push(data.dosage);
+                    if (data.reminder_message) parts.push(data.reminder_message);
+                    text = parts.join(". ");
+                }
+                break;
+            case "doorbell_alert":
+                text = data.title || "Someone is at the front door!";
+                break;
+            case "birthday_alert":
+                text = "Happy Birthday " + (data.name || "") + "! " + (data.age_str || "");
+                break;
+            case "show_alert":
+                text = (data.show_name || "Your show") + " is on now!";
+                break;
+            case "family_message":
+                text = "New message from " + (data.sender || "family");
+                break;
+        }
+        if (!text) return;
+
+        try {
+            var utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = 0.8;
+            utterance.pitch = 1.0;
+            utterance.volume = 1.0;
+            window.speechSynthesis.speak(utterance);
+        } catch (e) {
+            console.log("TTS not available");
+        }
+    }
+
     // --- Doorbell Alert ---
 
     function showDoorbellAlert(data) {
@@ -557,6 +621,7 @@ window.quickNav = function(url) {
 
         // Play doorbell sound
         playDoorbell();
+        setTimeout(function() { speakAlert("doorbell_alert", data); }, 1300);
 
         // Auto-dismiss after 30 seconds
         setTimeout(() => {
@@ -627,6 +692,7 @@ window.quickNav = function(url) {
             // Happy Birthday melody fragment
             [262,262,294,262,349,330].forEach((f,i) => tone(f, t + i*0.25, 0.3));
         } catch(e) {}
+        setTimeout(function() { speakAlert("birthday_alert", data); }, 1800);
 
         // Auto-dismiss after 60 seconds
         setTimeout(() => { if (reminderActive) dismissReminder(); }, 60000);
@@ -664,6 +730,7 @@ window.quickNav = function(url) {
         overlay.classList.add("active");
         reminderActive = true;
         playChime();
+        setTimeout(function() { speakAlert("show_alert", data); }, 1000);
 
         // Auto-dismiss after 30 seconds
         setTimeout(function() { if (reminderActive) dismissReminder(); }, 30000);
@@ -699,6 +766,7 @@ window.quickNav = function(url) {
 
         // Play gentle notification
         playChime();
+        setTimeout(function() { speakAlert("family_message", data); }, 1000);
 
         // On dismiss, navigate to the message
         currentReminderId = "__family_msg_" + (data.msg_id || "");
@@ -707,33 +775,64 @@ window.quickNav = function(url) {
     // Override dismiss to handle family message navigation
     const _origDismiss = dismissReminder;
 
-    // --- Idle Screensaver ---
+    // --- Auto-Play from Home Screen ---
+    // Don & Colleen watch TV for hours without pressing buttons.
+    // Screensaver is triggered ONLY by presence detection (room empty),
+    // never by keyboard idle. After showing the home screen for 5 minutes
+    // (weather, greeting, pills, family photo), auto-play genre-appropriate
+    // content from Jellyfin based on time-of-day care plan.
 
-    let idleTimer = null;
-    const IDLE_TIMEOUT = 10 * 60 * 1000; // 10 minutes
+    var autoPlayTimer = null;
+    var AUTO_PLAY_DELAY = 5 * 60 * 1000; // 5 minutes on home before auto-play
 
-    function resetIdleTimer() {
-        clearTimeout(idleTimer);
-        idleTimer = setTimeout(() => {
-            // Only activate screensaver from home page
-            if (window.location.pathname === "/") {
-                window.location.href = "/tv/photos?screensaver=1";
-            }
-        }, IDLE_TIMEOUT);
-    }
-
-    function initIdleScreensaver() {
-        // Only enable on home page, and only if photos exist
+    function initAutoPlay() {
         if (window.location.pathname !== "/") return;
 
-        ["keydown", "mousemove", "mousedown", "touchstart"].forEach(evt => {
-            document.addEventListener(evt, resetIdleTimer);
-        });
-        // Check if photos exist before enabling
-        fetch("/api/has-photos")
-            .then(r => r.json())
-            .then(data => { if (data.has_photos) resetIdleTimer(); })
-            .catch(() => {});
+        autoPlayTimer = setTimeout(function() {
+            if (reminderActive) {
+                // Reminder active — try again in 1 minute
+                autoPlayTimer = setTimeout(arguments.callee, 60000);
+                return;
+            }
+            // Try Jellyfin first (genre-matched to time of day)
+            fetch("/api/next-video")
+                .then(function(r) { return r.ok ? r.json() : null; })
+                .then(function(data) {
+                    if (data && data.url) {
+                        window.logActivity("auto_play", data.title || "Auto-play", data.url, {item_id: data.id});
+                        window.quickNav(data.url);
+                    } else {
+                        // Jellyfin unavailable — fall back to a time-appropriate Pluto channel
+                        return fetch("/api/next-channel")
+                            .then(function(r) { return r.ok ? r.json() : null; })
+                            .then(function(ch) {
+                                if (ch && ch.url) {
+                                    window.logActivity("auto_play", ch.name || "Live TV", ch.url);
+                                    window.quickNav(ch.url);
+                                }
+                            });
+                    }
+                })
+                .catch(function() {
+                    fetch("/api/next-channel")
+                        .then(function(r) { return r.ok ? r.json() : null; })
+                        .then(function(ch) {
+                            if (ch && ch.url) {
+                                window.logActivity("auto_play", ch.name || "Live TV", ch.url);
+                                window.quickNav(ch.url);
+                            }
+                        })
+                        .catch(function() {});
+                });
+        }, AUTO_PLAY_DELAY);
+
+        // Cancel auto-play if user navigates manually
+        document.addEventListener("keydown", function() {
+            if (autoPlayTimer) {
+                clearTimeout(autoPlayTimer);
+                autoPlayTimer = null;
+            }
+        }, { once: true });
     }
 
     // --- Daily Digest ---

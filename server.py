@@ -16,6 +16,7 @@ from flask import (
     request,
     send_from_directory,
     session,
+    flash,
 )
 from werkzeug.utils import secure_filename
 
@@ -788,8 +789,7 @@ def tv_live():
 def tv_live_play(channel_id):
     """Play a live Pluto TV channel."""
     import pluto_tv
-    # Force fresh session + clear cached channels to get fresh stream URLs
-    pluto_tv.SESSION_CACHE["token"] = None
+    # Clear cached channels to get fresh stream URLs with current session
     cache.clear("pluto_all_channels")
     channel, error = pluto_tv.get_channel_by_id(channel_id)
     if not channel:
@@ -801,14 +801,22 @@ def tv_live_play(channel_id):
 def pluto_stream_master(channel_id):
     """Proxy Pluto TV master m3u8, rewriting URLs to go through our proxy."""
     import pluto_tv
-    from urllib.parse import urljoin, quote
-    pluto_tv.SESSION_CACHE["token"] = None
     channel, error = pluto_tv.get_channel_by_id(channel_id)
     if not channel:
         return "", 404
     try:
         stream_url = channel["stream_url"]
         resp = requests.get(stream_url, timeout=15)
+        if resp.status_code in (401, 403) or resp.status_code >= 500:
+            # Session may have expired — retry with fresh token
+            pluto_tv.invalidate_session()
+            cache.clear("pluto_all_channels")
+            channel, error = pluto_tv.get_channel_by_id(channel_id)
+            if not channel:
+                return "", 404
+            resp = requests.get(channel["stream_url"], timeout=15)
+        if resp.status_code != 200:
+            return "", resp.status_code
         base_url = stream_url.rsplit("/", 1)[0] + "/"
 
         rewritten = _rewrite_m3u8(resp.text, base_url)
@@ -850,12 +858,19 @@ def _rewrite_m3u8(content, base_url):
 @app.route("/api/pluto-proxy")
 def pluto_proxy():
     """Proxy any Pluto TV URL (segments, sub-playlists) to bypass CORS."""
-    from urllib.parse import urljoin, quote
     url = request.args.get("url")
-    if not url or not any(d in url for d in ("pluto.tv", "plutotv.com", "plutotv.net", "pluto-prod-")):
+    if not url or not any(d in url for d in ("pluto.tv", "plutotv.com", "plutotv.net", "pluto-prod-",
+                                              "akamaized.net", "cloudfront.net", "dai.google.com")):
         return "", 403
     try:
         resp = requests.get(url, timeout=15, stream=True)
+        if resp.status_code in (401, 403):
+            # Token expired mid-stream — invalidate so next master m3u8 gets a fresh session
+            import pluto_tv
+            pluto_tv.invalidate_session()
+            return "", resp.status_code
+        if resp.status_code != 200:
+            return "", resp.status_code
         content_type = resp.headers.get("content-type", "application/octet-stream")
 
         if "mpegurl" in content_type or ".m3u8" in url:
@@ -1176,10 +1191,13 @@ def admin_dashboard():
         except Exception:
             pass
 
+    pill_adherence = models.get_pill_adherence_today()
+
     return render_template("admin/dashboard.html", pills=pills, events=events, settings=settings,
                            last_activity=last_activity, remote_count_1h=remote_count_1h,
                            doorbell_events=doorbell_events, system_metrics=system_metrics,
-                           presence=presence, tv_presence=_get_tv_presence())
+                           presence=presence, tv_presence=_get_tv_presence(),
+                           pill_adherence=pill_adherence)
 
 
 @app.route("/admin/activity")
@@ -1342,7 +1360,10 @@ def admin_pills():
 @app.route("/admin/pills/new", methods=["GET", "POST"])
 def admin_pill_new():
     if request.method == "POST":
-        data = _parse_pill_form(request)
+        data, error = _parse_pill_form(request)
+        if error:
+            flash(error, "error")
+            return redirect(request.url)
         models.create_pill(data)
         return redirect("/admin/pills")
     return render_template("admin/pill_form.html", pill=None)
@@ -1354,7 +1375,10 @@ def admin_pill_edit(pill_id):
     if not pill:
         return redirect("/admin/pills")
     if request.method == "POST":
-        data = _parse_pill_form(request)
+        data, error = _parse_pill_form(request)
+        if error:
+            flash(error, "error")
+            return redirect(request.url)
         models.update_pill(pill_id, data)
         return redirect("/admin/pills")
     pill["schedule_times"] = json.loads(pill["schedule_times"])
@@ -1375,7 +1399,16 @@ def _parse_pill_form(req):
         media_filename = secure_filename(media_file.filename)
         media_file.save(os.path.join(config.MEDIA_DIR, media_filename))
 
-    times = [t.strip() for t in req.form.get("schedule_times", "").split(",") if t.strip()]
+    # Accept multiple <input type="time" name="schedule_time"> fields
+    import re
+    times = [t.strip() for t in req.form.getlist("schedule_time") if t.strip()]
+    # Also accept legacy comma-separated format
+    if not times:
+        times = [t.strip() for t in req.form.get("schedule_times", "").split(",") if t.strip()]
+    # Validate HH:MM format
+    for t in times:
+        if not re.match(r"^\d{2}:\d{2}$", t):
+            return None, f"Invalid time format: '{t}'. Use HH:MM (e.g. 08:00)."
     days = req.form.getlist("schedule_days") or ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 
     data = {
@@ -1388,9 +1421,11 @@ def _parse_pill_form(req):
         "reminder_message": req.form.get("reminder_message", ""),
         "enabled": 1 if req.form.get("enabled") else 0,
     }
+    if not times:
+        return None, "At least one reminder time is required."
     if media_filename:
         data["reminder_media"] = media_filename
-    return data
+    return data, None
 
 
 # --- Calendar CRUD ---
@@ -1549,9 +1584,19 @@ def admin_birthdays():
 @app.route("/admin/birthdays/new", methods=["GET", "POST"])
 def admin_birthday_new():
     if request.method == "POST":
+        # Accept month/day dropdowns or legacy MM-DD text
+        birth_month = request.form.get("birth_month", "")
+        birth_day = request.form.get("birth_day", "")
+        if birth_month and birth_day:
+            birth_date = f"{birth_month}-{birth_day}"
+        else:
+            birth_date = request.form.get("birth_date", "")
+        if not birth_date:
+            flash("Please select both month and day.", "error")
+            return redirect(request.url)
         data = {
             "name": request.form["name"],
-            "birth_date": request.form["birth_date"],  # MM-DD
+            "birth_date": birth_date,
             "birth_year": int(request.form["birth_year"]) if request.form.get("birth_year") else None,
             "relationship": request.form.get("relationship", ""),
         }
@@ -1605,7 +1650,8 @@ def admin_settings():
                      "photo_interval", "photo_nas_path",
                      "immich_url", "immich_api_key", "immich_album_id",
                      "admin_password",
-                     "classical_music_enabled", "classical_music_hour"]:
+                     "classical_music_enabled", "classical_music_hour",
+                     "tts_enabled"]:
             val = request.form.get(key)
             if val is not None:
                 models.set_setting(key, val)
@@ -1615,7 +1661,8 @@ def admin_settings():
         settings[key] = get_setting_or_default(key)
     # Also get non-default settings
     for key in ["ha_tv_entity", "immich_album_id", "admin_password",
-                 "classical_music_enabled", "classical_music_hour"]:
+                 "classical_music_enabled", "classical_music_hour",
+                 "tts_enabled"]:
         settings[key] = models.get_setting(key) or ""
 
     # Immich status and albums
@@ -1880,30 +1927,89 @@ def immich_photo_proxy(asset_id):
 
 @app.route("/api/next-video")
 def api_next_video():
-    """Get a random video to auto-play when current one ends."""
+    """Get a random video to auto-play. All genres welcome — the library was curated for them.
+
+    Tries a time-of-day preferred genre first (soft preference, not a filter).
+    Falls back to any random item if preferred genre has nothing new.
+    """
+    import random as _random
+    hour = datetime.now().hour
+    if hour < 14:
+        preferred = ["Comedy", "Family", "Western"]
+    elif hour < 17:
+        preferred = ["Western", "Comedy", "Drama", "Crime"]
+    else:
+        preferred = ["Western", "Family", "Comedy", "Crime"]
+
     jf = _get_jellyfin()
     if not jf:
         return jsonify({"error": "not configured"}), 400
     try:
         libs = jf.get_libraries()
-        import random
+        # 50% chance: try a preferred genre first for variety
+        if _random.random() < 0.5:
+            genre = _random.choice(preferred)
+            for lib in libs:
+                items = jf.get_library_items(lib["id"], sort="Random",
+                                             genre=genre, limit=1)
+                if items:
+                    item = items[0]
+                    url = f"/tv/plex/shuffle/{item['id']}" if item.get("type") == "series" else f"/tv/plex/play/{item['id']}"
+                    return jsonify({"id": item["id"], "title": item.get("title", ""),
+                                    "type": item.get("type", ""), "genre": genre, "url": url})
+
+        # Pick anything random from the full library
         for lib in libs:
-            items = jf.get_library_items(lib["id"], sort="Random",
-                                         sort_order="Ascending", limit=1)
+            items = jf.get_library_items(lib["id"], sort="Random", limit=1)
             if items:
                 item = items[0]
-                url = f"/tv/plex/play/{item['id']}"
-                if item.get("type") == "series":
-                    url = f"/tv/plex/show/{item['id']}"
-                return jsonify({
-                    "id": item["id"],
-                    "title": item.get("title", ""),
-                    "type": item.get("type", ""),
-                    "url": url,
-                })
+                url = f"/tv/plex/shuffle/{item['id']}" if item.get("type") == "series" else f"/tv/plex/play/{item['id']}"
+                return jsonify({"id": item["id"], "title": item.get("title", ""),
+                                "type": item.get("type", ""), "url": url})
     except Exception:
         pass
     return jsonify({"error": "no content"}), 404
+
+
+@app.route("/api/next-channel")
+def api_next_channel():
+    """Get a random time-appropriate Pluto TV channel for auto-play fallback."""
+    import random as _random
+    hour = datetime.now().hour
+    if hour < 14:
+        preferred = ["Daytime + Game Shows", "Classic TV", "News + Opinion"]
+    elif hour < 17:
+        preferred = ["Westerns", "Classic TV", "Comedy", "Drama"]
+    else:
+        preferred = ["Comedy", "Classic TV", "Westerns", "Drama"]
+
+    try:
+        import pluto_tv
+        channels, _ = pluto_tv.get_channels()
+        if not channels:
+            return jsonify({"error": "no channels"}), 404
+
+        # Find channels in preferred categories
+        for cat in preferred:
+            matching = [ch for ch in channels if ch["category"] == cat]
+            if matching:
+                ch = _random.choice(matching)
+                return jsonify({
+                    "id": ch["id"],
+                    "name": ch["name"],
+                    "category": ch["category"],
+                    "url": f"/tv/live/play/{ch['id']}",
+                })
+
+        # Fall back to any channel
+        ch = _random.choice(channels)
+        return jsonify({
+            "id": ch["id"],
+            "name": ch["name"],
+            "url": f"/tv/live/play/{ch['id']}",
+        })
+    except Exception:
+        return jsonify({"error": "pluto unavailable"}), 500
 
 
 @app.route("/api/immich-slideshow")
@@ -1963,6 +2069,14 @@ def api_daily_digest():
         pass
 
     return jsonify(digest)
+
+
+@app.route("/api/tv-settings")
+def api_tv_settings():
+    """Settings needed by the TV client (fetched once on page load)."""
+    return jsonify({
+        "tts_enabled": get_setting_or_default("tts_enabled") != "0",
+    })
 
 
 @app.route("/api/health")

@@ -4,10 +4,17 @@ Fetches live channel listings and stream URLs from Pluto TV's free service.
 Streams are HLS and play directly in HTML5 video.
 """
 
+import time
+import uuid
+import threading
 import requests
 from datetime import datetime, timezone, timedelta
 
-SESSION_CACHE = {"token": None, "stitcher": None}
+_session_lock = threading.Lock()
+SESSION_CACHE = {"token": None, "stitcher": None, "stitcher_params": "", "acquired_at": 0}
+
+# Refresh session proactively after 4 hours (tokens last ~24h but 4h is safest)
+_SESSION_MAX_AGE = 4 * 3600
 
 # Categories most relevant for seniors
 PREFERRED_CATEGORIES = [
@@ -32,41 +39,57 @@ PREFERRED_CATEGORIES = [
 
 def _refresh_session():
     """Force refresh the Pluto TV session token."""
-    SESSION_CACHE["token"] = None
+    with _session_lock:
+        SESSION_CACHE["token"] = None
     return _get_session()
 
 
 def _get_session():
-    """Get a session token and stitcher URL from Pluto boot endpoint."""
-    if SESSION_CACHE["token"]:
-        return SESSION_CACHE["token"], SESSION_CACHE["stitcher"]
+    """Get a session token and stitcher URL from Pluto boot endpoint.
 
-    resp = requests.get(
-        "https://boot.pluto.tv/v4/start",
-        params={
-            "appName": "web",
-            "appVersion": "na",
-            "deviceVersion": "100",
-            "deviceModel": "web",
-            "deviceMake": "chrome",
-            "deviceType": "web",
-            "clientID": "senior-tv",
-            "clientModelNumber": "1.0",
-        },
-        timeout=15,
-    )
-    resp.raise_for_status()
-    data = resp.json()
-    token = data.get("sessionToken", "")
-    stitcher = data.get("servers", {}).get("stitcher", "")
-    stitcher_params = data.get("stitcherParams", "")
-    SESSION_CACHE["token"] = token
-    SESSION_CACHE["stitcher"] = stitcher
-    SESSION_CACHE["stitcher_params"] = stitcher_params
-    return token, stitcher
+    Thread-safe: uses a lock to prevent concurrent boot API calls.
+    Proactively refreshes tokens older than 4 hours.
+    """
+    with _session_lock:
+        token = SESSION_CACHE["token"]
+        age = time.time() - SESSION_CACHE["acquired_at"]
+        if token and age < _SESSION_MAX_AGE:
+            return token, SESSION_CACHE["stitcher"]
+        # Token missing or expired — fetch new one (still under lock)
+        resp = requests.get(
+            "https://boot.pluto.tv/v4/start",
+            params={
+                "appName": "web",
+                "appVersion": "9.0.0",
+                "deviceVersion": "122.0.0",
+                "deviceModel": "web",
+                "deviceMake": "chrome",
+                "deviceType": "web",
+                "clientID": str(uuid.uuid4()),
+                "clientModelNumber": "1.0",
+                "serverSideAds": "false",
+            },
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        token = data.get("sessionToken", "")
+        stitcher = data.get("servers", {}).get("stitcher", "")
+        stitcher_params = data.get("stitcherParams", "")
+        SESSION_CACHE["token"] = token
+        SESSION_CACHE["stitcher"] = stitcher
+        SESSION_CACHE["stitcher_params"] = stitcher_params
+        SESSION_CACHE["acquired_at"] = time.time()
+        return token, stitcher
 
 
-def get_channels(category_filter=None):
+def invalidate_session():
+    """Mark current session as expired so next call gets a fresh one."""
+    with _session_lock:
+        SESSION_CACHE["token"] = None
+
+
+def get_channels(category_filter=None, include_all=False):
     """Fetch all Pluto TV channels with caching.
 
     Returns (channels_list, error_string).
@@ -111,6 +134,10 @@ def get_channels(category_filter=None):
     else:
         raw_channels = cached
 
+    # Read session values once (thread-safe snapshot)
+    with _session_lock:
+        stitcher_params = SESSION_CACHE.get("stitcher_params", "")
+
     channels = []
     for ch in raw_channels:
         if ch.get("visibility") == "hidden" or not ch.get("isStitched"):
@@ -123,7 +150,6 @@ def get_channels(category_filter=None):
         # Build the HLS stream URL
         slug = ch.get("slug", "")
         channel_id = ch.get("_id", "")
-        stitcher_params = SESSION_CACHE.get("stitcher_params", "")
 
         if stitcher and slug:
             stream_url = f"{stitcher}/stitch/hls/channel/{channel_id}/master.m3u8?{stitcher_params}&jwt={token}"
@@ -171,17 +197,18 @@ def get_channels(category_filter=None):
             "current_program": current_program,
         })
 
-    # Filter out dead/test channels
-    def _is_active(c):
-        prog = c.get("current_program")
-        if not prog:
-            return False
-        title = prog.get("title", "").lower()
-        # Filter filler/test content
-        if any(x in title for x in ["slate", "filler", "test", "off air", "c'est fini"]):
-            return False
-        return True
-    channels = [c for c in channels if _is_active(c)]
+    # Filter out dead/test channels (skip when doing direct ID lookup)
+    if not include_all:
+        def _is_active(c):
+            prog = c.get("current_program")
+            if not prog:
+                return False
+            title = prog.get("title", "").lower()
+            # Filter filler/test content
+            if any(x in title for x in ["slate", "filler", "test", "off air", "c'est fini"]):
+                return False
+            return True
+        channels = [c for c in channels if _is_active(c)]
 
     channels.sort(key=lambda c: c["number"])
 
@@ -216,8 +243,13 @@ def get_categories():
 
 
 def get_channel_by_id(channel_id):
-    """Get a single channel by ID."""
-    channels, error = get_channels()
+    """Get a single channel by ID, skipping the active-program filter.
+
+    When looking up a specific channel (e.g. from a show alert or direct URL),
+    the channel should be returned regardless of its current EPG status —
+    the stream itself is always available even if the timeline has a gap.
+    """
+    channels, error = get_channels(include_all=True)
     if error:
         return None, error
 

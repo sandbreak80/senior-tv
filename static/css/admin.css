@@ -279,3 +279,91 @@ input[type="file"] {
     padding: 40px;
     color: var(--text-muted);
 }
+
+/* Pill adherence on dashboard */
+.adherence-list { list-style: none; padding: 0; margin: 0; }
+.adherence-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 0; border-bottom: 1px solid var(--border);
+}
+.adherence-item:last-child { border-bottom: none; }
+.adherence-icon { font-size: 24px; width: 32px; text-align: center; flex-shrink: 0; }
+.adherence-info { flex: 1; }
+.adherence-name { font-weight: 600; font-size: 15px; }
+.adherence-time { font-size: 13px; color: var(--text-muted); }
+.adherence-status { font-size: 13px; font-weight: 600; }
+.adherence-status.taken { color: #0d7a50; }
+.adherence-status.missed { color: #c73550; }
+.adherence-status.pending { color: #999; }
+
+/* Time picker list */
+.time-fields { list-style: none; padding: 0; margin: 0; }
+.time-field-row {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 8px;
+}
+.time-field-row input[type="time"] { flex: 1; }
+.time-field-row .btn-remove { padding: 6px 12px; font-size: 18px; line-height: 1; }
+
+/* Flash error */
+.flash-error {
+    background: #fde8eb;
+    color: #c73550;
+}
+
+/* --- Mobile Responsive --- */
+
+@media (max-width: 768px) {
+    .admin-nav {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 2px;
+        padding: 4px;
+    }
+    .admin-nav .logo {
+        grid-column: 1 / -1;
+        text-align: center;
+        padding: 8px;
+    }
+    .admin-nav a {
+        font-size: 12px;
+        padding: 8px 4px;
+        text-align: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .container {
+        max-width: 100%;
+        padding: 12px;
+    }
+    .card { padding: 16px; }
+    .card h2 { font-size: 18px; }
+    .stats-row {
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 10px;
+    }
+    .stat-card { padding: 14px; }
+    .stat-num { font-size: 28px; }
+    table { font-size: 14px; }
+    th, td { padding: 8px 10px; }
+}
+
+@media (max-width: 480px) {
+    .admin-nav {
+        grid-template-columns: repeat(3, 1fr);
+    }
+    .admin-nav a {
+        font-size: 11px;
+        padding: 6px 2px;
+    }
+    .stats-row {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .btn { padding: 14px 20px; font-size: 16px; width: 100%; }
+    .btn-group { flex-direction: column; }
+    .btn-group .btn { width: 100%; }
+    .btn-sm { padding: 10px 14px; font-size: 14px; }
+    th, td { padding: 6px 8px; font-size: 13px; }
+    .card { padding: 12px; margin-bottom: 12px; }
+}

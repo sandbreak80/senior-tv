@@ -28,4 +28,5 @@ DEFAULTS = {
     "immich_url": "",
     "immich_api_key": "",
     "admin_password": "family2026",
+    "tts_enabled": "1",
 }

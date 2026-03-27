@@ -145,6 +145,18 @@
     </div>
 
     <div class="card">
+        <h2>🔊 Spoken Reminders (Text-to-Speech)</h2>
+        <div class="form-group">
+            <label for="tts_enabled">Speak Reminders Aloud</label>
+            <select id="tts_enabled" name="tts_enabled">
+                <option value="1" {% if settings.tts_enabled != '0' %}selected{% endif %}>Enabled</option>
+                <option value="0" {% if settings.tts_enabled == '0' %}selected{% endif %}>Disabled</option>
+            </select>
+            <div class="hint">All popup reminders (pills, doorbell, birthdays, messages) will be read aloud after the chime sound. Helpful for residents who may not read text on screen.</div>
+        </div>
+    </div>
+
+    <div class="card">
         <h2>🔐 Security</h2>
         <div class="form-group">
             <label for="admin_password">Remote Access Password</label>

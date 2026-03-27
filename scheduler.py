@@ -1,4 +1,5 @@
 import json
+import sys
 import queue
 import threading
 from datetime import datetime
@@ -97,7 +98,8 @@ def _gc_active_reminders(now):
                 triggered = datetime.fromisoformat(data["triggered_at"])
                 if (now - triggered).seconds > 7200:  # 2 hours
                     to_remove.append((rid, data))
-            except Exception:
+            except Exception as e:
+                print(f"Scheduler: GC error for reminder {rid}: {e}", file=sys.stderr)
                 to_remove.append((rid, data))
 
         for rid, data in to_remove:
@@ -110,8 +112,8 @@ def _gc_active_reminders(now):
                     try:
                         from models import log_missed_pill
                         log_missed_pill(pill["id"], data["scheduled_time"])
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        print(f"Scheduler: failed to log missed pill: {e}", file=sys.stderr)
 
 
 def acknowledge_reminder(reminder_id):
@@ -186,7 +188,7 @@ def check_birthdays():
         with _lock:
             if reminder_id in active_reminders:
                 continue
-            active_reminders[reminder_id] = {"triggered": True}
+            active_reminders[reminder_id] = {"triggered_at": datetime.now().isoformat()}
 
         event_data = {
             "type": "birthday_alert",
@@ -210,7 +212,8 @@ def check_favorite_shows():
     try:
         import pluto_tv
         channels, _ = pluto_tv.get_channels()
-    except Exception:
+    except Exception as e:
+        print(f"Scheduler: failed to load Pluto TV channels: {e}", file=sys.stderr)
         return
 
     now = datetime.now()
@@ -227,7 +230,7 @@ def check_favorite_shows():
                 with _lock:
                     if reminder_id in active_reminders:
                         continue
-                    active_reminders[reminder_id] = {"triggered": True}
+                    active_reminders[reminder_id] = {"triggered_at": datetime.now().isoformat()}
 
                 # Auto-tune: skip the popup and navigate directly
                 auto_tune = "jeopardy" in search
@@ -284,8 +287,8 @@ def trigger_classical_music():
                     reminder_queue.put_nowait(event_data)
                 except queue.Full:
                     pass
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Scheduler: classical music error: {e}", file=sys.stderr)
 
 
 def _daily_maintenance():
@@ -293,8 +296,8 @@ def _daily_maintenance():
     try:
         from models import prune_old_logs
         prune_old_logs(activity_days=30, remote_days=7)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Scheduler: daily maintenance error: {e}", file=sys.stderr)
 
 
 scheduler = BackgroundScheduler()

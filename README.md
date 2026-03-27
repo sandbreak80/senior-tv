@@ -6,13 +6,15 @@ Built for a 65" Samsung TV connected to a mini PC running Ubuntu. Designed for t
 
 ## What It Does
 
-**Entertainment** — 5,100+ movies and 100+ TV shows via Jellyfin, 421 live TV channels via Pluto TV, 36 curated YouTube channels, and 143K family photos from Immich.
+**Entertainment** — 5,100+ movies and 100+ TV shows via Jellyfin, 421 live TV channels via Pluto TV, 36 curated YouTube channels, 40K music tracks, and 143K family photos from Immich.
 
-**Care** — Pill reminders that pop up full-screen, shower reminders that block the TV for 15 minutes, time-of-day content scheduling (no news after 3 PM to prevent sundowning agitation), and a wind-down ambient video slot in the evening.
+**Care** — Pill reminders (morning + evening) pop up full-screen and are spoken aloud ("Time for your morning pills"). Shower reminders block the TV for 15 minutes (can't dismiss). Stretch breaks 4x daily. Time-of-day content scheduling (no news after 3 PM to prevent sundowning agitation). Wind-down ambient video in the evening. Classical music auto-plays daily at 10 AM (doctor's orders).
 
-**Communication** — Family members send messages, photos, and videos to the TV from any phone on the LAN. Doorbell alerts show camera snapshots when someone's at the front door. Birthday greetings play at 9 AM.
+**Communication** — Family members send messages, photos, and videos to the TV from any phone on the LAN. Doorbell alerts show camera snapshots when someone's at the front door. Birthday greetings play at 9 AM. Jeopardy auto-tunes when detected on Pluto TV.
 
-**Self-Healing** — Local watchdog auto-repairs crashed services every 3 minutes. Hourly Claude AI agent diagnoses issues, takes desktop screenshots, and fixes problems autonomously. SSH + Tailscale for remote management.
+**Presence-Aware** — Room occupancy tracked via cameras. Screensaver starts when room is empty. Auto-play content only fires when someone is watching. Activity logging tracks what's watched and for how long.
+
+**Self-Healing** — Local watchdog auto-repairs crashed services every 3 minutes. Hourly Claude AI agent diagnoses issues, takes desktop screenshots, and fixes problems autonomously. TV auto-powers on 7 AM–10 PM. SSH + Tailscale for remote management.
 
 ## Screenshots
 
@@ -89,16 +91,20 @@ Accessible from any device on the LAN at `http://<device-ip>:5000/admin`
 
 | Page | Purpose |
 |------|---------|
-| Dashboard | System overview, active pills, upcoming events |
+| Dashboard | System status, CPU/RAM, active pills, upcoming events |
 | Messages | Send text, photos, videos directly to the TV |
-| Pills | Pill reminders + shower time blocks |
-| Calendar | Events, pre-loaded with US holidays through 2027 |
+| Pills | Pill reminders, shower time blocks, stretch breaks |
+| Calendar | Events with recurring support, US holidays through 2027 |
 | Birthdays | Full-screen birthday greetings with age |
-| Shows | Monitor favorite shows on Pluto TV |
+| Shows | Favorite show alerts on Pluto TV (auto-tune Jeopardy) |
 | YouTube | Curate channels by category |
 | Photos | Upload family photos for slideshow |
 | Jellyfin | Media server connection |
-| Settings | Weather, Frigate, Home Assistant, Immich, audio, everything |
+| Cameras | Frigate camera feeds with saved snapshots |
+| Services | Connection status for all integrations |
+| Activity | 7-day activity log (playback, page visits, remote presses) |
+| TV View | Remote view of what's currently on screen |
+| Settings | Weather, Frigate, HA, Immich, classical music, admin password |
 
 ## Deployment Resilience
 

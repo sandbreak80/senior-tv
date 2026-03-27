@@ -6,6 +6,7 @@ Connects to Home Assistant for entity states.
 Pushes notifications via the SSE reminder queue.
 """
 
+import sys
 import time
 import threading
 import requests
@@ -67,7 +68,7 @@ def start_presence_monitor(alert_queue=None):
             try:
                 resp = requests.get(
                     "http://localhost:5001/api/events",
-                    params={"camera": "tv_room", "label": "person", "limit": 1,
+                    params={"cameras": "living_room,tv_room", "label": "person", "limit": 1,
                             "after": time.time() - 60},
                     timeout=5,
                 )
@@ -84,8 +85,8 @@ def start_presence_monitor(alert_queue=None):
                             "timestamp": datetime.now().strftime("%I:%M %p"),
                         })
                     last_occupied = person_now
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"Presence monitor error: {e}", file=sys.stderr)
             time.sleep(10)
 
     t = threading.Thread(target=_poll, daemon=True)
@@ -106,8 +107,8 @@ def frigate_login(base_url, username, password):
         if resp.status_code == 200:
             _frigate_cookies = dict(resp.cookies)
             return True
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Frigate login error: {e}", file=sys.stderr)
     return False
 
 
@@ -130,8 +131,8 @@ def frigate_get_events(base_url, camera=None, label="person", limit=5, after=Non
             return resp.json()
         elif resp.status_code == 401:
             return None  # Need re-login
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Frigate event fetch error: {e}", file=sys.stderr)
     return []
 
 
@@ -155,8 +156,8 @@ def ha_get_state(base_url, token, entity_id):
         )
         if resp.status_code == 200:
             return resp.json()
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"HA state fetch error: {e}", file=sys.stderr)
     return None
 
 
@@ -170,8 +171,8 @@ def ha_get_camera_snapshot(base_url, token, entity_id):
         )
         if resp.status_code == 200:
             return resp.content
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"HA camera snapshot error: {e}", file=sys.stderr)
     return None
 
 

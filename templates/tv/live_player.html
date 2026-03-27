@@ -45,7 +45,7 @@
         <div class="reminder-dismiss">Press OK to dismiss</div>
     </div>
 
-    <script src="/static/js/tv.js?v=2"></script>
+    <script src="/static/js/tv.js?v=5"></script>
     <script>
         (function() {
             const video = document.getElementById('video-player');
@@ -102,28 +102,49 @@
                     });
 
                     var hlsRetries = 0;
+                    var mediaRecoveryAttempt = 0;
                     hls.on(Hls.Events.ERROR, function(event, data) {
-                        console.log('HLS error:', data.type, data.details);
+                        console.log('HLS error:', data.type, data.details, data.response ? 'status:' + data.response.code : '');
                         if (data.fatal) {
                             hlsRetries++;
-                            if (hlsRetries > 3) {
+                            if (hlsRetries > 5) {
                                 showCenterIcon('This channel is not available right now');
-                                // Auto-return to channel guide after 3 seconds
                                 setTimeout(function() { window.quickNav('/tv/live'); }, 3000);
                                 return;
                             }
                             switch (data.type) {
                                 case Hls.ErrorTypes.NETWORK_ERROR:
                                     showCenterIcon('Reconnecting...');
-                                    setTimeout(() => hls.startLoad(), 3000);
+                                    if (hlsRetries <= 2) {
+                                        // First retries: just reload from same URL
+                                        setTimeout(() => hls.startLoad(), 3000);
+                                    } else {
+                                        // Later retries: destroy and get fresh manifest (fresh session)
+                                        hls.destroy();
+                                        hls = null;
+                                        setTimeout(() => startHLS(proxyUrl), 3000);
+                                    }
                                     break;
                                 case Hls.ErrorTypes.MEDIA_ERROR:
-                                    showCenterIcon('Recovering...');
-                                    hls.recoverMediaError();
+                                    mediaRecoveryAttempt++;
+                                    if (mediaRecoveryAttempt === 1) {
+                                        showCenterIcon('Recovering...');
+                                        hls.recoverMediaError();
+                                    } else if (mediaRecoveryAttempt === 2) {
+                                        showCenterIcon('Recovering...');
+                                        hls.swapAudioCodec();
+                                        hls.recoverMediaError();
+                                    } else {
+                                        showCenterIcon('Reloading stream...');
+                                        hls.destroy();
+                                        hls = null;
+                                        setTimeout(() => startHLS(proxyUrl), 2000);
+                                    }
                                     break;
                                 default:
-                                    showCenterIcon('Trying backup stream...');
+                                    showCenterIcon('Reloading stream...');
                                     hls.destroy();
+                                    hls = null;
                                     setTimeout(() => startHLS(proxyUrl), 2000);
                                     break;
                             }
@@ -143,7 +164,20 @@
             // Always use proxy — Pluto TV blocks CORS from non-pluto.tv origins
             startHLS(proxyUrl);
 
-            video.addEventListener('playing', () => showCenterIcon('▶'));
+            // Log live TV playback
+            var channelName = {{ channel.name | tojson }};
+            var channelId = {{ channel.id | tojson }};
+            video.addEventListener('playing', function() {
+                showCenterIcon('▶');
+                window.logActivity("playback_start", channelName, "live_tv", {item_id: channelId});
+            }, {once: true});
+            window.addEventListener('beforeunload', function() {
+                var dur = Math.floor(video.currentTime || 0);
+                navigator.sendBeacon("/api/log-activity", JSON.stringify({
+                    type: "playback_stop", title: channelName,
+                    item_type: "live_tv", item_id: channelId, duration: dur
+                }));
+            });
             video.addEventListener('waiting', () => showCenterIcon('Buffering...'));
 
             document.addEventListener('keydown', function(e) {

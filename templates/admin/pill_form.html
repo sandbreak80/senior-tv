@@ -21,11 +21,24 @@
         </div>
 
         <div class="form-group">
-            <label for="schedule_times">Times (comma-separated, 24h format) *</label>
-            <input type="text" id="schedule_times" name="schedule_times" required
-                   value="{{ pill.schedule_times | join(', ') if pill else '' }}"
-                   placeholder="e.g. 08:00, 14:00, 20:00">
-            <div class="hint">Use 24-hour format. Example: 08:00 = 8 AM, 14:00 = 2 PM, 20:00 = 8 PM</div>
+            <label>Reminder Times *</label>
+            <ul class="time-fields" id="time-fields">
+                {% if pill and pill.schedule_times %}
+                {% for t in pill.schedule_times %}
+                <li class="time-field-row">
+                    <input type="time" name="schedule_time" value="{{ t }}" required>
+                    <button type="button" class="btn btn-sm btn-danger time-field-row-remove" onclick="this.closest('li').remove()">&times;</button>
+                </li>
+                {% endfor %}
+                {% else %}
+                <li class="time-field-row">
+                    <input type="time" name="schedule_time" value="08:00" required>
+                    <button type="button" class="btn btn-sm btn-danger time-field-row-remove" onclick="this.closest('li').remove()">&times;</button>
+                </li>
+                {% endif %}
+            </ul>
+            <button type="button" class="btn btn-sm" onclick="addTimeField()" style="margin-top:4px">+ Add Another Time</button>
+            <div class="hint">Use the time picker to select each reminder time</div>
         </div>
 
         <div class="form-group">
@@ -87,5 +100,13 @@ function toggleMediaUpload() {
     document.getElementById('media-upload').style.display = (type === 'text') ? 'none' : 'block';
 }
 toggleMediaUpload();
+
+function addTimeField() {
+    var li = document.createElement('li');
+    li.className = 'time-field-row';
+    li.innerHTML = '<input type="time" name="schedule_time" value="12:00" required>' +
+        '<button type="button" class="btn btn-sm btn-danger time-field-row-remove" onclick="this.closest(\'li\').remove()">&times;</button>';
+    document.getElementById('time-fields').appendChild(li);
+}
 </script>
 {% endblock %}
