@@ -460,6 +460,9 @@ window.quickNav = function(url) {
             }, blockMinutes * 120000);
         } else {
             reminderBlocked = false;
+            // Auto-dismiss non-blocking reminders after 60 seconds
+            // (they can't press OK without a remote)
+            setTimeout(function() { if (reminderActive) dismissReminder(); }, 60000);
         }
 
         playChime();
