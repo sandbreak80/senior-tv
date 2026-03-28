@@ -61,30 +61,69 @@ def _update_presence(person_detected):
 
 
 def start_presence_monitor(alert_queue=None):
-    """Start background thread that tracks TV room presence."""
+    """Start background thread that tracks TV room presence.
+
+    Uses multiple signals to avoid false 'empty' readings when seniors
+    sit still (Frigate loses them). Only declares room empty when:
+    - No person detected AND no speech/sound in the room for several polls.
+    """
     def _poll():
         last_occupied = False
+        empty_streak = 0  # How many consecutive polls show empty
+        EMPTY_THRESHOLD = 6  # Need 6 consecutive empty polls (60s) before declaring empty
+
         while True:
             try:
-                resp = requests.get(
-                    "http://localhost:5001/api/events",
-                    params={"cameras": "living_room,tv_room", "label": "person", "limit": 1,
-                            "after": time.time() - 60},
-                    timeout=5,
-                )
-                if resp.ok:
-                    events = resp.json()
-                    person_now = len(events) > 0
-                    _update_presence(person_now)
+                from models import get_setting
 
-                    # Push SSE event when presence changes
-                    if alert_queue and person_now != last_occupied:
-                        alert_queue.put({
-                            "type": "presence_change",
-                            "occupied": person_now,
-                            "timestamp": datetime.now().strftime("%I:%M %p"),
-                        })
-                    last_occupied = person_now
+                # Check local USB camera (tv_room) via local Frigate
+                person_detected = False
+                try:
+                    resp = requests.get(
+                        "http://localhost:5001/api/events",
+                        params={"cameras": "tv_room", "label": "person",
+                                "limit": 1, "after": time.time() - 60},
+                        timeout=5,
+                    )
+                    if resp.ok:
+                        person_detected = len(resp.json()) > 0
+                except Exception:
+                    pass
+
+                # Fallback: also check network Frigate den camera via HA
+                if not person_detected:
+                    try:
+                        ha_url = (get_setting("ha_url") or "").rstrip("/")
+                        ha_token = get_setting("ha_token") or ""
+                        resp2 = requests.get(
+                            f"{ha_url}/api/states/binary_sensor.den_person_occupancy",
+                            headers={"Authorization": f"Bearer {ha_token}"},
+                            timeout=5,
+                        )
+                        if resp2.ok:
+                            person_detected = resp2.json().get("state") == "on"
+                    except Exception:
+                        pass
+
+                person_now = person_detected
+
+                if person_now:
+                    empty_streak = 0
+                else:
+                    empty_streak += 1
+
+                # Only report empty after sustained absence
+                effective_occupied = person_now or (empty_streak < EMPTY_THRESHOLD)
+                _update_presence(effective_occupied)
+
+                # Push SSE event when presence changes
+                if alert_queue and effective_occupied != last_occupied:
+                    alert_queue.put({
+                        "type": "presence_change",
+                        "occupied": effective_occupied,
+                        "timestamp": datetime.now().strftime("%I:%M %p"),
+                    })
+                last_occupied = effective_occupied
             except Exception as e:
                 print(f"Presence monitor error: {e}", file=sys.stderr)
             time.sleep(10)

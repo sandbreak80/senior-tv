@@ -28,6 +28,12 @@ Single-deployment system built for Don & Colleen in Sun City, CA. Runs on one GM
 - [ ] Expose stretch break configuration in admin settings (currently managed as pills)
 - [x] ~~Text-to-speech for pill reminders and messages~~ — Done (all alert types spoken aloud)
 
+### Automation
+- [ ] **Bedtime auto-off** — After 10 PM, if USB camera shows room empty for 30+ minutes, power off TV via CEC. Re-enable TV power automation with correct 65" Samsung entity. Morning auto-on when presence detected.
+
+### Accessibility
+- [ ] **Auto-subtitle all media** — Deploy Bazarr (Docker) to bulk-download English subtitles from OpenSubtitles/Subscene for all 9,000+ items. Use Whisper (local AI) as fallback for files with no online subs. Enable captions by default in the player for hearing-impaired viewers.
+
 ### Stability
 - [ ] Remaining hardcoded service IPs in admin services page (`server.py:1276-1286`) — 8 IPs, acceptable for single deployment but brittle if network changes
 - [ ] 1 flaky Playwright test (`Any key returns home` on Photo Frame) — headless browser timing issue

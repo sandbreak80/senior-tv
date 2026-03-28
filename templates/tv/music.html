@@ -120,7 +120,13 @@
         <div class="reminder-dismiss">Press OK to dismiss</div>
     </div>
 
+    <script src="/static/js/audio-normalizer.js?v=1"></script>
     <script src="/static/js/tv.js?v=6"></script>
+    <script>
+        // Normalize the audio player too
+        var ap = document.getElementById('audio-player');
+        if (ap) ap.addEventListener('play', function() { initAudioNormalizer(ap); }, {once: true});
+    </script>
     <script>
         (function() {
             var audio = document.getElementById('audio-player');

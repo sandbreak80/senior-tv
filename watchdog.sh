@@ -98,15 +98,16 @@ fi
 # not the physical HDMI2 port. No way to select a specific HDMI port via HA API
 # on this model. Needs CEC adapter or newer Samsung TV for reliable input control.
 # Power on still works — just can't select the correct input.
-HOUR=$(date +%H)
-if [ "$HOUR" -ge 7 ] && [ "$HOUR" -lt 22 ]; then
-    cd "$PROJECT_DIR" && source venv/bin/activate && python3 -c "
-from cec_control import tv_power_on, tv_get_power_status
-status = tv_get_power_status()
-if status in ('standby', 'off'):
-    tv_power_on()
-" 2>/dev/null
-fi
+# TV automation disabled — device is connected to 65" Samsung, no CEC/HA control needed
+# HOUR=$(date +%H)
+# if [ "$HOUR" -ge 7 ] && [ "$HOUR" -lt 22 ]; then
+#     cd "$PROJECT_DIR" && source venv/bin/activate && python3 -c "
+# from cec_control import tv_power_on, tv_get_power_status
+# status = tv_get_power_status()
+# if status in ('standby', 'off'):
+#     tv_power_on()
+# " 2>/dev/null
+# fi
 
 # --- Track repair count ---
 if [ "$ISSUES" -gt 0 ]; then

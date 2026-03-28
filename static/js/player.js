@@ -16,8 +16,10 @@
 
     if (!video) return;
 
-    // --- HLS.js for m3u8 streams (Jellyfin transcode) ---
-    (function initHLS() {
+    // --- Audio detection & HLS fallback ---
+    // Static streams may have EAC3/DTS audio Chrome can't decode.
+    // Detect silent playback and switch to HLS transcode (AAC audio).
+    (function initAudioFallback() {
         var sources = video.querySelectorAll("source");
         var hlsSrc = null;
         for (var i = 0; i < sources.length; i++) {
@@ -27,34 +29,58 @@
                 break;
             }
         }
-        if (!hlsSrc) return;
-        if (typeof Hls !== "undefined" && Hls.isSupported()) {
-            // Remove source tags so native player doesn't interfere
-            while (video.firstChild) {
-                if (video.firstChild.tagName === "TRACK") break;
-                video.removeChild(video.firstChild);
-            }
-            var hls = new Hls({ maxBufferLength: 60, maxMaxBufferLength: 120 });
-            hls.loadSource(hlsSrc);
-            hls.attachMedia(video);
-            hls.on(Hls.Events.MANIFEST_PARSED, function () {
-                video.play().catch(function () {});
-            });
-            hls.on(Hls.Events.ERROR, function (event, data) {
-                if (data.fatal) {
-                    if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-                        hls.startLoad();
-                    } else {
-                        hls.destroy();
-                    }
+        if (!hlsSrc) return; // No transcode fallback available
+
+        function switchToHLS() {
+            if (window._hlsSwitched) return;
+            window._hlsSwitched = true;
+            var currentTime = video.currentTime || 0;
+            if (typeof Hls !== "undefined" && Hls.isSupported()) {
+                // Remove source tags
+                while (video.firstChild) {
+                    if (video.firstChild.tagName === "TRACK") break;
+                    video.removeChild(video.firstChild);
                 }
-            });
-            window._hls = hls;
-        } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-            // Native HLS (Safari)
-            video.src = hlsSrc;
-            video.play().catch(function () {});
+                var hls = new Hls({ maxBufferLength: 60, maxMaxBufferLength: 120 });
+                hls.loadSource(hlsSrc);
+                hls.attachMedia(video);
+                hls.on(Hls.Events.MANIFEST_PARSED, function () {
+                    video.currentTime = currentTime;
+                    video.play().catch(function () {});
+                });
+                var hlsRetries = 0;
+                hls.on(Hls.Events.ERROR, function (event, data) {
+                    if (data.fatal) {
+                        hlsRetries++;
+                        if (data.type === Hls.ErrorTypes.NETWORK_ERROR && hlsRetries <= 2) {
+                            hls.startLoad();
+                        } else {
+                            hls.destroy();
+                            video.dispatchEvent(new Event("error"));
+                        }
+                    }
+                });
+                // If HLS also fails to load within 15s, skip
+                setTimeout(function() {
+                    if (video.readyState === 0) {
+                        hls.destroy();
+                        video.dispatchEvent(new Event("error"));
+                    }
+                }, 15000);
+                window._hls = hls;
+            }
         }
+
+        // Check for silent playback after 3 seconds of video playing
+        video.addEventListener("timeupdate", function checkAudio() {
+            if (video.currentTime > 3 && !window._hlsSwitched) {
+                video.removeEventListener("timeupdate", checkAudio);
+                if (video.webkitAudioDecodedByteCount === 0) {
+                    // Video playing but no audio decoded — switch to HLS transcode
+                    switchToHLS();
+                }
+            }
+        });
     })();
 
     // --- Activity Logging ---
@@ -264,6 +290,37 @@
                 });
         }
     });
+
+    // Global safety net: check every 10 seconds if video is actually progressing.
+    // Catches: failed loads, stalled streams, broken audio graph, any black screen.
+    var _lastCheckTime = 0;
+    var _stallCount = 0;
+    var _safetyInterval = setInterval(function() {
+        // Video is progressing — reset stall counter
+        if (video.currentTime > _lastCheckTime + 1) {
+            _lastCheckTime = video.currentTime;
+            _stallCount = 0;
+            return;
+        }
+        // Video is stalled or stuck
+        _stallCount++;
+        // After 2 consecutive stalls (20s), skip to next video
+        if (_stallCount >= 2) {
+            clearInterval(_safetyInterval);
+            if (window._hls) { try { window._hls.destroy(); } catch(e) {} }
+            window.logActivity("dead_stream", logItemTitle, logItemType, {item_id: logItemId});
+            fetch("/api/next-video")
+                .then(function(r) { return r.ok ? r.json() : null; })
+                .then(function(data) {
+                    if (data && data.url) {
+                        window.quickNav(data.url);
+                    } else {
+                        window.quickNav("/");
+                    }
+                })
+                .catch(function() { window.quickNav("/"); });
+        }
+    }, 10000);
 
     // Show overlay initially
     showOverlay();

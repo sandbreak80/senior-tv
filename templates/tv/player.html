@@ -12,9 +12,7 @@
          data-item-title="{{ item.series_name ~ ' - ' ~ item.title if item.series_name else item.title }}"
          data-item-type="{{ item.type or 'video' }}">
         <video id="video-player" autoplay>
-            {% if stream_url %}
-            <source src="{{ stream_url }}" type="{{ 'application/x-mpegURL' if '.m3u8' in stream_url else 'video/mp4' }}">
-            {% endif %}
+            {% if stream_url %}<source src="{{ stream_url }}" type="video/mp4">{% endif %}
             {% if transcode_url %}<source src="{{ transcode_url }}" type="application/x-mpegURL">{% endif %}
             {% if subtitle_url %}
             <track kind="subtitles" src="{{ subtitle_url }}" srclang="en" label="English" default>
@@ -67,7 +65,8 @@
     </div>
 
     <script src="/static/js/hls.min.js"></script>
+    <script src="/static/js/audio-normalizer.js?v=1"></script>
     <script src="/static/js/tv.js?v=6"></script>
-    <script src="/static/js/player.js?v=3"></script>
+    <script src="/static/js/player.js?v=4"></script>
 </body>
 </html>

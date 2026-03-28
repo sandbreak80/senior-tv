@@ -24,8 +24,13 @@ if ws_url:
 " 2>/dev/null
 
 # Save camera snapshots from Frigate (check on loved ones)
-for camera in tv_room living_room family_room kitchen; do
-    curl -sf --max-time 5 "http://localhost:5001/api/${camera}/latest.jpg?h=480" \
+# Local USB camera (tv_room) via local Frigate
+curl -sf --max-time 5 "http://localhost:5001/api/tv_room/latest.jpg?h=480" \
+    -o "$CAM_DIR/tv_room_${TIMESTAMP}.jpg" 2>/dev/null
+# Network cameras via remote Frigate
+FRIGATE_URL="http://192.168.50.114:5000"
+for camera in den living_room family_room kitchen; do
+    curl -sf --max-time 5 "${FRIGATE_URL}/api/${camera}/latest.jpg?h=480" \
         -o "$CAM_DIR/${camera}_${TIMESTAMP}.jpg" 2>/dev/null
 done
 

@@ -197,19 +197,48 @@ class JellyfinAPI:
             })
         return tracks
 
+    def get_english_audio_index(self, item_id):
+        """Find the English audio track index. Returns None if default is already English."""
+        try:
+            resp = requests.get(
+                f"{self.base_url}/Items/{item_id}",
+                params={"api_key": self.api_key, "Fields": "MediaStreams"},
+                timeout=10,
+            )
+            if not resp.ok:
+                return None
+            streams = resp.json().get("MediaStreams", [])
+            default_audio = None
+            english_audio = None
+            for s in streams:
+                if s.get("Type") != "Audio":
+                    continue
+                if s.get("IsDefault"):
+                    default_audio = s
+                lang = (s.get("Language") or "").lower()
+                if lang in ("eng", "en", "english") and english_audio is None:
+                    english_audio = s
+            # If default is already English, no override needed
+            if default_audio and (default_audio.get("Language") or "").lower() in ("eng", "en", "english"):
+                return None
+            # If we found an English track, return its index
+            if english_audio:
+                return english_audio.get("Index")
+            return None
+        except Exception:
+            return None
+
     def get_stream_url(self, item_id):
         """Get a proxied stream URL that works from both LAN and remote.
-        Uses Jellyfin transcoding to ensure audio is AAC (Chrome can't decode
-        EAC3/DTS/TrueHD). Video is copied without re-encoding."""
-        return (
-            f"/api/jellyfin-stream/{item_id}/master.m3u8"
-            f"?MediaSourceId={item_id}"
-            f"&VideoCodec=h264,hevc,mpeg4"
-            f"&AudioCodec=aac,mp3,opus"
-            f"&TranscodingProtocol=hls"
-            f"&AudioStreamIndex=1"
-            f"&MaxStreamingBitrate=100000000"
-        )
+        Uses static (direct) stream — fastest, works for AAC/MP3 audio.
+        Always selects the English audio track if the default is non-English.
+        The player template also includes a transcode_url fallback (HLS with AAC)
+        for files with EAC3/DTS/TrueHD audio that Chrome can't decode."""
+        eng_idx = self.get_english_audio_index(item_id)
+        url = f"/api/jellyfin-stream/{item_id}/stream?Static=true"
+        if eng_idx is not None:
+            url += f"&AudioStreamIndex={eng_idx}"
+        return url
 
     def get_subtitle_url(self, item_id):
         """Get proxied subtitle URL."""
@@ -217,13 +246,17 @@ class JellyfinAPI:
 
     def get_transcode_url(self, item_id):
         """Get a proxied HLS transcode URL as fallback."""
-        return (
+        eng_idx = self.get_english_audio_index(item_id)
+        url = (
             f"/api/jellyfin-stream/{item_id}/master.m3u8"
             f"?MediaSourceId={item_id}"
             f"&VideoCodec=h264"
             f"&AudioCodec=aac"
             f"&MaxStreamingBitrate=20000000"
         )
+        if eng_idx is not None:
+            url += f"&AudioStreamIndex={eng_idx}"
+        return url
 
     def get_daily_picks(self, library_id, count=20):
         """Get a daily rotation of movies — same all day, different tomorrow.
