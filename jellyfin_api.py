@@ -99,7 +99,8 @@ class JellyfinAPI:
         return [g["Name"] for g in data.get("Items", [])]
 
     def get_library_items(self, library_id, sort="SortName", sort_order="Ascending",
-                          item_type=None, genre=None, limit=100, start=0):
+                          item_type=None, genre=None, limit=100, start=0,
+                          exclude_tags=None):
         """Get items in a library with optional genre filter and pagination."""
         params = {
             "ParentId": library_id,
@@ -114,6 +115,8 @@ class JellyfinAPI:
         }
         if genre:
             params["Genres"] = genre
+        if exclude_tags:
+            params["ExcludeTags"] = ",".join(exclude_tags)
 
         data = self._get(f"/Users/{self.user_id}/Items", params=params)
         return [_parse_item(item, self.base_url, self.api_key) for item in data.get("Items", [])]

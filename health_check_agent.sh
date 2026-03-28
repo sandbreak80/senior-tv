@@ -52,8 +52,8 @@ claude --print --dangerously-skip-permissions -p "You are a health check agent f
 4. Check for recent errors:
    journalctl -u senior-tv.service --since '1 hour ago' --priority err --no-pager | tail -20
 
-5. Take a desktop screenshot to verify the kiosk is displaying correctly:
-   XDG_RUNTIME_DIR=/run/user/1000 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus DISPLAY=:0 gnome-screenshot -f /home/media/code_projectsd/senior_tv/screenshots/health_check.png
+5. Take a SILENT screenshot via Chrome DevTools Protocol (NEVER use gnome-screenshot — it flashes the screen and plays a shutter sound, scaring the users):
+   python3 -c \"import json, base64, urllib.request, websocket; tabs = json.loads(urllib.request.urlopen('http://127.0.0.1:9222/json', timeout=5).read()); ws_url = next((t['webSocketDebuggerUrl'] for t in tabs if t.get('type') == 'page'), None); ws = websocket.create_connection(ws_url, timeout=10); ws.send(json.dumps({'id': 1, 'method': 'Page.captureScreenshot', 'params': {'format': 'png'}})); result = json.loads(ws.recv()); ws.close(); open('/home/media/code_projectsd/senior_tv/screenshots/health_check.png', 'wb').write(base64.b64decode(result['result']['data']))\"
    Then read the screenshot file at /home/media/code_projectsd/senior_tv/screenshots/health_check.png
    Verify: Chrome should be fullscreen showing the Senior TV app (dark theme, hotel-style TV interface).
    Problems to flag: GNOME desktop visible, error dialogs, crash popups, wrong app displayed, blank screen.

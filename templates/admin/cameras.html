@@ -38,23 +38,33 @@
 
 <!-- Check on Loved Ones -->
 {% if saved_snaps %}
-<div class="card" style="margin-top: 24px;">
-    <h2>Check on Loved Ones <span style="font-size: 14px; color: #666;">(saved every 15 min)</span></h2>
-    <p style="color: #666; font-size: 14px; margin-bottom: 12px;">Recent snapshots from the TV room and common areas — see how Don & Colleen are doing.</p>
-    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px;">
-        {% for snap in saved_snaps %}
+{% set ns = namespace(current_cam='') %}
+<div style="margin-top: 24px;">
+    <h2 style="margin: 0 0 4px;">Check on Loved Ones <span style="font-size: 14px; color: #666;">(saved every 15 min)</span></h2>
+    <p style="color: #666; font-size: 14px; margin-bottom: 16px;">Recent snapshots from around the house — see how Don & Colleen are doing.</p>
+    {% for snap in saved_snaps %}
+    {% if snap.camera != ns.current_cam %}
+        {% if ns.current_cam %}
+            </div></div>
+        {% endif %}
+        {% set ns.current_cam = snap.camera %}
+        <div class="card" style="margin-bottom: 12px;">
+        <h3 style="margin: 0 0 10px; font-size: 16px;">{{ snap.camera | replace('_', ' ') | title }}</h3>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px;">
+    {% endif %}
         <div style="background: #f5f5f5; border-radius: 8px; overflow: hidden;">
             <a href="/static/camera_snaps/{{ snap.file }}" target="_blank">
                 <img src="/static/camera_snaps/{{ snap.file }}" alt="{{ snap.camera }}"
                      style="width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block;" loading="lazy">
             </a>
             <div style="padding: 6px 10px;">
-                <div style="font-weight: 600; font-size: 13px;">{{ snap.camera | replace('_', ' ') | title }}</div>
                 <div style="font-size: 12px; color: #666;">{{ snap.time }}</div>
             </div>
         </div>
-        {% endfor %}
-    </div>
+    {% endfor %}
+    {% if ns.current_cam %}
+        </div></div>
+    {% endif %}
 </div>
 {% endif %}
 

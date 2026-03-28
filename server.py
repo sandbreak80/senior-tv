@@ -36,6 +36,13 @@ from scheduler import (
 
 app = Flask(__name__)
 app_start_time = datetime.now()
+
+# Content exclusions — anime, foreign language films not suitable for Don & Colleen
+_excluded_ids = set()
+_exclusions_path = os.path.join(config.BASE_DIR, "content_exclusions.json")
+if os.path.exists(_exclusions_path):
+    with open(_exclusions_path) as _f:
+        _excluded_ids = set(json.load(_f).get("excluded_ids", []))
 app.config["SECRET_KEY"] = config.SECRET_KEY
 app.config["MAX_CONTENT_LENGTH"] = config.MAX_UPLOAD_SIZE
 app.config["SESSION_COOKIE_HTTPONLY"] = True
@@ -278,9 +285,10 @@ def tv_home():
             for lib in libs:
                 lib_type = lib.get("type", "")
                 try:
-                    # Pull random items across the whole library — no genre filter
+                    # Pull extra to account for exclusion filtering
                     items = jf.get_library_items(lib["id"], sort="Random",
-                                                 sort_order="Ascending", limit=20)
+                                                 sort_order="Ascending", limit=30)
+                    items = [i for i in items if i["id"] not in _excluded_ids][:20]
                     for item in items:
                         if item.get("type") == "series" or lib_type == "tvshows":
                             jf_shows.append(item)
@@ -1179,7 +1187,7 @@ def admin_dashboard():
     if frigate_url:
         try:
             from smart_home import frigate_get_events
-            raw_events = frigate_get_events(frigate_url, label="person", limit=4)
+            raw_events = frigate_get_events(frigate_url, camera="front_door", label="person", limit=4)
             if raw_events:
                 for evt in raw_events:
                     ts = evt.get("start_time", 0)
@@ -1276,19 +1284,28 @@ def admin_cameras():
                     "height": detect.get("height", "?"),
                     "fps": detect.get("fps", "?"),
                 })
+            # Front door first, then tv_room, then rest alphabetically
+            priority = {"front_door": 0, "tv_room": 1}
+            cameras.sort(key=lambda c: (priority.get(c["name"], 99), c["name"]))
     except Exception:
         pass
 
     # Saved camera snapshots (check on loved ones)
+    # Show latest 4 per camera, front_door and tv_room first
     saved_snaps = []
     snap_dir = os.path.join(config.BASE_DIR, "static", "camera_snaps")
     if os.path.isdir(snap_dir):
-        for f in sorted(os.listdir(snap_dir), reverse=True)[:40]:
+        by_camera = {}
+        for f in sorted(os.listdir(snap_dir), reverse=True):
             if f.endswith(".jpg"):
                 parts = f.replace(".jpg", "").split("_")
                 # Format: camera_name_YYYYMMDD_HHMMSS.jpg
                 if len(parts) >= 3:
                     cam_name = "_".join(parts[:-2])
+                    if cam_name not in by_camera:
+                        by_camera[cam_name] = []
+                    if len(by_camera[cam_name]) >= 4:
+                        continue
                     ts = parts[-2] + "_" + parts[-1]
                     try:
                         from datetime import datetime as _dt
@@ -1296,7 +1313,11 @@ def admin_cameras():
                         time_str = dt.strftime("%b %d, %I:%M %p")
                     except Exception:
                         time_str = ts
-                    saved_snaps.append({"file": f, "camera": cam_name, "time": time_str})
+                    by_camera[cam_name].append({"file": f, "camera": cam_name, "time": time_str})
+        # Order: front_door first, tv_room second, rest alphabetically
+        priority = {"front_door": 0, "tv_room": 1}
+        for cam in sorted(by_camera, key=lambda c: (priority.get(c, 99), c)):
+            saved_snaps.extend(by_camera[cam])
 
     return render_template("admin/cameras.html", cameras=cameras, saved_snaps=saved_snaps)
 
@@ -2066,9 +2087,11 @@ def api_next_video():
 
             for lib in libs:
                 items = jf.get_library_items(
-                    lib["id"], sort="Random", genre=genre, limit=1)
-                if items:
-                    result = _validate_and_return(items[0], genre)
+                    lib["id"], sort="Random", genre=genre, limit=5)
+                for item in items:
+                    if item["id"] in _excluded_ids:
+                        continue
+                    result = _validate_and_return(item, genre)
                     if result:
                         return jsonify(result)
     except Exception:
