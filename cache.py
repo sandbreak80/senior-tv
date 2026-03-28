@@ -12,8 +12,10 @@ def get(key):
     """Get a cached value. Returns None if expired or missing."""
     with _lock:
         entry = _cache.get(key)
-        if entry and time.time() < entry["expires"]:
-            return entry["value"]
+        if entry:
+            if time.time() < entry["expires"]:
+                return entry["value"]
+            del _cache[key]
     return None
 
 

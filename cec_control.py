@@ -16,6 +16,14 @@ def _cec_available():
     return os.path.exists("/dev/cec0")
 
 
+def _cec_cmd(*args):
+    """Run a cec-ctl command with standard options."""
+    return subprocess.run(
+        ["cec-ctl", "--to", "0", *args],
+        timeout=5, check=False, capture_output=True, text=True,
+    )
+
+
 def _get_ha_config():
     """Read HA config from settings DB."""
     from models import get_setting
@@ -46,10 +54,7 @@ def _ha_call_service(domain, service, data=None):
 def tv_power_on():
     """Turn TV on."""
     if _cec_available():
-        subprocess.run(
-            ["cec-ctl", "--to", "0", "--image-view-on"],
-            timeout=5, check=False, capture_output=True,
-        )
+        _cec_cmd("--image-view-on")
         return True
     cfg = _get_ha_config()
     return _ha_call_service("media_player", "turn_on",
@@ -59,10 +64,7 @@ def tv_power_on():
 def tv_power_off():
     """Turn TV to standby."""
     if _cec_available():
-        subprocess.run(
-            ["cec-ctl", "--to", "0", "--standby"],
-            timeout=5, check=False, capture_output=True,
-        )
+        _cec_cmd("--standby")
         return True
     cfg = _get_ha_config()
     return _ha_call_service("media_player", "turn_off",
@@ -72,10 +74,7 @@ def tv_power_off():
 def tv_set_input():
     """Switch TV to our HDMI input."""
     if _cec_available():
-        subprocess.run(
-            ["cec-ctl", "--to", "0", "--active-source", "phys-addr=0x1000"],
-            timeout=5, check=False, capture_output=True,
-        )
+        _cec_cmd("--active-source", "phys-addr=0x1000")
         return True
     cfg = _get_ha_config()
     return _ha_call_service("media_player", "select_source",
@@ -85,10 +84,7 @@ def tv_set_input():
 def tv_get_power_status():
     """Query TV power status. Returns 'on', 'standby', or 'unknown'."""
     if _cec_available():
-        result = subprocess.run(
-            ["cec-ctl", "--to", "0", "--give-device-power-status"],
-            capture_output=True, text=True, timeout=5,
-        )
+        result = _cec_cmd("--give-device-power-status")
         if "pwr-state: on" in result.stdout:
             return "on"
         if "pwr-state: standby" in result.stdout:

@@ -5,7 +5,7 @@
 export XDG_RUNTIME_DIR=/run/user/1000
 
 # Find the HDMI sink ID (starred = default)
-HDMI_SINK=$(wpctl status 2>/dev/null | grep -i "rembrandt.*hdmi\|radeon.*hdmi\|SAMSUNG" | grep -oP '^\s*[*]?\s*\K\d+' | head -1)
+HDMI_SINK=$(wpctl status 2>/dev/null | grep -i "rembrandt.*hdmi\|radeon.*hdmi\|SAMSUNG" | grep -oP '\d+\.' | head -1 | tr -d '.')
 
 if [ -z "$HDMI_SINK" ]; then
     # Broader search for any HDMI sink

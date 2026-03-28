@@ -517,9 +517,16 @@ window.quickNav = function(url) {
         }
     }
 
+    function _getAudioCtx() {
+        if (!window._seniorTvAudioCtx) {
+            window._seniorTvAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        return window._seniorTvAudioCtx;
+    }
+
     function playChime() {
         try {
-            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const ctx = _getAudioCtx();
 
             function playTone(freq, startTime, duration) {
                 const osc = ctx.createOscillator();
@@ -634,7 +641,7 @@ window.quickNav = function(url) {
 
     function playDoorbell() {
         try {
-            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const ctx = _getAudioCtx();
             function playTone(freq, startTime, duration) {
                 const osc = ctx.createOscillator();
                 const gain = ctx.createGain();
@@ -681,7 +688,7 @@ window.quickNav = function(url) {
 
         // Play happy tune
         try {
-            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const ctx = _getAudioCtx();
             function tone(freq, start, dur) {
                 const o = ctx.createOscillator();
                 const g = ctx.createGain();
@@ -847,24 +854,31 @@ window.quickNav = function(url) {
             .then(data => {
                 const digestEl = document.querySelector(".daily-digest");
                 if (!digestEl) return;
-                let html = "";
+                digestEl.textContent = "";
                 if (data.quote) {
-                    html += '<span class="digest-quote">"' + data.quote.text + '" — ' + data.quote.author + '</span>';
+                    var q = document.createElement("span");
+                    q.className = "digest-quote";
+                    q.textContent = "\u201C" + data.quote.text + "\u201D \u2014 " + data.quote.author;
+                    digestEl.appendChild(q);
                 }
                 if (data.history) {
-                    html += '<span class="digest-history">On this day in ' + data.history.year + ': ' + data.history.text.substring(0, 120) + '</span>';
+                    var h = document.createElement("span");
+                    h.className = "digest-history";
+                    h.textContent = "On this day in " + data.history.year + ": " + data.history.text.substring(0, 120);
+                    digestEl.appendChild(h);
                 }
-                if (html) digestEl.innerHTML = html;
             })
             .catch(() => {});
     }
 
     // --- Auto-refresh home data ---
 
+    var _homeRefreshInterval = null;
     function startAutoRefresh() {
         if (window.location.pathname !== "/") return;
+        if (_homeRefreshInterval) clearInterval(_homeRefreshInterval);
 
-        setInterval(function () {
+        _homeRefreshInterval = setInterval(function () {
             fetch("/api/home-data")
                 .then(r => r.json())
                 .then(data => {

@@ -5,8 +5,16 @@ get metadata, and construct direct stream URLs for HTML5 video playback.
 """
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 AUTH_HEADER = 'MediaBrowser Client="SeniorTV", Device="MiniPC", DeviceId="senior-tv", Version="1.0"'
+
+# Shared session with connection pooling and automatic retry on transient errors
+_session = requests.Session()
+_retry = Retry(total=2, backoff_factor=0.5, status_forcelist=[500, 502, 503])
+_session.mount("http://", HTTPAdapter(max_retries=_retry))
+_session.mount("https://", HTTPAdapter(max_retries=_retry))
 
 
 class JellyfinAPI:
@@ -23,13 +31,13 @@ class JellyfinAPI:
 
     def _get(self, path, params=None):
         url = f"{self.base_url}{path}"
-        resp = requests.get(url, headers=self._headers(), params=params, timeout=10)
+        resp = _session.get(url, headers=self._headers(), params=params, timeout=10)
         resp.raise_for_status()
         return resp.json()
 
     def authenticate(self, username, password):
         """Authenticate and get an access token + user ID."""
-        resp = requests.post(
+        resp = _session.post(
             f"{self.base_url}/Users/AuthenticateByName",
             headers={
                 "Content-Type": "application/json",
@@ -200,7 +208,7 @@ class JellyfinAPI:
     def get_english_audio_index(self, item_id):
         """Find the English audio track index. Returns None if default is already English."""
         try:
-            resp = requests.get(
+            resp = _session.get(
                 f"{self.base_url}/Items/{item_id}",
                 params={"api_key": self.api_key, "Fields": "MediaStreams"},
                 timeout=10,
@@ -321,7 +329,7 @@ class JellyfinAPI:
     def report_playback_start(self, item_id):
         """Tell Jellyfin we started playing (updates "Now Playing")."""
         try:
-            requests.post(
+            _session.post(
                 f"{self.base_url}/Sessions/Playing",
                 headers=self._headers(),
                 json={"ItemId": item_id, "CanSeek": True},
@@ -333,7 +341,7 @@ class JellyfinAPI:
     def report_playback_stop(self, item_id, position_ticks=0):
         """Tell Jellyfin we stopped playing (updates resume position)."""
         try:
-            requests.post(
+            _session.post(
                 f"{self.base_url}/Sessions/Playing/Stopped",
                 headers=self._headers(),
                 json={"ItemId": item_id, "PositionTicks": position_ticks},

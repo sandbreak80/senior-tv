@@ -72,7 +72,7 @@
             }
 
             // Use proxy to bypass Pluto TV CORS restrictions
-            const proxyUrl = "/api/pluto-stream/{{ channel.id }}";
+            const proxyUrl = "/api/pluto-stream/" + {{ channel.id | tojson }};
 
             function startHLS(url) {
                 if (Hls.isSupported()) {

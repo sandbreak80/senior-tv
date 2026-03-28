@@ -364,9 +364,17 @@ def get_pill_adherence_today():
 
 def prune_old_logs(activity_days=30, remote_days=7):
     """Delete old logs and vacuum database."""
+    activity_days = int(activity_days)
+    remote_days = int(remote_days)
     with get_db_safe() as db:
-        db.execute(f"DELETE FROM activity_logs WHERE started_at < datetime('now', '-{activity_days} days')")
-        db.execute(f"DELETE FROM remote_logs WHERE logged_at < datetime('now', '-{remote_days} days')")
+        db.execute(
+            "DELETE FROM activity_logs WHERE started_at < datetime('now', ?)",
+            (f"-{activity_days} days",),
+        )
+        db.execute(
+            "DELETE FROM remote_logs WHERE logged_at < datetime('now', ?)",
+            (f"-{remote_days} days",),
+        )
         db.execute("VACUUM")
         db.commit()
 

@@ -296,6 +296,110 @@ input[type="file"] {
 .adherence-status.missed { color: #c73550; }
 .adherence-status.pending { color: #999; }
 
+/* Care Dashboard */
+.care-banner {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 20px;
+    border-radius: 12px;
+    background: var(--card);
+    margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    border-left: 5px solid #4caf50;
+}
+.care-banner .care-icon { font-size: 40px; flex-shrink: 0; }
+.care-banner .care-message { font-size: 20px; font-weight: 700; line-height: 1.3; }
+.care-banner .care-sub { font-size: 14px; color: var(--text-muted); margin-top: 2px; }
+
+.care-stats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+}
+.care-stat {
+    background: var(--card);
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+.care-stat-value { font-size: 24px; font-weight: 700; }
+.care-stat-value.on-track { color: #0d7a50; }
+.care-stat-value.has-missed { color: #c73550; }
+.care-stat-label { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+.pill-summary { font-size: 14px; color: var(--text-muted); margin-bottom: 12px; }
+.pill-summary .missed-count { color: #c73550; font-weight: 600; }
+
+.adherence-item.is-missed {
+    background: #fde8eb;
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.activity-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+}
+.activity-item:last-child { border-bottom: none; }
+.activity-icon { font-size: 20px; width: 32px; text-align: center; flex-shrink: 0; }
+.activity-info { flex: 1; min-width: 0; }
+.activity-title { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.activity-meta { font-size: 13px; color: var(--text-muted); }
+.activity-item.is-now { background: #e6f9f1; border-radius: 8px; padding: 12px; margin: 0 -4px; }
+
+.coming-up-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+}
+.coming-up-item:last-child { border-bottom: none; }
+.coming-up-icon { font-size: 20px; width: 28px; text-align: center; flex-shrink: 0; }
+.coming-up-date { font-size: 12px; color: var(--text-muted); min-width: 60px; flex-shrink: 0; }
+
+.timeline-bar {
+    display: flex;
+    gap: 2px;
+    align-items: end;
+    height: 40px;
+    margin-top: 8px;
+}
+.timeline-bar .bar {
+    flex: 1;
+    border-radius: 2px 2px 0 0;
+    min-height: 2px;
+    background: #e0e0e0;
+}
+.timeline-bar .bar.active { background: var(--primary); }
+.timeline-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+
+.system-collapse { font-size: 13px; color: var(--text-muted); margin-top: 8px; }
+.system-collapse summary { cursor: pointer; padding: 12px 0; }
+.system-detail { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); }
+
+.doorbell-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+.doorbell-item { text-align: center; }
+.doorbell-item img { width: 100%; border-radius: 8px; aspect-ratio: 16/9; object-fit: cover; background: #eee; }
+.doorbell-item .doorbell-meta { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
 /* Time picker list */
 .time-fields { list-style: none; padding: 0; margin: 0; }
 .time-field-row {

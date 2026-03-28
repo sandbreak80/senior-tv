@@ -29,7 +29,7 @@ def check_pills():
     _gc_active_reminders(now)
 
     # Prune dedup cache (entries older than 1 hour)
-    stale = [k for k, t in _last_fired.items() if (now - t).seconds > 3600]
+    stale = [k for k, t in _last_fired.items() if (now - t).total_seconds() > 3600]
     for k in stale:
         del _last_fired[k]
 
@@ -45,7 +45,7 @@ def check_pills():
         if current_day_num in day_nums and current_time in times:
             # Dedup: only fire once per pill per time slot
             dedup_key = f"{pill['id']}_{current_time}"
-            if dedup_key in _last_fired and (now - _last_fired[dedup_key]).seconds < 120:
+            if dedup_key in _last_fired and (now - _last_fired[dedup_key]).total_seconds() < 120:
                 continue
             _last_fired[dedup_key] = now
             trigger_reminder(pill, current_time)
@@ -68,7 +68,6 @@ def trigger_reminder(pill, scheduled_time):
     name_lower = pill["name"].lower()
     is_blocking = "shower" in name_lower or "stretch" in name_lower
     is_shower = "shower" in name_lower
-    is_stretch = "stretch" in name_lower
 
     event_data = {
         "type": "pill_reminder",
@@ -81,7 +80,7 @@ def trigger_reminder(pill, scheduled_time):
         "reminder_media": pill["reminder_media"],
         "reminder_message": pill["reminder_message"] or f"Time to take your {pill['name']}!",
         "block_minutes": 15 if is_blocking else 0,
-        "icon": "🚿" if is_shower else ("🧘" if is_stretch else "💊"),
+        "icon": "🚿" if is_shower else ("🧘" if "stretch" in name_lower else "💊"),
     }
     try:
         reminder_queue.put_nowait(event_data)
@@ -96,7 +95,7 @@ def _gc_active_reminders(now):
         for rid, data in active_reminders.items():
             try:
                 triggered = datetime.fromisoformat(data["triggered_at"])
-                if (now - triggered).seconds > 7200:  # 2 hours
+                if (now - triggered).total_seconds() > 7200:  # 2 hours
                     to_remove.append((rid, data))
             except Exception as e:
                 print(f"Scheduler: GC error for reminder {rid}: {e}", file=sys.stderr)

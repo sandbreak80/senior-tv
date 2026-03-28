@@ -87,6 +87,8 @@ def invalidate_session():
     """Mark current session as expired so next call gets a fresh one."""
     with _session_lock:
         SESSION_CACHE["token"] = None
+    import cache
+    cache.clear("pluto_all_channels")
 
 
 def get_channels(category_filter=None, include_all=False):
@@ -112,21 +114,18 @@ def get_channels(category_filter=None, include_all=False):
                 "start": now.strftime("%Y-%m-%dT%H:00:00.000Z"),
                 "stop": (now + timedelta(hours=4)).strftime("%Y-%m-%dT%H:00:00.000Z"),
             }
-            resp = requests.get(
-                "https://api.pluto.tv/v2/channels",
-                headers={"Authorization": f"Bearer {token}"},
-                params=params,
-                timeout=15,
-            )
-            # Retry with fresh token on auth failure
-            if resp.status_code == 401:
-                token, stitcher = _refresh_session()
-                resp = requests.get(
+            def _fetch_channels(tk):
+                return requests.get(
                     "https://api.pluto.tv/v2/channels",
-                    headers={"Authorization": f"Bearer {token}"},
+                    headers={"Authorization": f"Bearer {tk}"},
                     params=params,
                     timeout=15,
                 )
+            resp = _fetch_channels(token)
+            # Retry with fresh token on auth failure
+            if resp.status_code == 401:
+                token, stitcher = _refresh_session()
+                resp = _fetch_channels(token)
             resp.raise_for_status()
             raw_channels = resp.json()
         except Exception as e:

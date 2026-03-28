@@ -4,6 +4,8 @@ Fetches random family photos from an Immich server for the photo slideshow
 and home page widget.
 """
 
+import sys
+
 import requests
 import cache
 
@@ -53,7 +55,8 @@ def get_random_photos(count=20):
             })
         cache.set(cache_key, photos, ttl=600)  # 10 min
         return photos
-    except Exception:
+    except Exception as e:
+        print(f"Immich: get_random_photos error: {e}", file=sys.stderr)
         return []
 
 
@@ -72,7 +75,8 @@ def get_photo_data(asset_id, size="preview"):
         )
         resp.raise_for_status()
         return resp.content, resp.headers.get("Content-Type", "image/jpeg")
-    except Exception:
+    except Exception as e:
+        print(f"Immich: get_photo_data error: {e}", file=sys.stderr)
         return None, None
 
 
@@ -96,7 +100,8 @@ def get_photo_count():
         count = resp.json().get("images", 0)
         cache.set("immich_count", count, ttl=3600)
         return count
-    except Exception:
+    except Exception as e:
+        print(f"Immich: get_photo_count error: {e}", file=sys.stderr)
         return 0
 
 

@@ -1,154 +1,200 @@
 {% extends "admin/base.html" %}
-{% block title %}Dashboard{% endblock %}
+{% block title %}Care Dashboard{% endblock %}
 {% block content %}
-<h1 style="margin: 20px 0;">Dashboard</h1>
 
-<!-- System Metrics -->
-{% if system_metrics %}
-<div class="card" style="margin-bottom: 16px; padding: 14px 20px;">
-    <div style="display: flex; gap: 30px; flex-wrap: wrap; font-size: 14px;">
-        <span>CPU: <strong>{{ system_metrics.cpu_percent }}%</strong></span>
-        <span>RAM: <strong>{{ system_metrics.mem_used_gb }}GB / {{ system_metrics.mem_total_gb }}GB</strong> ({{ system_metrics.mem_percent }}%)</span>
-        <span>Disk: <strong>{{ system_metrics.disk_used_gb }}GB / {{ system_metrics.disk_total_gb }}GB</strong> ({{ system_metrics.disk_percent }}%)</span>
-        <span>Uptime: <strong>{{ system_metrics.uptime }}</strong></span>
-        <span>Containers: <strong style="color: {{ '#4caf50' if system_metrics.containers_running > 0 else '#f44336' }};">{{ system_metrics.containers_running }} running</strong></span>
-    </div>
-</div>
-{% endif %}
-
-<div class="stats-row">
-    <div class="stat-card">
-        <div class="stat-num">{{ pills | length }}</div>
-        <div class="stat-label">Pill Reminders</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-num">{{ events | length }}</div>
-        <div class="stat-label">Upcoming Events</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-num">{{ remote_count_1h }}</div>
-        <div class="stat-label">Remote Presses (1hr)</div>
-    </div>
-    <div class="stat-card" style="border-left: 4px solid {{ presence.color if presence else '#999' }};">
-        {% if presence %}
-        <div class="stat-num" style="font-size: 20px; color: {{ presence.color }};">{{ presence.label }}</div>
-        {% else %}
-        <div class="stat-num" style="font-size: 20px;">—</div>
-        {% endif %}
-        <div class="stat-label">TV Room</div>
+<!-- A: Care Status Banner -->
+<div class="care-banner" style="border-left-color: {{ care_status.color }};">
+    <div class="care-icon">{{ care_status.icon }}</div>
+    <div>
+        <div class="care-message">{{ care_status.message }}</div>
+        <div class="care-sub">
+            {% if weather %}{{ weather.temp }} {{ weather.condition }}{% endif %}
+        </div>
     </div>
 </div>
 
-<!-- TV Room Presence -->
-{% if tv_presence %}
-<div class="card">
-    <h2>👀 TV Room Presence</h2>
-    <div style="display: flex; gap: 30px; flex-wrap: wrap; align-items: center;">
-        <div style="text-align: center;">
-            <div style="font-size: 48px;">{{ '🟢' if tv_presence.occupied else '⚫' }}</div>
-            <div style="font-size: 14px; font-weight: 600; color: {{ '#4caf50' if tv_presence.occupied else '#999' }};">
-                {{ 'Someone is watching' if tv_presence.occupied else 'Room is empty' }}
+<!-- B: Quick Stats (2x2) -->
+<div class="care-stats">
+    <div class="care-stat">
+        <div class="care-stat-value {{ 'has-missed' if pill_summary.missed > 0 else 'on-track' }}">
+            {{ pill_summary.taken }}/{{ pill_summary.total }}
+        </div>
+        <div class="care-stat-label">Pills Taken Today</div>
+    </div>
+    <div class="care-stat">
+        <div class="care-stat-value" style="font-size:18px;">
+            {% if next_pill %}
+                {{ next_pill.name }}
+            {% else %}
+                All done
+            {% endif %}
+        </div>
+        <div class="care-stat-label">
+            {% if next_pill %}Next Pill &middot; {{ next_pill.time }}{% else %}No more pills today{% endif %}
+        </div>
+    </div>
+    <div class="care-stat">
+        <div class="care-stat-value">
+            {{ tv_presence.today_hours if tv_presence else "0m" }}
+        </div>
+        <div class="care-stat-label">TV Time Today</div>
+    </div>
+    <div class="care-stat">
+        <a href="/admin/messages" style="text-decoration:none; color:inherit;">
+            <div class="care-stat-value" style="{{ 'color: var(--primary);' if unread_messages > 0 else '' }}">
+                {{ unread_messages }}
             </div>
-        </div>
-        {% if tv_presence.last_seen %}
-        <div>
-            <div style="font-size: 14px; color: #666;">Last seen</div>
-            <div style="font-size: 18px; font-weight: 600;">{{ tv_presence.last_seen_str }}</div>
-        </div>
-        {% endif %}
-        <div>
-            <div style="font-size: 14px; color: #666;">Watched today</div>
-            <div style="font-size: 18px; font-weight: 600;">{{ tv_presence.today_hours }}</div>
-        </div>
-        {% if tv_presence.hourly %}
-        <div style="flex: 1; min-width: 200px;">
-            <div style="font-size: 14px; color: #666; margin-bottom: 4px;">Today's activity</div>
-            <div style="display: flex; gap: 2px; align-items: end; height: 40px;">
-                {% for h in range(6, 23) %}
-                <div style="flex: 1; background: {{ '#4caf50' if h in tv_presence.hourly else '#eee' }};
-                            height: {{ (tv_presence.hourly.get(h, 0) * 100 // 60)|int }}%;
-                            min-height: 2px; border-radius: 2px;"
-                     title="{{ h }}:00 — {{ tv_presence.hourly.get(h, 0) }} min"></div>
-                {% endfor %}
-            </div>
-            <div style="display: flex; justify-content: space-between; font-size: 10px; color: #999;">
-                <span>6am</span><span>12pm</span><span>6pm</span><span>10pm</span>
-            </div>
-        </div>
-        {% endif %}
+            <div class="care-stat-label">Unread Messages</div>
+        </a>
     </div>
 </div>
-{% endif %}
 
-<!-- Doorbell / Camera Events -->
-<div class="card">
-    <h2>🚪 Recent Doorbell Events</h2>
-    {% if doorbell_events %}
-    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px;">
-        {% for evt in doorbell_events %}
-        <div style="background: #f5f5f5; border-radius: 8px; overflow: hidden;">
-            <img src="/api/frigate-snapshot/events/{{ evt.id }}/snapshot.jpg"
-                 alt="Doorbell" style="width: 100%; height: 140px; object-fit: cover;"
-                 onerror="this.style.display='none'">
-            <div style="padding: 8px; font-size: 13px;">
-                <div style="font-weight: 600;">{{ evt.camera }}</div>
-                <div style="color: #666;">{{ evt.time }}</div>
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-    {% else %}
-    <p class="empty">No recent doorbell events. {% if not settings.frigate_url %}Configure Frigate in <a href="/admin/settings">Settings</a>.{% endif %}</p>
-    {% endif %}
-</div>
-
-<!-- Today's Pills -->
+<!-- C: Pill Tracker -->
 <div class="card">
     <h2>💊 Today's Pills</h2>
     {% if pill_adherence %}
+    <div class="pill-summary">
+        {{ pill_summary.taken }} taken
+        {% if pill_summary.missed %} &middot; <span class="missed-count">{{ pill_summary.missed }} missed</span>{% endif %}
+        {% if pill_summary.pending %} &middot; {{ pill_summary.pending }} upcoming{% endif %}
+    </div>
     <ul class="adherence-list">
-        {% for entry in pill_adherence %}
-        <li class="adherence-item">
+        {% for pill in pill_adherence %}
+        <li class="adherence-item {{ 'is-missed' if pill.status == 'missed' else '' }}">
             <span class="adherence-icon">
-                {% if entry.status == 'taken' %}✅
-                {% elif entry.status == 'missed' %}❌
-                {% else %}🕐{% endif %}
+                {% if pill.status == 'taken' %}✅{% elif pill.status == 'missed' %}❌{% else %}🕐{% endif %}
             </span>
             <div class="adherence-info">
-                <div class="adherence-name">{{ entry.pill_name }}</div>
-                <div class="adherence-time">{{ entry.display_time }}</div>
+                <div class="adherence-name">{{ pill.pill_name }}</div>
+                <div class="adherence-time">{{ pill.display_time }}</div>
             </div>
-            <span class="adherence-status {{ entry.status }}">
-                {% if entry.status == 'taken' %}Taken
-                {% elif entry.status == 'missed' %}Missed
-                {% else %}Pending{% endif %}
+            <span class="adherence-status {{ pill.status }}">
+                {{ pill.status | capitalize }}
             </span>
         </li>
         {% endfor %}
     </ul>
     {% else %}
-    <p class="empty">No pills scheduled today. <a href="/admin/pills">Manage pills</a></p>
+    <div class="empty">No pills scheduled for today</div>
     {% endif %}
 </div>
 
-<!-- Upcoming Events -->
+<!-- D: What's On TV -->
 <div class="card">
-    <h2>📅 Upcoming Events</h2>
-    {% if events %}
-    <div class="table-wrap">
-        <table>
-            <tr><th>Date</th><th>Time</th><th>Event</th></tr>
-            {% for event in events %}
-            <tr>
-                <td>{{ event.event_date }}</td>
-                <td>{{ event.event_time or 'All day' }}</td>
-                <td>{{ event.title }}</td>
-            </tr>
-            {% endfor %}
-        </table>
-    </div>
+    <h2>📺 What's On TV</h2>
+    {% if recent_activity %}
+        {% for log in recent_activity %}
+        <div class="activity-item {{ 'is-now' if loop.first and tv_presence and tv_presence.occupied else '' }}">
+            <span class="activity-icon">
+                {% if log.activity_type == 'movie' %}🎬
+                {% elif log.activity_type == 'episode' %}📺
+                {% elif log.activity_type == 'live' %}📡
+                {% elif log.activity_type == 'music' %}🎵
+                {% elif log.activity_type == 'youtube' %}▶️
+                {% else %}🖥️{% endif %}
+            </span>
+            <div class="activity-info">
+                <div class="activity-title">{{ log.item_title or 'Unknown' }}</div>
+                <div class="activity-meta">
+                    {{ log.activity_type | capitalize if log.activity_type else '' }}
+                    {% if log.duration_seconds %}
+                        &middot; {{ (log.duration_seconds // 60) }}min
+                    {% endif %}
+                    &middot; {{ log.started_at | timeago }}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
     {% else %}
-    <p class="empty">No upcoming events. <a href="/admin/calendar/new">Add one</a></p>
+        <div class="empty">No activity today</div>
     {% endif %}
 </div>
+
+<!-- E: Who's at the Door -->
+{% if doorbell_events %}
+<div class="card">
+    <h2>🚪 Who's at the Door</h2>
+    <div class="doorbell-grid">
+        {% for evt in doorbell_events %}
+        <div class="doorbell-item">
+            <img src="/api/frigate-snapshot/events/{{ evt.id }}/snapshot.jpg"
+                 alt="Person at {{ evt.camera }}" loading="lazy"
+                 onerror="this.style.display='none'">
+            <div class="doorbell-meta">{{ evt.camera }} &middot; {{ evt.time }}</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- F: Today's Activity Timeline -->
+{% if tv_presence and tv_presence.hourly %}
+<div class="card">
+    <h2>📊 Today's Activity</h2>
+    <div class="timeline-bar">
+        {% for h in range(6, 23) %}
+            {% set mins = tv_presence.hourly.get(h, 0) %}
+            {% set pct = (mins * 100 // 60) if mins else 0 %}
+            <div class="bar {{ 'active' if mins > 0 else '' }}"
+                 style="height: {{ [pct, 5] | max if mins > 0 else 5 }}%;"
+                 title="{{ h }}:00 — {{ mins }}min"></div>
+        {% endfor %}
+    </div>
+    <div class="timeline-labels">
+        <span>6am</span><span>12pm</span><span>6pm</span><span>10pm</span>
+    </div>
+</div>
+{% endif %}
+
+<!-- G: Coming Up -->
+{% if todays_birthdays or events %}
+<div class="card">
+    <h2>📅 Coming Up</h2>
+    {% for bday in todays_birthdays %}
+    <div class="coming-up-item">
+        <span class="coming-up-icon">🎂</span>
+        <div style="flex:1;">
+            <strong>{{ bday.name }}'s Birthday!</strong>
+            {% if bday.birth_year %}
+                <span style="color:var(--text-muted);"> — turning {{ current_year - bday.birth_year }}</span>
+            {% endif %}
+        </div>
+        <span class="coming-up-date">Today</span>
+    </div>
+    {% endfor %}
+    {% for event in events[:7] %}
+    <div class="coming-up-item">
+        <span class="coming-up-icon">📌</span>
+        <div style="flex:1;">{{ event.title }}</div>
+        <span class="coming-up-date">
+            {{ event.event_date[5:] }}
+            {% if event.event_time %} {{ event.event_time }}{% endif %}
+        </span>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- H: System Status (collapsed) -->
+<details class="system-collapse">
+    <summary>
+        {% if system_ok %}
+            ✅ System: All OK
+        {% else %}
+            ⚠️ System: Needs attention
+        {% endif %}
+        {% if system_metrics.uptime %} &middot; Uptime {{ system_metrics.uptime }}{% endif %}
+    </summary>
+    <div style="padding: 8px 0;">
+        {% if system_metrics %}
+        <div class="system-detail"><span>CPU</span><span>{{ system_metrics.cpu_percent }}%</span></div>
+        <div class="system-detail"><span>RAM</span><span>{{ system_metrics.mem_used_gb }}GB / {{ system_metrics.mem_total_gb }}GB ({{ system_metrics.mem_percent }}%)</span></div>
+        <div class="system-detail"><span>Disk</span><span>{{ system_metrics.disk_used_gb }}GB / {{ system_metrics.disk_total_gb }}GB ({{ system_metrics.disk_percent }}%)</span></div>
+        <div class="system-detail"><span>Containers</span><span>{{ system_metrics.containers_running }}</span></div>
+        {% else %}
+        <div class="empty">System metrics unavailable</div>
+        {% endif %}
+    </div>
+</details>
+
 {% endblock %}

@@ -1,5 +1,7 @@
 import json
 import os
+import re
+import secrets
 import shutil
 import subprocess
 from datetime import datetime
@@ -36,6 +38,25 @@ app = Flask(__name__)
 app_start_time = datetime.now()
 app.config["SECRET_KEY"] = config.SECRET_KEY
 app.config["MAX_CONTENT_LENGTH"] = config.MAX_UPLOAD_SIZE
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+
+
+@app.template_filter("timeago")
+def timeago_filter(timestamp_str):
+    """Convert timestamp to '5m ago' style string."""
+    try:
+        dt = datetime.strptime(str(timestamp_str)[:19], "%Y-%m-%d %H:%M:%S")
+        mins = int((datetime.now() - dt).total_seconds() / 60)
+        if mins < 1:
+            return "Just now"
+        if mins < 60:
+            return f"{mins}m ago"
+        if mins < 1440:
+            return f"{mins // 60}h ago"
+        return f"{mins // 1440}d ago"
+    except Exception:
+        return ""
 
 
 def _is_local_request():
@@ -74,7 +95,7 @@ def admin_login():
     if request.method == "POST":
         password = request.form.get("password", "")
         stored = models.get_setting("admin_password") or "family2026"
-        if password == stored:
+        if secrets.compare_digest(password, stored):
             session["remote_auth"] = True
             return redirect("/admin")
         return render_template_string(LOGIN_TEMPLATE, error="Wrong password")
@@ -211,17 +232,14 @@ def tv_home():
         time_period = "morning"
         suggested_categories = ["Game Shows", "Morning Shows", "Classic TV"]
         suggested_pluto = ["News + Opinion", "Daytime + Game Shows", "Classic TV"]
-        jf_genres = ["Comedy", "Family", "Western"]
     elif hour < 17:  # Afternoon: 2–5 PM
         time_period = "afternoon"
         suggested_categories = ["Westerns", "Classic TV", "Comedy", "Crime & Drama", "Music & Variety"]
         suggested_pluto = ["Westerns", "Classic TV", "Comedy", "Drama", "True Crime"]
-        jf_genres = ["Western", "Comedy", "Drama", "Crime"]
     else:  # Evening: 5 PM+
         time_period = "evening"
         suggested_categories = ["Comedy", "Crime & Drama", "Wind Down", "Westerns", "Music & Variety", "Nature"]
         suggested_pluto = ["Comedy", "Classic TV", "Drama", "True Crime", "Westerns"]
-        jf_genres = ["Western", "Family", "Comedy", "Crime"]
 
     unread_msgs = models.get_unread_count()
     msg_label = f"Messages ({unread_msgs} new)" if unread_msgs > 0 else "Messages"
@@ -249,7 +267,7 @@ def tv_home():
         {"label": "Photo Frame", "icon": "📷", "url": "/tv/photos"},
     ]
 
-    # Jellyfin recommendations — separate movies and shows
+    # Jellyfin recommendations — all genres welcome, the library was curated for them
     jf_movies = []
     jf_shows = []
     jf = _get_jellyfin()
@@ -259,17 +277,17 @@ def tv_home():
             libs = jf.get_libraries()
             for lib in libs:
                 lib_type = lib.get("type", "")
-                for genre in jf_genres[:3]:
-                    try:
-                        items = jf.get_library_items(lib["id"], sort="Random",
-                                                     sort_order="Ascending", genre=genre, limit=8)
-                        for item in items:
-                            if item.get("type") == "series" or lib_type == "tvshows":
-                                jf_shows.append(item)
-                            else:
-                                jf_movies.append(item)
-                    except Exception:
-                        pass
+                try:
+                    # Pull random items across the whole library — no genre filter
+                    items = jf.get_library_items(lib["id"], sort="Random",
+                                                 sort_order="Ascending", limit=20)
+                    for item in items:
+                        if item.get("type") == "series" or lib_type == "tvshows":
+                            jf_shows.append(item)
+                        else:
+                            jf_movies.append(item)
+                except Exception:
+                    pass
             # Prepend resume items to movies
             jf_movies = resume + jf_movies
         except Exception:
@@ -282,10 +300,9 @@ def tv_home():
         la_news_video_id = cache.get("la_news_video_id")
         if la_news_video_id is None:
             try:
-                import re as _re
                 r = requests.get("https://www.youtube.com/@abc7/live", timeout=4,
                                  headers={"User-Agent": "Mozilla/5.0"})
-                match = _re.search(r'"videoId":"([a-zA-Z0-9_-]{11})"', r.text)
+                match = re.search(r'"videoId":"([a-zA-Z0-9_-]{11})"', r.text)
                 if match and "isLive" in r.text:
                     la_news_video_id = match.group(1)
                     cache.set("la_news_video_id", la_news_video_id, ttl=1800)  # 30 min
@@ -457,8 +474,6 @@ def tv_weather():
 @app.route("/tv/news")
 def tv_news():
     """News page with live video streams and headlines."""
-    import re as _re
-
     # YouTube live news streams — we scrape the current video ID from channel /live pages
     live_streams = []
     yt_channels = [
@@ -470,7 +485,7 @@ def tv_news():
     for name, url in yt_channels:
         try:
             r = requests.get(url, timeout=5, headers={"User-Agent": "Mozilla/5.0"})
-            match = _re.search(r'"videoId":"([a-zA-Z0-9_-]{11})"', r.text)
+            match = re.search(r'"videoId":"([a-zA-Z0-9_-]{11})"', r.text)
             if match:
                 live_streams.append({
                     "name": name,
@@ -519,8 +534,7 @@ def tv_news():
 def tv_news_youtube(video_id):
     """Watch a YouTube live news stream."""
     # Sanitize video_id
-    import re as _re
-    if not _re.match(r'^[a-zA-Z0-9_-]{11}$', video_id):
+    if not re.match(r'^[a-zA-Z0-9_-]{11}$', video_id):
         return redirect("/tv/news")
     return render_template("tv/news_player.html", video_id=video_id)
 
@@ -841,7 +855,6 @@ def _rewrite_m3u8(content, base_url):
             rewritten.append(f"/api/pluto-proxy?url={quote(abs_url, safe='')}")
         elif stripped.startswith("#") and "URI=" in stripped:
             # Rewrite URI= in #EXT tags (subtitles, etc.)
-            import re as _re
             def rewrite_uri(m):
                 uri = m.group(1)
                 if uri.startswith("http"):
@@ -849,7 +862,7 @@ def _rewrite_m3u8(content, base_url):
                 else:
                     abs_uri = urljoin(base_url, uri)
                 return f'URI="/api/pluto-proxy?url={quote(abs_uri, safe="")}"'
-            rewritten.append(_re.sub(r'URI="([^"]*)"', rewrite_uri, stripped))
+            rewritten.append(re.sub(r'URI="([^"]*)"', rewrite_uri, stripped))
         else:
             rewritten.append(line)
     return "\n".join(rewritten)
@@ -908,7 +921,6 @@ def tv_youtube():
 
 def _get_local_live_streams():
     """Get current live YouTube streams for local LA/SD stations."""
-    import re as _re
     streams = []
     local_channels = [
         ("ABC 7 Los Angeles", "https://www.youtube.com/@abc7/live"),
@@ -919,7 +931,7 @@ def _get_local_live_streams():
     for name, url in local_channels:
         try:
             r = requests.get(url, timeout=4, headers={"User-Agent": "Mozilla/5.0"})
-            match = _re.search(r'"videoId":"([a-zA-Z0-9_-]{11})"', r.text)
+            match = re.search(r'"videoId":"([a-zA-Z0-9_-]{11})"', r.text)
             if match and "isLive" in r.text:
                 streams.append({"name": name, "video_id": match.group(1)})
         except Exception:
@@ -930,7 +942,6 @@ def _get_local_live_streams():
 @app.route("/tv/youtube/channel/<channel_id>")
 def tv_youtube_channel(channel_id):
     """Browse a YouTube channel's recent videos."""
-    import re as _re
     # Fetch channel page for recent uploads
     ch_record = None
     yt_channels = models.get_youtube_channels()
@@ -950,7 +961,7 @@ def tv_youtube_channel(channel_id):
             # Try yt:videoId tag first, then URL param
             vid_id = entry.get("yt_videoid", "")
             if not vid_id:
-                vid_match = _re.search(r'[?&]v=([a-zA-Z0-9_-]{11})', entry.get("link", ""))
+                vid_match = re.search(r'[?&]v=([a-zA-Z0-9_-]{11})', entry.get("link", ""))
                 vid_id = vid_match.group(1) if vid_match else ""
             thumb = f"https://i.ytimg.com/vi/{vid_id}/mqdefault.jpg" if vid_id else ""
             videos.append({
@@ -969,8 +980,7 @@ def tv_youtube_channel(channel_id):
 @app.route("/tv/youtube/watch/<video_id>")
 def tv_youtube_watch(video_id):
     """Watch a YouTube video."""
-    import re as _re
-    if not _re.match(r'^[a-zA-Z0-9_-]{11}$', video_id):
+    if not re.match(r'^[a-zA-Z0-9_-]{11}$', video_id):
         return redirect("/tv/youtube")
     return render_template("tv/youtube_player.html", video_id=video_id)
 
@@ -1101,14 +1111,13 @@ def admin_dashboard():
     events = models.get_upcoming_events(days=14)
     settings = models.get_all_settings()
     last_activity = models.get_last_activity_time()
-    remote_count_1h = models.get_remote_log_count(hours=1)
 
-    # Presence inference
+    # Presence inference from last activity
     presence = None
+    mins_ago = None
     if last_activity:
         try:
-            from datetime import datetime as _dt
-            last_dt = _dt.strptime(last_activity[:19], "%Y-%m-%d %H:%M:%S")
+            last_dt = datetime.strptime(last_activity[:19], "%Y-%m-%d %H:%M:%S")
             mins_ago = int((datetime.now() - last_dt).total_seconds() / 60)
             if mins_ago < 30:
                 presence = {"label": f"Active ({mins_ago}m ago)", "color": "#4caf50"}
@@ -1135,15 +1144,12 @@ def admin_dashboard():
             "uptime": "",
             "containers_running": 0,
         }
-        # Uptime
         uptime_sec = int(psutil.boot_time())
-        from datetime import datetime as _dt
-        boot = _dt.fromtimestamp(uptime_sec)
-        delta = _dt.now() - boot
+        boot = datetime.fromtimestamp(uptime_sec)
+        delta = datetime.now() - boot
         days = delta.days
         hours = delta.seconds // 3600
         system_metrics["uptime"] = f"{days}d {hours}h" if days else f"{hours}h {(delta.seconds % 3600) // 60}m"
-        # Docker containers
         try:
             result = subprocess.run(["docker", "ps", "-q"], capture_output=True, text=True, timeout=3)
             system_metrics["containers_running"] = len(result.stdout.strip().split("\n")) if result.stdout.strip() else 0
@@ -1152,21 +1158,20 @@ def admin_dashboard():
     except Exception:
         pass
 
-    # TV room presence
-    def _get_tv_presence():
-        try:
-            from smart_home import get_presence
-            p = get_presence()
-            result = dict(p)
-            if p["last_seen"]:
-                result["last_seen_str"] = p["last_seen"].strftime("%I:%M %p")
-            else:
-                result["last_seen_str"] = "Not yet today"
-            mins = int(p["today_minutes"])
-            result["today_hours"] = f"{mins // 60}h {mins % 60}m" if mins >= 60 else f"{mins}m"
-            return result
-        except Exception:
-            return None
+    # TV room presence from smart home
+    tv_presence = None
+    try:
+        from smart_home import get_presence
+        p = get_presence()
+        tv_presence = dict(p)
+        if p["last_seen"]:
+            tv_presence["last_seen_str"] = p["last_seen"].strftime("%I:%M %p")
+        else:
+            tv_presence["last_seen_str"] = "Not yet today"
+        mins = int(p["today_minutes"])
+        tv_presence["today_hours"] = f"{mins // 60}h {mins % 60}m" if mins >= 60 else f"{mins}m"
+    except Exception:
+        pass
 
     # Recent doorbell events from Frigate
     doorbell_events = []
@@ -1174,13 +1179,19 @@ def admin_dashboard():
     if frigate_url:
         try:
             from smart_home import frigate_get_events
-            raw_events = frigate_get_events(frigate_url, label="person", limit=6)
+            raw_events = frigate_get_events(frigate_url, label="person", limit=4)
             if raw_events:
                 for evt in raw_events:
-                    from datetime import datetime as _dt
                     ts = evt.get("start_time", 0)
                     try:
-                        time_str = _dt.fromtimestamp(ts).strftime("%b %d, %I:%M %p")
+                        evt_dt = datetime.fromtimestamp(ts)
+                        evt_mins = int((datetime.now() - evt_dt).total_seconds() / 60)
+                        if evt_mins < 60:
+                            time_str = f"{evt_mins}m ago"
+                        elif evt_mins < 1440:
+                            time_str = f"{evt_mins // 60}h ago"
+                        else:
+                            time_str = evt_dt.strftime("%b %d, %I:%M %p")
                     except Exception:
                         time_str = "Unknown"
                     doorbell_events.append({
@@ -1191,13 +1202,51 @@ def admin_dashboard():
         except Exception:
             pass
 
+    # Pill adherence
     pill_adherence = models.get_pill_adherence_today()
+    pill_summary = {"taken": 0, "missed": 0, "pending": 0, "total": 0}
+    for entry in pill_adherence:
+        pill_summary[entry["status"]] += 1
+        pill_summary["total"] += 1
+    pill_adherence.sort(key=lambda x: {"pending": 0, "missed": 1, "taken": 2}.get(x["status"], 3))
 
-    return render_template("admin/dashboard.html", pills=pills, events=events, settings=settings,
-                           last_activity=last_activity, remote_count_1h=remote_count_1h,
-                           doorbell_events=doorbell_events, system_metrics=system_metrics,
-                           presence=presence, tv_presence=_get_tv_presence(),
-                           pill_adherence=pill_adherence)
+    # New data for care dashboard
+    from scheduler import get_next_pill_info
+    next_pill = get_next_pill_info()
+    unread_messages = models.get_unread_count()
+    todays_birthdays = models.get_todays_birthdays()
+    recent_activity = models.get_activity_logs(days=1, limit=3)
+    weather = get_weather_summary()
+
+    # Care status banner
+    if tv_presence and tv_presence.get("occupied"):
+        care_status = {"message": "Don & Colleen are watching TV", "color": "#4caf50", "icon": "📺"}
+    elif presence and "Active" in presence.get("label", ""):
+        care_status = {"message": presence["label"], "color": "#4caf50", "icon": "✅"}
+    elif presence and "Idle" in presence.get("label", ""):
+        care_status = {"message": presence["label"], "color": "#ff9800", "icon": "💤"}
+    else:
+        msg = presence["label"] if presence else "No recent activity"
+        care_status = {"message": msg, "color": "#f44336", "icon": "⚠️"}
+
+    # System health (simplified for banner)
+    system_ok = all([
+        system_metrics.get("cpu_percent", 0) < 90,
+        system_metrics.get("mem_percent", 0) < 90,
+        system_metrics.get("disk_percent", 0) < 90,
+    ])
+
+    return render_template("admin/dashboard.html",
+                           pills=pills, events=events, settings=settings,
+                           pill_adherence=pill_adherence, pill_summary=pill_summary,
+                           care_status=care_status, weather=weather,
+                           next_pill=next_pill, unread_messages=unread_messages,
+                           todays_birthdays=todays_birthdays,
+                           recent_activity=recent_activity,
+                           tv_presence=tv_presence,
+                           doorbell_events=doorbell_events,
+                           system_metrics=system_metrics, system_ok=system_ok,
+                           current_year=datetime.now().year)
 
 
 @app.route("/admin/activity")
@@ -1255,7 +1304,6 @@ def admin_cameras():
 @app.route("/admin/cameras/snapshot/<camera_name>")
 def admin_camera_snapshot(camera_name):
     """Proxy camera snapshot from Frigate."""
-    import re
     if not re.match(r'^[a-z_]+$', camera_name):
         return "", 400
     try:
@@ -1441,7 +1489,6 @@ def _parse_pill_form(req):
         media_file.save(os.path.join(config.MEDIA_DIR, media_filename))
 
     # Accept multiple <input type="time" name="schedule_time"> fields
-    import re
     times = [t.strip() for t in req.form.getlist("schedule_time") if t.strip()]
     # Also accept legacy comma-separated format
     if not times:
@@ -1880,7 +1927,6 @@ def nas_photo(filename):
 @app.route("/api/jellyfin-stream/<item_id>/<path:rest>")
 def jellyfin_stream_proxy(item_id, rest):
     """Proxy Jellyfin video/audio/subtitle streams for remote access."""
-    import re
     if not re.match(r'^[a-f0-9]+$', item_id):
         return "", 400
     jf_url = get_setting_or_default("jellyfin_url")
@@ -1923,7 +1969,6 @@ def jellyfin_stream_proxy(item_id, rest):
 @app.route("/api/jellyfin-image/<item_id>/<image_type>")
 def jellyfin_image_proxy(item_id, image_type):
     """Proxy Jellyfin images so they work from remote access."""
-    import re
     if not re.match(r'^[a-f0-9]+$', item_id) or image_type not in ("Primary", "Backdrop", "Thumb", "Banner"):
         return "", 400
     jf_url = get_setting_or_default("jellyfin_url")
@@ -1950,7 +1995,6 @@ def jellyfin_image_proxy(item_id, image_type):
 @app.route("/api/immich-photo/<asset_id>")
 def immich_photo_proxy(asset_id):
     """Proxy an Immich photo to avoid exposing the API key to the browser."""
-    import re
     if not re.match(r'^[a-f0-9-]{36}$', asset_id):
         return "", 400
     size = request.args.get("size", "preview")
@@ -2187,8 +2231,11 @@ def api_health():
 
     # Audio — check if HDMI is default sink
     try:
+        audio_env = os.environ.copy()
+        audio_env["XDG_RUNTIME_DIR"] = "/run/user/1000"
         result = subprocess.run(
-            ["wpctl", "status"], capture_output=True, text=True, timeout=5
+            ["wpctl", "status"], capture_output=True, text=True, timeout=5,
+            env=audio_env
         )
         hdmi_default = False
         for line in result.stdout.split("\n"):

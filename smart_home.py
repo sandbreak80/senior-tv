@@ -87,8 +87,8 @@ def start_presence_monitor(alert_queue=None):
                     )
                     if resp.ok:
                         person_detected = len(resp.json()) > 0
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"Presence: local Frigate check failed: {e}", file=sys.stderr)
 
                 # Fallback: also check network Frigate den camera via HA
                 if not person_detected:
@@ -102,8 +102,8 @@ def start_presence_monitor(alert_queue=None):
                         )
                         if resp2.ok:
                             person_detected = resp2.json().get("state") == "on"
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        print(f"Presence: HA occupancy check failed: {e}", file=sys.stderr)
 
                 person_now = person_detected
 
@@ -323,4 +323,4 @@ class SmartHomeMonitor:
         # Trim seen events set to prevent memory growth
         with self._seen_lock:
             if len(self._seen_events) > 1000:
-                self._seen_events = set(list(self._seen_events)[-100:])
+                self._seen_events.clear()
