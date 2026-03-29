@@ -32,6 +32,7 @@ html, body {
     line-height: 1.4;
     -webkit-font-smoothing: antialiased;
     user-select: none;
+    cursor: none;
 }
 
 
@@ -89,7 +90,7 @@ html, body {
 }
 
 .home-date-weather {
-    font-size: 30px;
+    font-size: 32px;
     color: var(--text-muted);
 }
 
@@ -99,7 +100,7 @@ html, body {
 }
 
 .pill-status {
-    font-size: 28px;
+    font-size: 32px;
     color: var(--success);
     margin-top: 6px;
 }
@@ -109,7 +110,7 @@ html, body {
 }
 
 .home-next-event {
-    font-size: 26px;
+    font-size: 28px;
     color: var(--text-muted);
     margin-top: 4px;
 }
@@ -122,7 +123,7 @@ html, body {
     background: var(--accent-soft);
     border: 2px solid var(--accent);
     border-radius: 12px;
-    font-size: 26px;
+    font-size: 30px;
     font-weight: 600;
     color: var(--text);
     text-decoration: none;
@@ -149,13 +150,13 @@ html, body {
     border-radius: 10px;
 }
 
-.mini-day-name { font-size: 22px; font-weight: 600; color: var(--text-muted); }
-.mini-day-icon { font-size: 28px; margin: 4px 0; }
-.mini-day-temp { font-size: 22px; font-weight: 600; }
+.mini-day-name { font-size: 28px; font-weight: 600; color: var(--text-muted); }
+.mini-day-icon { font-size: 32px; margin: 4px 0; }
+.mini-day-temp { font-size: 28px; font-weight: 600; }
 
 /* Quote in left panel */
 .home-quote {
-    font-size: 26px;
+    font-size: 28px;
     color: var(--text-muted);
     font-style: italic;
     line-height: 1.5;
@@ -168,7 +169,7 @@ html, body {
 
 /* On This Day fact */
 .home-fact {
-    font-size: 24px;
+    font-size: 28px;
     color: var(--text-muted);
     line-height: 1.4;
     margin-top: 10px;
@@ -188,6 +189,9 @@ html, body {
 }
 
 .home-quote-large {
+    font-size: 36px;
+    font-style: italic;
+    line-height: 1.5;
     color: var(--text-muted);
     padding: 20px 0;
 }
@@ -198,8 +202,12 @@ html, body {
     gap: 8px;
     margin-bottom: 24px;
     overflow-x: auto;
+    overflow-y: visible;
     scrollbar-width: none;
-    padding-bottom: 4px;
+    padding: 6px 0 6px;
+    margin: 0 -6px 24px;
+    padding-left: 6px;
+    padding-right: 6px;
 }
 
 .home-quick-menu::-webkit-scrollbar { display: none; }
@@ -212,7 +220,7 @@ html, body {
     background: var(--bg-card);
     border: 3px solid transparent;
     border-radius: 14px;
-    font-size: 26px;
+    font-size: 28px;
     font-weight: 600;
     white-space: nowrap;
     transition: all 0.15s ease;
@@ -221,8 +229,8 @@ html, body {
     flex-shrink: 0;
 }
 
-.quick-icon { font-size: 28px; }
-.quick-label { font-size: 24px; }
+.quick-icon { font-size: 32px; }
+.quick-label { font-size: 28px; }
 
 .home-quick-btn.selected {
     background: var(--bg-selected);
@@ -263,13 +271,14 @@ html, body {
 
 /* Stream on the right */
 .home-stream-label {
-    font-size: 30px;
+    font-size: 32px;
     font-weight: 600;
     margin-bottom: 10px;
     color: var(--text-muted);
 }
 
 .home-stream-frame {
+    position: relative;
     width: 100%;
     aspect-ratio: 16/9;
     border-radius: 16px;
@@ -292,8 +301,12 @@ html, body {
     display: flex;
     gap: 16px;
     overflow-x: auto;
+    overflow-y: visible;
     scrollbar-width: none;
-    padding-bottom: 8px;
+    padding: 8px 0 8px;
+    margin: 0 -8px;
+    padding-left: 8px;
+    padding-right: 8px;
 }
 
 .home-poster-row::-webkit-scrollbar { display: none; }
@@ -304,7 +317,7 @@ html, body {
 }
 
 .home-poster-row .poster-card .poster-title {
-    font-size: 20px;
+    font-size: 24px;
     padding: 6px 8px 2px;
     white-space: normal;
     line-height: 1.2;
@@ -313,7 +326,7 @@ html, body {
 }
 
 .home-poster-row .poster-card .poster-subtitle {
-    font-size: 16px;
+    font-size: 20px;
     padding: 0 8px 6px;
     white-space: normal;
     line-height: 1.2;
@@ -322,7 +335,7 @@ html, body {
 }
 
 .daily-digest {
-    font-size: 26px;
+    font-size: 28px;
     color: var(--text-muted);
     line-height: 1.5;
     text-align: center;
@@ -341,7 +354,7 @@ html, body {
 }
 
 .home-section-label {
-    font-size: 28px;
+    font-size: 32px;
     font-weight: 600;
     color: var(--text-muted);
     margin-bottom: 10px;
@@ -366,7 +379,7 @@ html, body {
     background: var(--bg-card);
     border: 2px solid transparent;
     border-radius: 12px;
-    font-size: 24px;
+    font-size: 28px;
     color: var(--text-muted);
     text-decoration: none;
     transition: all 0.15s ease;
@@ -387,15 +400,19 @@ html, body {
     display: flex;
     gap: 14px;
     overflow-x: auto;
+    overflow-y: visible;
     scrollbar-width: none;
-    padding-bottom: 10px;
+    padding: 8px 0 10px;
+    margin: 0 -8px;
+    padding-left: 8px;
+    padding-right: 8px;
 }
 
 .home-reco-row::-webkit-scrollbar { display: none; }
 
 .home-reco-card {
     flex-shrink: 0;
-    width: 130px;
+    width: 180px;
     border: 3px solid transparent;
     border-radius: 12px;
     overflow: hidden;
@@ -419,7 +436,7 @@ html, body {
 }
 
 .home-reco-title {
-    font-size: 18px;
+    font-size: 24px;
     padding: 6px 8px;
     white-space: nowrap;
     overflow: hidden;
@@ -432,6 +449,8 @@ html, body {
     display: flex;
     flex-direction: column;
     gap: 12px;
+    padding: 4px 6px;
+    margin: 0 -6px;
 }
 
 .menu-item {
@@ -467,7 +486,7 @@ html, body {
 
 .nav-hint {
     text-align: center;
-    font-size: 26px;
+    font-size: 28px;
     color: var(--text-muted);
     padding-top: 20px;
     opacity: 0.5;
@@ -578,14 +597,15 @@ html, body {
 }
 
 .back-hint {
-    font-size: 28px;
+    font-size: 30px;
     color: var(--text-muted);
     margin-left: auto;
 }
 
 .content-body {
     flex: 1;
-    overflow: hidden;
+    overflow: visible;
+    min-height: 0;
 }
 
 /* Weather page */
@@ -645,7 +665,7 @@ html, body {
 }
 
 .forecast-day .day-temps {
-    font-size: 34px;
+    font-size: 36px;
 }
 
 .forecast-day .day-temps .high {
@@ -674,7 +694,7 @@ html, body {
 }
 
 .news-article .article-source {
-    font-size: 28px;
+    font-size: 30px;
     color: var(--accent);
     margin-bottom: 8px;
     text-transform: uppercase;
@@ -688,7 +708,7 @@ html, body {
 }
 
 .news-article .article-summary {
-    font-size: 32px;
+    font-size: 34px;
     color: var(--text-muted);
     line-height: 1.4;
 }
@@ -719,7 +739,7 @@ html, body {
 }
 
 .calendar-event .event-month {
-    font-size: 28px;
+    font-size: 30px;
     text-transform: uppercase;
     color: var(--text-muted);
 }
@@ -735,7 +755,7 @@ html, body {
 }
 
 .calendar-event .event-desc {
-    font-size: 30px;
+    font-size: 32px;
     color: var(--text-muted);
 }
 
@@ -743,7 +763,10 @@ html, body {
 .scroll-container {
     flex: 1;
     overflow-y: auto;
+    overflow-x: visible;
     scrollbar-width: none;
+    padding: 4px 6px;
+    margin: 0 -6px;
 }
 
 .scroll-container::-webkit-scrollbar {
@@ -786,7 +809,11 @@ html, body {
     display: flex;
     gap: 20px;
     overflow-x: auto;
-    padding-bottom: 16px;
+    overflow-y: visible;
+    padding: 8px 0 16px;
+    margin: 0 -8px;
+    padding-left: 8px;
+    padding-right: 8px;
     scrollbar-width: none;
 }
 
@@ -796,6 +823,8 @@ html, body {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     gap: 24px;
+    padding: 8px;
+    margin: 0 -8px;
     padding-bottom: 20px;
 }
 
@@ -842,7 +871,7 @@ html, body {
 }
 
 .poster-card.poster-wide .poster-placeholder {
-    font-size: 26px;
+    font-size: 28px;
     font-weight: 700;
     line-height: 1.4;
     padding: 20px 12px;
@@ -859,7 +888,7 @@ html, body {
 }
 
 .sort-label {
-    font-size: 26px;
+    font-size: 28px;
     color: var(--text-muted);
     margin-right: 6px;
 }
@@ -869,7 +898,7 @@ html, body {
     background: var(--bg-card);
     border: 2px solid transparent;
     border-radius: 20px;
-    font-size: 24px;
+    font-size: 28px;
     color: var(--text-muted);
     text-decoration: none;
     transition: all 0.15s ease;
@@ -899,7 +928,7 @@ html, body {
     background: var(--bg-card);
     border: 3px solid transparent;
     border-radius: var(--border-radius);
-    font-size: 32px;
+    font-size: 34px;
     font-weight: 600;
     color: var(--text);
     text-decoration: none;
@@ -912,14 +941,14 @@ html, body {
 }
 
 .poster-title {
-    font-size: 26px;
+    font-size: 30px;
     font-weight: 600;
     padding: 10px 12px 4px;
     line-height: 1.2;
 }
 
 .poster-subtitle {
-    font-size: 20px;
+    font-size: 24px;
     color: var(--text-muted);
     padding: 0 12px 10px;
     line-height: 1.2;
@@ -974,7 +1003,11 @@ html, body {
     gap: 12px;
     margin: 20px 0;
     overflow-x: auto;
+    overflow-y: visible;
     scrollbar-width: none;
+    padding: 6px;
+    margin-left: -6px;
+    margin-right: -6px;
 }
 
 .season-tabs::-webkit-scrollbar { display: none; }
@@ -984,7 +1017,7 @@ html, body {
     background: var(--bg-card);
     border: 3px solid transparent;
     border-radius: 40px;
-    font-size: 30px;
+    font-size: 32px;
     font-weight: 600;
     color: var(--text-muted);
     text-decoration: none;
@@ -1060,13 +1093,13 @@ html, body {
 }
 
 .episode-duration {
-    font-size: 26px;
+    font-size: 28px;
     color: var(--text-muted);
     margin-bottom: 6px;
 }
 
 .episode-summary {
-    font-size: 26px;
+    font-size: 28px;
     color: var(--text-muted);
     line-height: 1.3;
     overflow: hidden;
@@ -1128,7 +1161,7 @@ html, body {
 }
 
 .player-back-hint {
-    font-size: 32px;
+    font-size: 34px;
     font-weight: 600;
     color: var(--accent);
 }
@@ -1177,13 +1210,13 @@ html, body {
 }
 
 .player-time {
-    font-size: 28px;
+    font-size: 30px;
     color: var(--text-muted);
     margin-bottom: 10px;
 }
 
 .player-controls-hint {
-    font-size: 28px;
+    font-size: 30px;
     color: var(--text-muted);
     opacity: 0.7;
 }
@@ -1197,8 +1230,12 @@ html, body {
     gap: 10px;
     margin-bottom: 20px;
     overflow-x: auto;
+    overflow-y: visible;
     scrollbar-width: none;
     flex-shrink: 0;
+    padding: 6px;
+    margin-left: -6px;
+    margin-right: -6px;
 }
 
 .category-tabs::-webkit-scrollbar { display: none; }
@@ -1208,7 +1245,7 @@ html, body {
     background: var(--bg-card);
     border: 3px solid transparent;
     border-radius: 30px;
-    font-size: 26px;
+    font-size: 30px;
     font-weight: 600;
     color: var(--text-muted);
     text-decoration: none;
@@ -1283,12 +1320,12 @@ html, body {
 }
 
 .channel-now-playing {
-    font-size: 28px;
+    font-size: 30px;
     color: var(--success);
 }
 
 .channel-description {
-    font-size: 24px;
+    font-size: 28px;
     color: var(--text-muted);
     white-space: nowrap;
     overflow: hidden;
@@ -1302,3 +1339,51 @@ html, body {
     min-width: 60px;
     text-align: right;
 }
+
+/* ========================================
+   Task 3: Extracted inline styles
+   ======================================== */
+
+/* Home family photo */
+.home-family-photo { display: block; margin-top: 12px; border-radius: 12px; overflow: hidden; border: 3px solid transparent; transition: all 0.15s ease; }
+.home-family-photo.selected { border-color: var(--accent); box-shadow: var(--glow); }
+.home-family-photo img { width: 100%; height: 140px; object-fit: cover; border-radius: 10px; opacity: 0.9; }
+
+/* Home watch now button spacing */
+.home-menu-item + .home-menu-item, .home-stream-frame + .home-menu-item { margin-top: 8px; }
+
+/* Click-blocking overlay for iframes */
+.iframe-click-blocker { position: absolute; inset: 0; z-index: 2; }
+
+/* Message list items */
+.message-unread { border-left: 6px solid var(--accent); }
+.message-sender { font-size: 38px; font-weight: 600; }
+.message-preview { font-size: 32px; color: var(--text-muted); }
+.message-timestamp { font-size: 28px; color: var(--text-muted); }
+.message-content { flex: 1; }
+
+/* Calendar coming up section */
+.coming-up-section { margin-top: 30px; }
+.coming-up-heading { font-size: 36px; font-weight: 700; margin-bottom: 16px; color: var(--text-muted); }
+.coming-up-day { margin-bottom: 12px; padding: 14px 20px; background: var(--bg-card); border-radius: 14px; }
+.coming-up-day-label { font-size: 32px; font-weight: 600; }
+.coming-up-event { font-size: 28px; color: var(--success); margin-top: 4px; }
+.coming-up-empty { font-size: 28px; color: var(--text-muted); }
+
+/* Live badge */
+.live-badge { font-size: 28px; color: var(--accent); margin-left: auto; }
+
+/* Menu list spacing */
+.menu-list-spaced { margin-bottom: 30px; }
+
+/* Track placeholder */
+.track-thumb-placeholder { display: flex; align-items: center; justify-content: center; font-size: 28px; }
+
+/* Shuffle play button */
+.shuffle-btn { margin: 16px 0; max-width: 500px; background: var(--accent-soft); }
+.shuffle-btn.selected { background: var(--bg-selected); border-color: var(--accent); box-shadow: var(--glow); }
+
+/* YouTube channel video grid */
+.poster-grid-video { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+.poster-card-video { max-width: 420px; }
+.poster-img-video { aspect-ratio: 16/9; object-fit: cover; }

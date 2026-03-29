@@ -21,10 +21,10 @@
             top: 0;
             left: 0;
             right: 0;
-            background: rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.85);
             padding: 16px 40px;
             font-size: 32px;
-            font-family: 'Segoe UI', sans-serif;
+            font-family: 'Segoe UI', 'Ubuntu', 'Roboto', sans-serif;
             color: #f0f0f0;
             display: flex;
             align-items: center;
@@ -33,15 +33,17 @@
             transition: opacity 0.3s, transform 0.3s;
         }
         .yt-back-bar.hidden {
-            opacity: 0.7;
+            opacity: 0;
+            transform: translateY(-100%);
         }
         .yt-back-bar .back-label {
             color: #e94560;
             font-weight: 700;
+            font-size: 28px;
         }
         .yt-back-bar .hint {
             margin-left: auto;
-            font-size: 24px;
+            font-size: 28px;
             color: #a0a0b0;
         }
     </style>

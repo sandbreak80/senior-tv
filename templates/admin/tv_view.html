@@ -1,25 +1,25 @@
 {% extends "admin/base.html" %}
 {% block title %}TV View{% endblock %}
 {% block content %}
-<h1 style="margin: 20px 0;">TV View</h1>
+<h1 class="page-heading">TV View</h1>
 
 <!-- Live Desktop Screenshot -->
-<div class="card">
+<div class="card tv-view-card">
     <h2>What's On Screen Right Now</h2>
-    <p style="color: #666; margin-bottom: 12px;">This is an actual screenshot of the TV — exactly what Don & Colleen see.</p>
-    <div id="live-screenshot" style="background: #000; border-radius: 12px; overflow: hidden; text-align: center; min-height: 200px; display: flex; align-items: center; justify-content: center;">
+    <p style="color: var(--text-muted); margin-bottom: 12px;">This is an actual screenshot of the TV — exactly what Don & Colleen see.</p>
+    <div id="live-screenshot" style="background: #000; border-radius: 12px; overflow: hidden; min-height: 200px; display: flex; align-items: center; justify-content: center;">
         {% if screenshots %}
         <img id="live-img" src="/static/screenshots/{{ screenshots[0].file }}" alt="Latest TV screenshot"
-             style="width: 100%; display: block;" onclick="window.open(this.src)">
+             class="tv-view-img" style="margin-bottom: 0;" onclick="window.open(this.src)">
         {% else %}
         <p style="color: #888; padding: 40px;">No screenshots yet. Click "Capture Now" to take one.</p>
         {% endif %}
     </div>
-    <div style="margin-top: 12px; display: flex; align-items: center; gap: 16px;">
-        <button id="capture-btn" onclick="captureNow()" style="background: #e94560; color: #fff; border: none; padding: 10px 24px; border-radius: 8px; font-size: 16px; cursor: pointer;">
+    <div class="tv-view-actions" style="margin-top: 12px;">
+        <button id="capture-btn" onclick="captureNow()" class="btn btn-primary">
             Capture Now
         </button>
-        <span id="capture-status" style="color: #666; font-size: 14px;">
+        <span id="capture-status" style="color: var(--text-muted); font-size: 14px;">
             {% if screenshots %}Latest: {{ screenshots[0].time }}{% endif %}
         </span>
     </div>

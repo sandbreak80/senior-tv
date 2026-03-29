@@ -1,50 +1,48 @@
 {% extends "admin/base.html" %}
 {% block title %}Services{% endblock %}
 {% block content %}
-<h1 style="margin: 20px 0;">Services</h1>
+<h1 class="page-heading">Services</h1>
 
 <div class="stats-row">
     {% for svc in services %}
     <div class="stat-card" style="cursor: pointer;" onclick="window.open('{{ svc.url }}', '_blank')">
-        <div class="stat-num" style="font-size: 36px;">{{ svc.icon }}</div>
+        <div class="stat-num">{{ svc.icon }}</div>
         <div class="stat-label">{{ svc.name }}</div>
-        <div style="font-size: 12px; color: {{ '#4caf50' if svc.ok else '#f44336' }}; margin-top: 4px;">
+        <div class="service-card-status {{ 'connected' if svc.ok else 'disconnected' }}" style="margin-top: 4px;">
             {{ 'Online' if svc.ok else 'Offline' }}
         </div>
     </div>
     {% endfor %}
 </div>
 
-<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 16px;">
+<div class="service-grid" style="grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));">
     {% for svc in services %}
-    <div class="card" style="padding: 0; overflow: hidden;">
-        <div style="padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee;">
+    <div class="service-card" style="padding: 0; overflow: hidden;">
+        <div class="service-card-header" style="padding: 12px 16px; border-bottom: 1px solid var(--border); justify-content: space-between;">
             <div>
-                <span style="font-size: 20px;">{{ svc.icon }}</span>
-                <strong>{{ svc.name }}</strong>
-                <span style="font-size: 12px; color: {{ '#4caf50' if svc.ok else '#f44336' }}; margin-left: 6px;">
+                <span class="service-card-icon">{{ svc.icon }}</span>
+                <span class="service-card-name">{{ svc.name }}</span>
+                <span class="service-card-status {{ 'connected' if svc.ok else 'disconnected' }}" style="margin-left: 6px;">
                     {{ 'Online' if svc.ok else 'Offline' }}
                 </span>
             </div>
-            <a href="{{ svc.url }}" target="_blank" style="font-size: 13px; color: #e94560; text-decoration: none;">Open &rarr;</a>
+            <a href="{{ svc.url }}" target="_blank" style="font-size: 13px; color: var(--primary); text-decoration: none;">Open &rarr;</a>
         </div>
         {% if svc.ok %}
         <div style="padding: 16px; text-align: center;">
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px; text-align: left; margin-bottom: 12px;">
-                <div><strong>Status:</strong> <span style="color: #4caf50;">Running</span></div>
+                <div><strong>Status:</strong> <span class="service-card-status connected">Running</span></div>
                 <div><strong>Port:</strong> {{ svc.port }}</div>
                 {% if svc.detail %}
-                <div style="grid-column: span 2;"><strong>Info:</strong> {{ svc.detail }}</div>
+                <div class="service-card-detail" style="grid-column: span 2;"><strong>Info:</strong> {{ svc.detail }}</div>
                 {% endif %}
             </div>
-            <a href="{{ svc.url }}" target="_blank"
-               style="display: inline-block; padding: 10px 24px; background: #e94560; color: white;
-                      border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">
+            <a href="{{ svc.url }}" target="_blank" class="btn btn-primary">
                 Open {{ svc.name }}
             </a>
         </div>
         {% else %}
-        <div style="padding: 30px; text-align: center; color: #999;">Service is not responding.</div>
+        <div class="empty">Service is not responding.</div>
         {% endif %}
     </div>
     {% endfor %}

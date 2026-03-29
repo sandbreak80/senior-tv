@@ -1,25 +1,25 @@
 {% extends "admin/base.html" %}
 {% block title %}Activity Log{% endblock %}
 {% block content %}
-<h1 style="margin: 20px 0;">Activity Log (Past 7 Days)</h1>
+<h1 class="page-heading">Activity Log (Past 7 Days)</h1>
 
 {% if logs %}
 <div class="card">
-    <table style="width: 100%; border-collapse: collapse;">
+    <table class="activity-table">
         <thead>
-            <tr style="border-bottom: 2px solid #ddd; text-align: left;">
-                <th style="padding: 10px;">Time</th>
-                <th style="padding: 10px;">Type</th>
-                <th style="padding: 10px;">Title</th>
-                <th style="padding: 10px;">Content</th>
-                <th style="padding: 10px;">Duration</th>
+            <tr>
+                <th>Time</th>
+                <th>Type</th>
+                <th>Title</th>
+                <th>Content</th>
+                <th>Duration</th>
             </tr>
         </thead>
         <tbody>
             {% for log in logs %}
-            <tr style="border-bottom: 1px solid #eee;">
-                <td style="padding: 8px; font-size: 14px; white-space: nowrap;">{{ log.started_at[:16] if log.started_at else '' }}</td>
-                <td style="padding: 8px;">
+            <tr>
+                <td style="white-space: nowrap;">{{ log.started_at[:16] if log.started_at else '' }}</td>
+                <td>
                     {% if log.activity_type == 'playback_start' %}
                         <span style="color: green;">Play</span>
                     {% elif log.activity_type == 'playback_stop' %}
@@ -30,9 +30,9 @@
                         {{ log.activity_type }}
                     {% endif %}
                 </td>
-                <td style="padding: 8px;">{{ log.item_title or '' }}</td>
-                <td style="padding: 8px; color: #666;">{{ log.item_type or '' }}</td>
-                <td style="padding: 8px;">
+                <td>{{ log.item_title or '' }}</td>
+                <td style="color: var(--text-muted);">{{ log.item_type or '' }}</td>
+                <td>
                     {% if log.duration_seconds %}
                         {{ (log.duration_seconds // 60) }}m {{ log.duration_seconds % 60 }}s
                     {% endif %}
@@ -43,7 +43,7 @@
     </table>
 </div>
 {% else %}
-<div class="card" style="text-align: center; padding: 40px; color: #666;">
+<div class="card empty">
     No activity recorded yet. Activity will appear here as the TV is used.
 </div>
 {% endif %}

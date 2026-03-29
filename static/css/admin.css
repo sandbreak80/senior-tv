@@ -415,6 +415,63 @@ input[type="file"] {
     color: #c73550;
 }
 
+/* Page header row (list pages with title + add button) */
+.page-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 20px 0;
+}
+
+/* Page heading (form pages) */
+.page-heading {
+    margin: 20px 0;
+}
+
+/* Form focus states */
+input[type="text"]:focus,
+input[type="number"]:focus,
+input[type="date"]:focus,
+input[type="time"]:focus,
+input[type="password"]:focus,
+textarea:focus,
+select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(233, 69, 96, 0.15);
+}
+
+/* Activity table */
+.activity-table { width: 100%; border-collapse: collapse; }
+.activity-table th { border-bottom: 2px solid var(--border); text-align: left; padding: 10px; font-weight: 600; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+.activity-table td { padding: 10px; border-bottom: 1px solid var(--border); font-size: 14px; }
+.activity-table tr:hover { background: rgba(0,0,0,0.02); }
+
+/* Camera cards */
+.camera-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.camera-card { background: var(--card); border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+.camera-card img { width: 100%; aspect-ratio: 16/9; object-fit: cover; }
+.camera-card video { width: 100%; aspect-ratio: 16/9; object-fit: cover; }
+.camera-card-body { padding: 12px 16px; }
+.camera-card-title { font-weight: 600; font-size: 15px; margin-bottom: 4px; }
+.camera-card-meta { font-size: 13px; color: var(--text-muted); }
+
+/* Service status cards */
+.service-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }
+.service-card { background: var(--card); border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+.service-card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.service-card-icon { font-size: 24px; }
+.service-card-name { font-weight: 600; font-size: 16px; }
+.service-card-status { font-size: 13px; font-weight: 600; }
+.service-card-status.connected { color: #0d7a50; }
+.service-card-status.disconnected { color: #c73550; }
+.service-card-detail { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+
+/* TV view card */
+.tv-view-card { text-align: center; }
+.tv-view-img { width: 100%; border-radius: 8px; margin-bottom: 12px; }
+.tv-view-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+
 /* --- Mobile Responsive --- */
 
 @media (max-width: 768px) {

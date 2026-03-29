@@ -17,12 +17,12 @@
             <!-- Live News Streams -->
             {% if live_streams %}
             <div class="section-label">🔴 Watch Live News</div>
-            <div class="menu-list" style="margin-bottom: 30px;">
+            <div class="menu-list menu-list-spaced">
                 {% for stream in live_streams %}
                 <a class="menu-item navigable" href="/tv/news/youtube/{{ stream.video_id }}">
                     <span class="item-icon">📺</span>
                     <span>{{ stream.name }}</span>
-                    <span style="font-size: 24px; color: var(--accent); margin-left: auto;">● LIVE</span>
+                    <span class="live-badge">● LIVE</span>
                 </a>
                 {% endfor %}
             </div>
@@ -31,7 +31,7 @@
             <!-- Pluto TV News Channels -->
             {% if pluto_news %}
             <div class="section-label">📡 News Channels</div>
-            <div class="menu-list" style="margin-bottom: 30px;">
+            <div class="menu-list menu-list-spaced">
                 {% for ch in pluto_news %}
                 <a class="channel-item navigable" href="/tv/live/play/{{ ch.id }}">
                     <div class="channel-logo-wrap">
@@ -40,7 +40,7 @@
                         {% endif %}
                     </div>
                     <div class="channel-info">
-                        <div class="channel-name" style="font-size: 34px;">{{ ch.name }}</div>
+                        <div class="channel-name">{{ ch.name }}</div>
                         {% if ch.current_program %}
                         <div class="channel-now-playing">Now: {{ ch.current_program.title }}</div>
                         {% endif %}

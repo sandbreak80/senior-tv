@@ -51,9 +51,8 @@
 
                     {% if home_photo %}
                     <!-- Family Photo -->
-                    <a class="navigable" href="/tv/photos" style="display:block; margin-top:12px; border-radius:12px; overflow:hidden; border:3px solid transparent; transition:all 0.15s;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='transparent'">
-                        <img id="home-family-photo" src="{{ home_photo.url }}" alt="Family photo"
-                             style="width:100%; height:140px; object-fit:cover; border-radius:10px; opacity:0.9;">
+                    <a class="home-family-photo navigable" href="/tv/photos">
+                        <img id="home-family-photo" src="{{ home_photo.url }}" alt="Family photo">
                     </a>
                     {% endif %}
                 </div>
@@ -61,23 +60,23 @@
                 <div class="home-top-right">
                     {% if la_news_video_id %}
                     <div class="home-stream-label">🔴 LA News Live</div>
-                    <div class="home-stream-frame" style="position: relative;">
+                    <div class="home-stream-frame">
                         <iframe src="https://www.youtube.com/embed/{{ la_news_video_id }}?autoplay=1&mute=0&controls=0&modestbranding=1&rel=0&disablekb=1&iv_load_policy=3&fs=0"
                             allow="autoplay; encrypted-media" sandbox="allow-scripts allow-same-origin allow-presentation"></iframe>
-                        <div style="position:absolute;inset:0;z-index:2;"></div>
+                        <div class="iframe-click-blocker"></div>
                     </div>
-                    <a class="home-menu-item navigable" href="/tv/news/youtube/{{ la_news_video_id }}" style="margin-top: 8px;">
+                    <a class="home-menu-item navigable" href="/tv/news/youtube/{{ la_news_video_id }}">
                         <span class="home-menu-icon">📺</span>
                         <span class="home-menu-label">Watch Now</span>
                     </a>
                     {% elif wind_down_video %}
                     <div class="home-stream-label">🌙 {{ wind_down_video.name }}</div>
-                    <div class="home-stream-frame" style="position: relative;">
+                    <div class="home-stream-frame">
                         <iframe src="https://www.youtube.com/embed/{{ wind_down_video.video_id }}?autoplay=1&mute=0&controls=0&modestbranding=1&rel=0&loop=1&disablekb=1&iv_load_policy=3&fs=0"
                             allow="autoplay; encrypted-media" sandbox="allow-scripts allow-same-origin allow-presentation"></iframe>
-                        <div style="position:absolute;inset:0;z-index:2;"></div>
+                        <div class="iframe-click-blocker"></div>
                     </div>
-                    <a class="home-menu-item navigable" href="/tv/youtube/watch/{{ wind_down_video.video_id }}" style="margin-top: 8px;">
+                    <a class="home-menu-item navigable" href="/tv/youtube/watch/{{ wind_down_video.video_id }}">
                         <span class="home-menu-icon">📺</span>
                         <span class="home-menu-label">Watch Now</span>
                     </a>

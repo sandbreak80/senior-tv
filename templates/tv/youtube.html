@@ -17,12 +17,12 @@
             <!-- Local Live Streams -->
             {% if local_streams %}
             <div class="section-label">🔴 Local Live Stations</div>
-            <div class="menu-list" style="margin-bottom: 24px;">
+            <div class="menu-list menu-list-spaced">
                 {% for stream in local_streams %}
                 <a class="menu-item navigable" href="/tv/youtube/watch/{{ stream.video_id }}">
                     <span class="item-icon">📺</span>
                     <span>{{ stream.name }}</span>
-                    <span style="font-size: 24px; color: var(--accent); margin-left: auto;">● LIVE</span>
+                    <span class="live-badge">● LIVE</span>
                 </a>
                 {% endfor %}
             </div>

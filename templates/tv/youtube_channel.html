@@ -15,12 +15,11 @@
 
         <div class="content-body scroll-container">
             {% if videos %}
-            <div class="poster-grid" id="poster-grid" style="grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));">
+            <div class="poster-grid poster-grid-video" id="poster-grid">
                 {% for video in videos %}
-                <a class="poster-card navigable" href="/tv/youtube/watch/{{ video.video_id }}" style="max-width: 420px;">
+                <a class="poster-card poster-card-video navigable" href="/tv/youtube/watch/{{ video.video_id }}">
                     {% if video.thumbnail %}
-                    <img class="poster-img" src="{{ video.thumbnail }}" alt="{{ video.title }}" loading="lazy"
-                         style="aspect-ratio: 16/9; object-fit: cover;">
+                    <img class="poster-img poster-img-video" src="{{ video.thumbnail }}" alt="{{ video.title }}" loading="lazy">
                     {% endif %}
                     <div class="poster-title">{{ video.title }}</div>
                 </a>

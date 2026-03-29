@@ -21,9 +21,9 @@
         .music-player.active { display: flex; }
         .music-thumb { width: 80px; height: 80px; border-radius: 10px; object-fit: cover; background: var(--bg-selected); }
         .music-info { flex: 1; }
-        .music-title { font-size: 32px; font-weight: 700; }
-        .music-artist { font-size: 24px; color: var(--text-muted); }
-        .music-controls { font-size: 28px; color: var(--text-muted); }
+        .music-title { font-size: 34px; font-weight: 700; }
+        .music-artist { font-size: 28px; color: var(--text-muted); }
+        .music-controls { font-size: 30px; color: var(--text-muted); }
         .track-item {
             display: flex;
             align-items: center;
@@ -41,13 +41,13 @@
         .track-item.selected { border-color: var(--accent); background: var(--bg-selected); box-shadow: var(--glow); }
         .track-item.playing { border-color: var(--success); }
         .track-thumb { width: 60px; height: 60px; border-radius: 8px; object-fit: cover; background: var(--bg-selected); }
-        .track-title { font-size: 30px; font-weight: 600; }
-        .track-artist { font-size: 24px; color: var(--text-muted); }
-        .track-duration { font-size: 24px; color: var(--text-muted); margin-left: auto; }
+        .track-title { font-size: 32px; font-weight: 600; }
+        .track-artist { font-size: 28px; color: var(--text-muted); }
+        .track-duration { font-size: 28px; color: var(--text-muted); margin-left: auto; }
         .genre-tabs { display: flex; gap: 10px; margin-bottom: 20px; overflow-x: auto; scrollbar-width: none; }
         .genre-tab {
             padding: 10px 20px; background: var(--bg-card); border: 2px solid transparent;
-            border-radius: 20px; font-size: 26px; color: var(--text-muted);
+            border-radius: 20px; font-size: 30px; color: var(--text-muted);
             text-decoration: none; white-space: nowrap; transition: all 0.15s;
         }
         .genre-tab.active { background: var(--bg-selected); border-color: var(--accent); color: var(--text); }
@@ -79,7 +79,7 @@
                     {% if track.thumb %}
                     <img class="track-thumb" src="{{ track.thumb }}" alt="" loading="lazy">
                     {% else %}
-                    <div class="track-thumb" style="display:flex;align-items:center;justify-content:center;font-size:28px;">🎵</div>
+                    <div class="track-thumb track-thumb-placeholder">🎵</div>
                     {% endif %}
                     <div>
                         <div class="track-title">{{ track.title }}</div>

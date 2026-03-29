@@ -36,7 +36,7 @@
         </div>
 
         <!-- Shuffle Play Button -->
-        <a class="menu-item navigable" href="/tv/plex/shuffle/{{ show.id }}" style="margin: 16px 0; max-width: 500px; background: var(--accent-soft);">
+        <a class="menu-item shuffle-btn navigable" href="/tv/plex/shuffle/{{ show.id }}">
             <span class="item-icon">🔀</span>
             <span>Shuffle Play — Random Episode</span>
         </a>
@@ -77,6 +77,8 @@
             {% endif %}
         </div>
         {% endif %}
+
+        <div class="nav-hint">▲ ▼ Browse &nbsp;&nbsp; OK = Play &nbsp;&nbsp; BACK = Go Back</div>
     </div>
 
     <!-- Pill Reminder Overlay -->

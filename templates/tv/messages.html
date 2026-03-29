@@ -16,18 +16,17 @@
         <div class="content-body scroll-container">
             {% if messages %}
                 {% for msg in messages %}
-                <a class="menu-item navigable {% if not msg.read_at %}message-unread{% endif %}" href="/tv/messages/{{ msg.id }}"
-                   style="{% if not msg.read_at %}border-left: 6px solid var(--accent);{% endif %}">
+                <a class="menu-item navigable {% if not msg.read_at %}message-unread{% endif %}" href="/tv/messages/{{ msg.id }}">
                     <span class="item-icon">
                         {% if msg.media_type == 'image' %}📷
                         {% elif msg.media_type == 'video' %}🎥
                         {% else %}✉️{% endif %}
                     </span>
-                    <div style="flex: 1;">
-                        <div style="font-size: 38px; font-weight: 600;">From {{ msg.sender }}</div>
-                        <div style="font-size: 30px; color: var(--text-muted);">{{ msg.message[:80] if msg.message else 'Photo/Video message' }}</div>
+                    <div class="message-content">
+                        <div class="message-sender">From {{ msg.sender }}</div>
+                        <div class="message-preview">{{ msg.message[:80] if msg.message else 'Photo/Video message' }}</div>
                     </div>
-                    <div style="font-size: 24px; color: var(--text-muted);">{{ msg.created_at[:16] }}</div>
+                    <div class="message-timestamp">{{ msg.created_at[:16] }}</div>
                 </a>
                 {% endfor %}
             {% else %}

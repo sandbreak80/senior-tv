@@ -50,7 +50,7 @@
 
             <!-- Recently Added -->
             {% if recent %}
-            <div class="section-label" style="margin-top: 30px;">Recently Added</div>
+            <div class="section-label">Recently Added</div>
             <div class="poster-row">
                 {% for item in recent %}
                 <a class="poster-card navigable"
@@ -64,6 +64,8 @@
             {% endif %}
         </div>
         {% endif %}
+
+        <div class="nav-hint">▲ ▼ Browse &nbsp;&nbsp; OK = Select &nbsp;&nbsp; BACK = Home</div>
     </div>
 
     <!-- Pill Reminder Overlay -->
