@@ -1,12 +1,12 @@
 {% extends "admin/base.html" %}
 {% block title %}Cameras{% endblock %}
 {% block content %}
-<h1 style="margin: 20px 0;">Cameras <span style="font-size: 16px; color: #666;">({{ cameras | length }} active)</span></h1>
+<h1 style="margin: 20px 0;">Cameras <span style="font-size: 16px; color: var(--text-muted);">({{ cameras | length }} active)</span></h1>
 
 <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 16px;">
     {% for cam in cameras %}
     <div class="card" style="padding: 0; overflow: hidden;">
-        <div style="position: relative; background: #1a1a2e;">
+        <div style="background: var(--text);">
             <img src="/admin/cameras/snapshot/{{ cam.name }}" alt="{{ cam.name }}"
                  style="width: 100%; display: block; aspect-ratio: 16/9; object-fit: cover;"
                  id="cam-{{ cam.name }}"
@@ -14,25 +14,23 @@
         </div>
         <div style="padding: 10px 14px; display: flex; justify-content: space-between; align-items: center;">
             <div>
-                <div style="font-weight: 700; font-size: 16px;">{{ cam.name | replace('_', ' ') | title }}</div>
-                <div style="font-size: 13px; color: #666;">
+                <div style="font-weight: 700;">{{ cam.name | replace('_', ' ') | title }}</div>
+                <div style="font-size: 13px; color: var(--text-muted);">
                     {{ cam.width }}x{{ cam.height }} @ {{ cam.fps }}fps
-                    {% if cam.detection_fps > 0 %}
-                    &nbsp; | &nbsp; Det: {{ cam.detection_fps }}fps
-                    {% endif %}
                 </div>
             </div>
-            <div style="font-size: 12px; color: {{ '#4caf50' if cam.camera_fps > 0 else '#f44336' }};">
+            <span class="badge {{ 'badge-active' if cam.camera_fps > 0 else 'badge-inactive' }}">
                 {{ 'Live' if cam.camera_fps > 0 else 'Offline' }}
-            </div>
+            </span>
         </div>
     </div>
     {% endfor %}
 </div>
 
 {% if not cameras %}
-<div class="card" style="text-align: center; padding: 40px; color: #666;">
-    No cameras configured. Set up Frigate in <a href="/admin/services">Services</a>.
+<div class="empty">
+    <p>No live cameras connected.</p>
+    <p style="font-size: 14px; margin-top: 8px;">Plug in a USB webcam for room monitoring, or add an IP camera in <a href="/admin/settings">Settings</a>.</p>
 </div>
 {% endif %}
 
@@ -40,8 +38,8 @@
 {% if saved_snaps %}
 {% set ns = namespace(current_cam='') %}
 <div style="margin-top: 24px;">
-    <h2 style="margin: 0 0 4px;">Check on Loved Ones <span style="font-size: 14px; color: #666;">(saved every 15 min)</span></h2>
-    <p style="color: #666; font-size: 14px; margin-bottom: 16px;">Recent snapshots from around the house — see how Don & Colleen are doing.</p>
+    <h2>Check on Loved Ones <span style="font-size: 14px; color: var(--text-muted);">(saved every 15 min)</span></h2>
+    <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 16px;">Recent snapshots from around the house.</p>
     {% for snap in saved_snaps %}
     {% if snap.camera != ns.current_cam %}
         {% if ns.current_cam %}
@@ -49,17 +47,15 @@
         {% endif %}
         {% set ns.current_cam = snap.camera %}
         <div class="card" style="margin-bottom: 12px;">
-        <h3 style="margin: 0 0 10px; font-size: 16px;">{{ snap.camera | replace('_', ' ') | title }}</h3>
+        <h3 style="margin: 0 0 10px;">{{ snap.camera | replace('_', ' ') | title }}</h3>
         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px;">
     {% endif %}
-        <div style="background: #f5f5f5; border-radius: 8px; overflow: hidden;">
+        <div style="background: var(--bg); border-radius: 8px; overflow: hidden;">
             <a href="/static/camera_snaps/{{ snap.file }}" target="_blank">
                 <img src="/static/camera_snaps/{{ snap.file }}" alt="{{ snap.camera }}"
                      style="width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block;" loading="lazy">
             </a>
-            <div style="padding: 6px 10px;">
-                <div style="font-size: 12px; color: #666;">{{ snap.time }}</div>
-            </div>
+            <div style="padding: 6px 10px; font-size: 12px; color: var(--text-muted);">{{ snap.time }}</div>
         </div>
     {% endfor %}
     {% if ns.current_cam %}
@@ -69,7 +65,6 @@
 {% endif %}
 
 <script>
-// Auto-refresh live snapshots every 10 seconds
 setInterval(function() {
     document.querySelectorAll('img[id^="cam-"]').forEach(function(img) {
         img.src = img.src.split('?')[0] + '?t=' + Date.now();

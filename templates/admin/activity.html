@@ -1,49 +1,51 @@
 {% extends "admin/base.html" %}
 {% block title %}Activity Log{% endblock %}
 {% block content %}
-<h1 style="margin: 20px 0;">Activity Log (Past 7 Days)</h1>
+<h1 style="margin: 20px 0;">Activity Log <span style="font-size: 16px; color: var(--text-muted);">Past 7 Days</span></h1>
 
 {% if logs %}
-<div class="card">
-    <table style="width: 100%; border-collapse: collapse;">
-        <thead>
-            <tr style="border-bottom: 2px solid #ddd; text-align: left;">
-                <th style="padding: 10px;">Time</th>
-                <th style="padding: 10px;">Type</th>
-                <th style="padding: 10px;">Title</th>
-                <th style="padding: 10px;">Content</th>
-                <th style="padding: 10px;">Duration</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for log in logs %}
-            <tr style="border-bottom: 1px solid #eee;">
-                <td style="padding: 8px; font-size: 14px; white-space: nowrap;">{{ log.started_at[:16] if log.started_at else '' }}</td>
-                <td style="padding: 8px;">
-                    {% if log.activity_type == 'playback_start' %}
-                        <span style="color: green;">Play</span>
-                    {% elif log.activity_type == 'playback_stop' %}
-                        <span style="color: #c62828;">Stop</span>
-                    {% elif log.activity_type == 'page_visit' %}
-                        <span style="color: #1565c0;">Visit</span>
-                    {% else %}
-                        {{ log.activity_type }}
-                    {% endif %}
-                </td>
-                <td style="padding: 8px;">{{ log.item_title or '' }}</td>
-                <td style="padding: 8px; color: #666;">{{ log.item_type or '' }}</td>
-                <td style="padding: 8px;">
-                    {% if log.duration_seconds %}
-                        {{ (log.duration_seconds // 60) }}m {{ log.duration_seconds % 60 }}s
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+<div class="card" style="padding: 12px;">
+    {% for log in logs %}
+    <div class="activity-item">
+        <div class="activity-icon">
+            {% if 'play' in (log.activity_type or '') %}
+                <span style="font-size: 20px;">▶</span>
+            {% elif 'stop' in (log.activity_type or '') %}
+                <span style="font-size: 20px;">⏹</span>
+            {% elif 'visit' in (log.activity_type or '') or 'page' in (log.activity_type or '') %}
+                <span style="font-size: 20px;">🔗</span>
+            {% elif 'music' in (log.activity_type or '') %}
+                <span style="font-size: 20px;">🎵</span>
+            {% elif 'auto_play' in (log.activity_type or '') %}
+                <span style="font-size: 20px;">📺</span>
+            {% else %}
+                <span style="font-size: 20px;">📋</span>
+            {% endif %}
+        </div>
+        <div class="activity-info">
+            <div class="activity-title">
+                {{ log.item_title or log.activity_type | replace('_', ' ') | title }}
+                {% if 'play' in (log.activity_type or '') %}
+                    <span class="badge badge-active" style="font-size: 11px; margin-left: 6px;">Play</span>
+                {% elif 'stop' in (log.activity_type or '') %}
+                    <span class="badge badge-inactive" style="font-size: 11px; margin-left: 6px;">Stop</span>
+                {% endif %}
+            </div>
+            <div class="activity-meta">
+                {{ log.started_at[:16] if log.started_at else '' }}
+                {% if log.item_type %}
+                    &middot; {{ log.item_type }}
+                {% endif %}
+                {% if log.duration_seconds %}
+                    &middot; {{ (log.duration_seconds // 60) }}m {{ log.duration_seconds % 60 }}s
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
 </div>
 {% else %}
-<div class="card" style="text-align: center; padding: 40px; color: #666;">
+<div class="empty">
     No activity recorded yet. Activity will appear here as the TV is used.
 </div>
 {% endif %}

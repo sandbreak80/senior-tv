@@ -8,22 +8,24 @@
 </head>
 <body>
     <nav class="admin-nav">
-        <span class="logo">📺 Senior TV Admin</span>
+        <span class="logo">📺 Senior TV</span>
         <a href="/admin" {% if request.path == '/admin' %}class="active"{% endif %}>Dashboard</a>
         <a href="/admin/pills" {% if '/pills' in request.path %}class="active"{% endif %}>Pills</a>
         <a href="/admin/calendar" {% if '/calendar' in request.path %}class="active"{% endif %}>Calendar</a>
         <a href="/admin/messages" {% if '/messages' in request.path %}class="active"{% endif %}>Messages</a>
         <a href="/admin/birthdays" {% if '/birthdays' in request.path %}class="active"{% endif %}>Birthdays</a>
-        <a href="/admin/shows" {% if '/shows' in request.path %}class="active"{% endif %}>Shows</a>
         <a href="/admin/youtube" {% if '/youtube' in request.path %}class="active"{% endif %}>YouTube</a>
         <a href="/admin/photos" {% if '/photos' in request.path %}class="active"{% endif %}>Photos</a>
+        <a href="/admin/settings" {% if '/settings' in request.path %}class="active"{% endif %}>Settings</a>
+    </nav>
+    <nav class="admin-nav-secondary">
+        <a href="/admin/shows" {% if '/shows' in request.path %}class="active"{% endif %}>Shows</a>
         <a href="/admin/plex-setup" {% if '/plex' in request.path %}class="active"{% endif %}>Jellyfin</a>
         <a href="/admin/activity" {% if '/activity' in request.path %}class="active"{% endif %}>Activity</a>
         <a href="/admin/cameras" {% if '/cameras' in request.path %}class="active"{% endif %}>Cameras</a>
-        <a href="/admin/tv-view" {% if '/tv-view' in request.path %}class="active"{% endif %}>TV View</a>
         <a href="/admin/services" {% if '/services' in request.path %}class="active"{% endif %}>Services</a>
         <a href="/admin/volume" {% if '/volume' in request.path %}class="active"{% endif %}>Volume</a>
-        <a href="/admin/settings" {% if '/settings' in request.path %}class="active"{% endif %}>Settings</a>
+        <a href="/admin/tv-view" {% if '/tv-view' in request.path %}class="active"{% endif %}>TV View</a>
     </nav>
 
     <div class="container">

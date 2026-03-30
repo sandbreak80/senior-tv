@@ -7,7 +7,7 @@
 </div>
 
 <p style="color: var(--text-muted); margin-bottom: 20px; font-size: 14px;">
-    Send messages, photos, and videos to Don & Colleen's TV. They'll see a notification immediately and can view the message on screen.
+    Send messages, photos, and videos to the TV. They'll see a notification immediately and can view the message on screen.
 </p>
 
 {% if messages %}
@@ -33,6 +33,10 @@
     </div>
 </div>
 {% else %}
-<div class="card"><p class="empty">No messages sent yet. Click "Send Message" to send one to the TV.</p></div>
+<div class="empty">
+    <p style="font-size: 18px;">No messages sent yet</p>
+    <p style="margin-top: 8px;">Send a photo, note, or video to brighten their day.</p>
+    <a href="/admin/messages/send" class="btn btn-primary" style="margin-top: 16px;">Send a Message</a>
+</div>
 {% endif %}
 {% endblock %}
