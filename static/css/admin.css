@@ -56,6 +56,27 @@ body {
     color: white;
 }
 
+/* Mode toggle — Family/Admin switch */
+.mode-toggle {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.25);
+    color: rgba(255,255,255,0.8);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 14px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-left: 8px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+.mode-toggle:hover { background: rgba(255,255,255,0.2); color: white; }
+.mode-toggle.mode-admin { background: var(--primary); border-color: var(--primary); color: white; }
+
+/* Family mode — hide admin-only elements */
+body.family-mode .admin-only { display: none !important; }
+
 /* Secondary nav — technical/monitoring pages */
 .admin-nav-secondary {
     background: #12121f;
