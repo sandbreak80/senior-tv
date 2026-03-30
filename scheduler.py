@@ -197,7 +197,10 @@ def check_birthdays():
             "relationship": b.get("relationship", ""),
             "message": f"🎂 Happy Birthday {b['name']}{age_str}",
         }
-        reminder_queue.put(event_data)
+        try:
+            reminder_queue.put_nowait(event_data)
+        except queue.Full:
+            pass
 
 
 def check_favorite_shows():
@@ -243,7 +246,10 @@ def check_favorite_shows():
                     "url": f"/tv/live/play/{ch['id']}",
                     "message": f"📺 {show['name']} is on now!\nChannel: {ch['name']}",
                 }
-                reminder_queue.put(event_data)
+                try:
+                    reminder_queue.put_nowait(event_data)
+                except queue.Full:
+                    pass
                 break  # Only alert once per show
 
 
@@ -281,7 +287,8 @@ def trigger_classical_music():
                     continue
                 # Check duration — skip short videos
                 try:
-                    import urllib.request, re
+                    import urllib.request
+                    import re
                     req = urllib.request.Request(
                         f"https://www.youtube.com/watch?v={vid_id}",
                         headers={"User-Agent": "Mozilla/5.0"},
