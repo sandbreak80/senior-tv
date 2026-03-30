@@ -36,4 +36,8 @@ DEFAULTS = {
     "audio_processing": "0",
     "voice_boost": "mild",
     "audio_target": "-14",
+    "inactivity_alert_hours": "4",
+    "stretch_enabled": "1",
+    "stretch_times": "09:00,13:00,17:00,21:00",
+    "stretch_duration": "15",
 }
