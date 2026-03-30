@@ -10,19 +10,22 @@
     <nav class="admin-nav">
         <span class="logo">📺 Senior TV</span>
         <a href="/admin" {% if request.path == '/admin' %}class="active"{% endif %}>Dashboard</a>
-        <a href="/admin/pills" {% if '/pills' in request.path %}class="active"{% endif %}>Pills</a>
-        <a href="/admin/calendar" {% if '/calendar' in request.path %}class="active"{% endif %}>Calendar</a>
         <a href="/admin/messages" {% if '/messages' in request.path %}class="active"{% endif %}>Messages</a>
-        <a href="/admin/birthdays" {% if '/birthdays' in request.path %}class="active"{% endif %}>Birthdays</a>
-        <a href="/admin/youtube" {% if '/youtube' in request.path %}class="active"{% endif %}>YouTube</a>
         <a href="/admin/photos" {% if '/photos' in request.path %}class="active"{% endif %}>Photos</a>
-        <a href="/admin/settings" {% if '/settings' in request.path %}class="active"{% endif %}>Settings</a>
+        <a href="/admin/birthdays" {% if '/birthdays' in request.path %}class="active"{% endif %}>Birthdays</a>
+        <a href="/admin/calendar" {% if '/calendar' in request.path %}class="active"{% endif %}>Calendar</a>
+        <a href="/admin/cameras" {% if '/cameras' in request.path %}class="active"{% endif %}>Cameras</a>
+        <a href="/admin/pills" class="admin-only {% if '/pills' in request.path %}active{% endif %}" {% if '/pills' in request.path %}{% endif %}>Pills</a>
+        <a href="/admin/youtube" class="admin-only {% if '/youtube' in request.path %}active{% endif %}">YouTube</a>
+        <a href="/admin/settings" class="admin-only {% if '/settings' in request.path %}active{% endif %}">Settings</a>
+        <button class="mode-toggle" id="mode-toggle" onclick="toggleMode()">
+            <span class="mode-label" id="mode-label">Family</span>
+        </button>
     </nav>
-    <nav class="admin-nav-secondary">
+    <nav class="admin-nav-secondary admin-only">
         <a href="/admin/shows" {% if '/shows' in request.path %}class="active"{% endif %}>Shows</a>
         <a href="/admin/plex-setup" {% if '/plex' in request.path %}class="active"{% endif %}>Jellyfin</a>
         <a href="/admin/activity" {% if '/activity' in request.path %}class="active"{% endif %}>Activity</a>
-        <a href="/admin/cameras" {% if '/cameras' in request.path %}class="active"{% endif %}>Cameras</a>
         <a href="/admin/services" {% if '/services' in request.path %}class="active"{% endif %}>Services</a>
         <a href="/admin/volume" {% if '/volume' in request.path %}class="active"{% endif %}>Volume</a>
         <a href="/admin/tv-view" {% if '/tv-view' in request.path %}class="active"{% endif %}>TV View</a>
@@ -36,5 +39,25 @@
         {% endwith %}
         {% block content %}{% endblock %}
     </div>
+    <script>
+    function getMode() {
+        return (document.cookie.match(/admin_mode=(\w+)/) || [])[1] || 'family';
+    }
+    function setMode(mode) {
+        document.cookie = 'admin_mode=' + mode + ';path=/;max-age=31536000';
+        applyMode(mode);
+    }
+    function applyMode(mode) {
+        document.body.classList.toggle('family-mode', mode === 'family');
+        var label = document.getElementById('mode-label');
+        var btn = document.getElementById('mode-toggle');
+        if (label) label.textContent = mode === 'family' ? 'Family' : 'Admin';
+        if (btn) btn.classList.toggle('mode-admin', mode === 'admin');
+    }
+    function toggleMode() {
+        setMode(getMode() === 'family' ? 'admin' : 'family');
+    }
+    applyMode(getMode());
+    </script>
 </body>
 </html>
