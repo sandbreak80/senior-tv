@@ -785,6 +785,13 @@ window.quickNav = function(url) {
 
         // On dismiss, navigate to the message
         currentReminderId = "__family_msg_" + (data.msg_id || "");
+
+        // Auto-dismiss after 60 seconds
+        setTimeout(function() {
+            if (reminderActive && currentReminderId === "__family_msg_" + (data.msg_id || "")) {
+                dismissReminder();
+            }
+        }, 60000);
     }
 
     // Override dismiss to handle family message navigation
