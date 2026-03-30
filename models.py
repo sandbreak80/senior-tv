@@ -177,6 +177,7 @@ def init_db():
             ("America's Funniest Home Videos", "UCYhMHEBSRK3mFW0GMlIHVSg", "Comedy"),
             ("Johnny Carson", "UC7McHNOsrUL2fRxTB_xvgRQ", "Comedy"),
             ("Bonanza", "UCzJhgN8iJpgatGOjPkyE4PA", "Westerns"),
+            ("Sit and Be Fit", "UCLgvL3aGzMByecNYtMcyK_g", "Health"),
             ("ABC News", "UCBi2mrWuNuyYy4gbM6fU18Q", "News"),
             ("CBS News", "UC8p1vwvWtl6T73JiExfWs1g", "News"),
         ]

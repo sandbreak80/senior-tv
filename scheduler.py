@@ -318,6 +318,45 @@ def trigger_classical_music():
         print(f"Scheduler: classical music error: {e}", file=sys.stderr)
 
 
+def trigger_exercise():
+    """Daily seated exercise videos (Sit and Be Fit). Checks hourly, plays at configured times."""
+    import feedparser
+    import random as _random
+    from models import get_setting
+
+    enabled = get_setting("exercise_enabled", "1")
+    if enabled != "1":
+        return
+
+    # Check if current hour matches either configured time
+    now_hour = datetime.now().hour
+    time1 = int(get_setting("exercise_hour_1", "9"))
+    time2 = int(get_setting("exercise_hour_2", "15"))
+    if now_hour != time1 and now_hour != time2:
+        return
+
+    channel_id = get_setting("exercise_channel", "UCLgvL3aGzMByecNYtMcyK_g")
+    try:
+        feed = feedparser.parse(f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}")
+        if feed.entries:
+            entry = _random.choice(feed.entries[:15])
+            vid_id = entry.get("yt_videoid", "")
+            if vid_id:
+                event_data = {
+                    "type": "auto_play",
+                    "url": f"/tv/youtube/watch/{vid_id}",
+                    "title": "Exercise Time",
+                    "message": "Time for your stretching exercises!",
+                    "icon": "🏋️",
+                }
+                try:
+                    reminder_queue.put_nowait(event_data)
+                except queue.Full:
+                    pass
+    except Exception as e:
+        print(f"Scheduler: exercise error: {e}", file=sys.stderr)
+
+
 def _daily_maintenance():
     """Daily database cleanup — runs at 3 AM."""
     try:
@@ -333,6 +372,7 @@ scheduler.add_job(check_birthdays, "interval", hours=1, id="birthday_checker")
 scheduler.add_job(check_favorite_shows, "interval", minutes=10, id="show_checker")
 scheduler.add_job(_cache_cleanup, "interval", minutes=30, id="cache_cleanup")
 scheduler.add_job(trigger_classical_music, "interval", hours=1, id="classical_music")
+scheduler.add_job(trigger_exercise, "interval", hours=1, id="exercise")
 scheduler.add_job(_daily_maintenance, "cron", hour=3, minute=15, id="daily_maintenance")
 
 
