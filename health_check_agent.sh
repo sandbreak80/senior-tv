@@ -1,7 +1,7 @@
 #!/bin/bash
 # Senior TV Health Check Agent
 # Runs Claude Code locally every hour to diagnose and fix issues
-# Called by cron: 0 * * * * /home/media/code_projectsd/senior_tv/health_check_agent.sh
+# Called by cron: 0 * * * * $SCRIPT_DIR/health_check_agent.sh
 
 LOG="/var/log/senior-tv-claude-check.log"
 LOCK="/tmp/senior_tv_health_agent.lock"
@@ -24,8 +24,9 @@ fi
 echo $$ > "$LOCK"
 trap 'rm -f "$LOCK"' EXIT
 
-export HOME=/home/media
-export PATH="/home/media/.local/bin:$PATH"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+export HOME="${HOME:-$(eval echo ~$(whoami))}"
+export PATH="$HOME/.local/bin:$PATH"
 
 echo "$(date): Starting health check agent" >> "$LOG"
 
@@ -42,7 +43,7 @@ claude --print --dangerously-skip-permissions -p "You are a health check agent f
    - Wait 10 seconds then re-check
 
 3. For each check that is NOT ok:
-   - audio: run bash /home/media/code_projectsd/senior_tv/fix_audio.sh
+   - audio: run bash $SCRIPT_DIR/fix_audio.sh
    - chrome not running: sudo systemctl restart senior-tv.service
    - tailscale not ok: sudo systemctl restart tailscaled
    - internet not reachable: ping -c 2 8.8.8.8 and check systemctl status NetworkManager
@@ -53,8 +54,8 @@ claude --print --dangerously-skip-permissions -p "You are a health check agent f
    journalctl -u senior-tv.service --since '1 hour ago' --priority err --no-pager | tail -20
 
 5. Take a SILENT screenshot via Chrome DevTools Protocol (NEVER use gnome-screenshot — it flashes the screen and plays a shutter sound, scaring the users):
-   python3 -c \"import json, base64, urllib.request, websocket; tabs = json.loads(urllib.request.urlopen('http://127.0.0.1:9222/json', timeout=5).read()); ws_url = next((t['webSocketDebuggerUrl'] for t in tabs if t.get('type') == 'page'), None); ws = websocket.create_connection(ws_url, timeout=10); ws.send(json.dumps({'id': 1, 'method': 'Page.captureScreenshot', 'params': {'format': 'png'}})); result = json.loads(ws.recv()); ws.close(); open('/home/media/code_projectsd/senior_tv/screenshots/health_check.png', 'wb').write(base64.b64decode(result['result']['data']))\"
-   Then read the screenshot file at /home/media/code_projectsd/senior_tv/screenshots/health_check.png
+   python3 -c \"import json, base64, urllib.request, websocket; tabs = json.loads(urllib.request.urlopen('http://127.0.0.1:9222/json', timeout=5).read()); ws_url = next((t['webSocketDebuggerUrl'] for t in tabs if t.get('type') == 'page'), None); ws = websocket.create_connection(ws_url, timeout=10); ws.send(json.dumps({'id': 1, 'method': 'Page.captureScreenshot', 'params': {'format': 'png'}})); result = json.loads(ws.recv()); ws.close(); open('$SCRIPT_DIR/screenshots/health_check.png', 'wb').write(base64.b64decode(result['result']['data']))\"
+   Then read the screenshot file at $SCRIPT_DIR/screenshots/health_check.png
    Verify: Chrome should be fullscreen showing the Senior TV app (dark theme, hotel-style TV interface).
    Problems to flag: GNOME desktop visible, error dialogs, crash popups, wrong app displayed, blank screen.
    If Chrome is not fullscreen or there are error popups visible, investigate and fix.

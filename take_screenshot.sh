@@ -1,15 +1,18 @@
 #!/bin/bash
 # Take desktop + camera snapshots every 15 minutes for admin monitoring
-# Called by cron: */15 * * * * /home/media/code_projectsd/senior_tv/take_screenshot.sh
+# Called by cron: */15 * * * * /path/to/senior_tv/take_screenshot.sh
 
-SCREEN_DIR="/home/media/code_projectsd/senior_tv/static/screenshots"
-CAM_DIR="/home/media/code_projectsd/senior_tv/static/camera_snaps"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCREEN_DIR="$SCRIPT_DIR/static/screenshots"
+CAM_DIR="$SCRIPT_DIR/static/camera_snaps"
 MAX_MB=100
 TIMESTAMP=$(date '+%Y%m%d_%H%M%S')
 
+mkdir -p "$SCREEN_DIR" "$CAM_DIR"
+
 # Take screenshot via Chrome DevTools Protocol (silent, captures actual TV output)
 OUTFILE="$SCREEN_DIR/screen_${TIMESTAMP}.png"
-/home/media/code_projectsd/senior_tv/venv/bin/python3 -c "
+"$SCRIPT_DIR/venv/bin/python3" -c "
 import json, base64, urllib.request, websocket
 tabs = json.loads(urllib.request.urlopen('http://127.0.0.1:9222/json', timeout=5).read())
 ws_url = next((t['webSocketDebuggerUrl'] for t in tabs if t.get('type') == 'page'), None)
@@ -23,16 +26,25 @@ if ws_url:
             f.write(base64.b64decode(result['result']['data']))
 " 2>/dev/null
 
-# Save camera snapshots from Frigate (check on loved ones)
-# Local USB camera (tv_room) via local Frigate
-curl -sf --max-time 5 "http://localhost:5001/api/tv_room/latest.jpg?h=480" \
-    -o "$CAM_DIR/tv_room_${TIMESTAMP}.jpg" 2>/dev/null
-# Network cameras via remote Frigate
-FRIGATE_URL="http://192.168.50.114:5000"
-for camera in front_door den living_room family_room kitchen; do
-    curl -sf --max-time 5 "${FRIGATE_URL}/api/${camera}/latest.jpg?h=480" \
-        -o "$CAM_DIR/${camera}_${TIMESTAMP}.jpg" 2>/dev/null
-done
+# Save camera snapshot from local webcam via person detector
+"$SCRIPT_DIR/venv/bin/python3" -c "
+import subprocess
+subprocess.run(['ffmpeg', '-f', 'v4l2', '-input_format', 'mjpeg',
+    '-i', '/dev/video0', '-frames:v', '1', '-y', '-loglevel', 'error',
+    '-update', '1', '$CAM_DIR/tv_room_${TIMESTAMP}.jpg'],
+    timeout=5)
+" 2>/dev/null
+
+# Save snapshots from configured IP cameras
+"$SCRIPT_DIR/venv/bin/python3" -c "
+import sys; sys.path.insert(0, '$SCRIPT_DIR')
+from models import get_setting
+import subprocess
+cam_url = get_setting('ip_camera_snapshot_url')
+if cam_url:
+    subprocess.run(['curl', '-sf', '--max-time', '5', cam_url,
+        '-o', '$CAM_DIR/front_door_${TIMESTAMP}.jpg'], timeout=10)
+" 2>/dev/null
 
 # Cleanup: remove oldest files if total exceeds limit
 for dir in "$SCREEN_DIR" "$CAM_DIR"; do

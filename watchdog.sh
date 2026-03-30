@@ -6,7 +6,7 @@
 LOG="/var/log/senior-tv-watchdog.log"
 REPAIR_LOG="/var/log/senior-tv-repairs.log"
 REPAIR_COUNT_FILE="/tmp/senior_tv_repair_count"
-PROJECT_DIR="/home/media/code_projectsd/senior_tv"
+PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 log() { echo "$(date '+%Y-%m-%d %H:%M:%S') $1" >> "$LOG"; }
 repair() {
@@ -53,7 +53,7 @@ DISK_PCT=$(df / --output=pcent | tail -1 | tr -d '% ')
 if [ "$DISK_PCT" -gt 90 ]; then
     log "WARN: Disk usage at ${DISK_PCT}%"
     repair "Cleaning disk (${DISK_PCT}% used)"
-    find /home/media/.config/senior-tv-chrome/Crash\ Reports -name "*.dmp" -mtime +1 -delete 2>/dev/null
+    find $HOME/.config/senior-tv-chrome/Crash\ Reports -name "*.dmp" -mtime +1 -delete 2>/dev/null
     find /tmp -name "senior_tv*" -mtime +7 -delete 2>/dev/null
     journalctl --vacuum-time=3d 2>/dev/null
     ISSUES=$((ISSUES + 1))
@@ -66,7 +66,7 @@ MEM_PCT=$((100 - (MEM_AVAIL * 100 / MEM_TOTAL)))
 if [ "$MEM_PCT" -gt 90 ]; then
     log "WARN: Memory at ${MEM_PCT}%"
     repair "Restarting service (memory critical at ${MEM_PCT}%)"
-    rm -rf /home/media/.config/senior-tv-chrome/Default/Cache/* 2>/dev/null
+    rm -rf $HOME/.config/senior-tv-chrome/Default/Cache/* 2>/dev/null
     systemctl restart senior-tv.service
     ISSUES=$((ISSUES + 1))
 fi

@@ -45,8 +45,8 @@ start_server() {
 
 start_chrome() {
     # Clear Chrome cache to ensure latest JS/CSS is loaded
-    rm -rf /home/media/.config/senior-tv-chrome/Default/Cache 2>/dev/null
-    rm -rf /home/media/.config/senior-tv-chrome/Default/Code\ Cache 2>/dev/null
+    rm -rf $HOME/.config/senior-tv-chrome/Default/Cache 2>/dev/null
+    rm -rf $HOME/.config/senior-tv-chrome/Default/Code\ Cache 2>/dev/null
 
     # Wait for server to respond
     for i in $(seq 1 15); do
@@ -75,7 +75,7 @@ start_chrome() {
         --password-store=basic \
         --remote-debugging-port=9222 \
         --remote-allow-origins=* \
-        --user-data-dir=/home/media/.config/senior-tv-chrome \
+        --user-data-dir=$HOME/.config/senior-tv-chrome \
         http://localhost:5000 &
     CHROME_PID=$!
     echo "$(date): Chrome started (PID $CHROME_PID)"
