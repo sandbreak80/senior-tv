@@ -19,10 +19,31 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 MODEL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
 PROTOTXT = os.path.join(MODEL_DIR, "MobileNetSSD_deploy.prototxt")
 CAFFEMODEL = os.path.join(MODEL_DIR, "MobileNetSSD_deploy.caffemodel")
-DEVICE = "/dev/video0"
 CONFIDENCE_THRESHOLD = 0.4
 PERSON_CLASS_ID = 15
 POLL_INTERVAL = 10  # seconds
+
+
+def detect_video_device():
+    """Auto-detect the first USB webcam video device."""
+    import glob
+    for dev in sorted(glob.glob("/dev/video*")):
+        try:
+            result = subprocess.run(
+                ["v4l2-ctl", "--device", dev, "--info"],
+                capture_output=True, text=True, timeout=3,
+            )
+            if result.returncode == 0 and "usb" in result.stdout.lower():
+                return dev
+        except Exception:
+            continue
+    # Fallback: just use /dev/video0 if it exists
+    if os.path.exists("/dev/video0"):
+        return "/dev/video0"
+    return None
+
+
+DETECTED_DEVICE = None  # Set at startup
 
 
 def capture_frame(device, output_path):
@@ -76,9 +97,15 @@ def detect_person(net, image_path):
 
 
 def main():
+    global DETECTED_DEVICE
     import cv2
 
-    print("Person detector starting...", file=sys.stderr)
+    DETECTED_DEVICE = detect_video_device()
+    if not DETECTED_DEVICE:
+        print("Person detector: no webcam found, exiting", file=sys.stderr)
+        return
+
+    print(f"Person detector starting (camera: {DETECTED_DEVICE})...", file=sys.stderr)
     net = cv2.dnn.readNetFromCaffe(PROTOTXT, CAFFEMODEL)
     print(f"Model loaded ({os.path.getsize(CAFFEMODEL) // 1024 // 1024}MB)", file=sys.stderr)
 
@@ -88,7 +115,7 @@ def main():
     consecutive_fails = 0
     while True:
         try:
-            if capture_frame(DEVICE, frame_path):
+            if capture_frame(DETECTED_DEVICE, frame_path):
                 person, confidence, all_dets = detect_person(net, frame_path)
                 print(
                     f"Person: {'YES' if person else 'no ':3s} "

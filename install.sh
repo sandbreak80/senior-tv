@@ -54,6 +54,31 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 # -----------------------------------------------------------
+# Pre-flight checks
+# -----------------------------------------------------------
+echo "Running pre-flight checks..."
+
+# Check RAM
+TOTAL_RAM_MB=$(free -m | awk '/^Mem:/{print $2}')
+if [ "$TOTAL_RAM_MB" -lt 4000 ]; then
+    fail "Need at least 4GB RAM (found ${TOTAL_RAM_MB}MB)"
+fi
+ok "RAM: ${TOTAL_RAM_MB}MB"
+
+# Check disk
+FREE_DISK_GB=$(df -BG / | awk 'NR==2{print $4}' | tr -d 'G')
+if [ "$FREE_DISK_GB" -lt 20 ]; then
+    fail "Need at least 20GB free disk (found ${FREE_DISK_GB}GB)"
+fi
+ok "Disk: ${FREE_DISK_GB}GB free"
+
+# Check Ubuntu
+if [ -f /etc/os-release ]; then
+    . /etc/os-release
+    ok "OS: $PRETTY_NAME"
+fi
+
+# -----------------------------------------------------------
 # Step 1: System packages
 # -----------------------------------------------------------
 step 1 "Installing system packages..."
@@ -157,8 +182,24 @@ else
     ok "Docker installed"
 fi
 
+# Generate secrets
+IMMICH_DB_PASS=$(python3 -c "import secrets; print(secrets.token_hex(16))")
+FLASK_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+SYSTEM_TZ=$(cat /etc/timezone 2>/dev/null || echo "America/New_York")
+INSTALL_UID=$(id -u "$INSTALL_USER")
+INSTALL_GID=$(id -g "$INSTALL_USER")
+
+# Write .env for secrets (not checked into git)
+cat > "$APP_DIR/.env" << ENVFILE
+SENIOR_TV_SECRET=$FLASK_SECRET
+IMMICH_DB_PASSWORD=$IMMICH_DB_PASS
+ENVFILE
+chown "$INSTALL_USER:$INSTALL_USER" "$APP_DIR/.env"
+chmod 600 "$APP_DIR/.env"
+ok "Secrets generated (.env)"
+
 # Create docker-compose for embedded services (no Frigate, no HA)
-cat > "$APP_DIR/docker-compose.yml" << 'COMPOSE'
+cat > "$APP_DIR/docker-compose.yml" << COMPOSE
 version: "3.8"
 
 # Senior TV — Embedded Services
@@ -194,7 +235,7 @@ services:
     environment:
       - DB_HOSTNAME=immich-postgres
       - DB_USERNAME=postgres
-      - DB_PASSWORD=seniortv
+      - DB_PASSWORD=$IMMICH_DB_PASS
       - DB_DATABASE_NAME=immich
       - REDIS_HOSTNAME=immich-redis
     depends_on:
@@ -216,7 +257,7 @@ services:
     volumes:
       - ./data/immich/postgres:/var/lib/postgresql/data
     environment:
-      - POSTGRES_PASSWORD=seniortv
+      - POSTGRES_PASSWORD=$IMMICH_DB_PASS
       - POSTGRES_USER=postgres
       - POSTGRES_DB=immich
       - POSTGRES_INITDB_ARGS=--data-checksums
@@ -232,9 +273,9 @@ services:
       - ~/media/movies:/movies
       - ~/media/shows:/tv
     environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=America/Los_Angeles
+      - PUID=$INSTALL_UID
+      - PGID=$INSTALL_GID
+      - TZ=$SYSTEM_TZ
 COMPOSE
 
 sudo -u "$INSTALL_USER" mkdir -p "$APP_DIR/data/jellyfin/config" "$APP_DIR/data/jellyfin/cache"
@@ -340,7 +381,11 @@ rm -f "$CRON_TMP"
 # Screenshots directory
 sudo -u "$INSTALL_USER" mkdir -p "$APP_DIR/screenshots"
 
-ok "Systemd services, cron jobs installed and enabled"
+# Log files (writable by install user)
+touch /var/log/senior-tv-watchdog.log /var/log/senior-tv-repairs.log /var/log/senior-tv-claude-check.log
+chown "$INSTALL_USER:$INSTALL_USER" /var/log/senior-tv-*.log
+
+ok "Systemd services, cron jobs, log files installed and enabled"
 
 # -----------------------------------------------------------
 # Step 10: Tailscale
@@ -376,14 +421,29 @@ warn "Run 'cloudflared tunnel login' after install to configure"
 # -----------------------------------------------------------
 step 12 "Initializing..."
 
-# Initialize the database
+# Load secrets into environment for Flask
 cd "$APP_DIR"
-sudo -u "$INSTALL_USER" venv/bin/python3 -c "from models import init_db; init_db()"
-ok "Database initialized"
+if [ -f "$APP_DIR/.env" ]; then
+    set -a; source "$APP_DIR/.env"; set +a
+fi
+
+# Initialize the database
+sudo -u "$INSTALL_USER" SENIOR_TV_SECRET="$FLASK_SECRET" venv/bin/python3 -c "from models import init_db; init_db()"
+ok "Database initialized (admin PIN printed above)"
 
 # Start Docker services
 sudo -u "$INSTALL_USER" docker compose -f "$APP_DIR/docker-compose.yml" up -d 2>/dev/null || warn "Docker services failed to start (can retry later)"
-ok "Docker services started"
+
+# Wait for Docker services to be healthy
+echo "  Waiting for services to start..."
+for i in $(seq 1 30); do
+    READY=0
+    curl -sf http://localhost:8096 > /dev/null 2>&1 && READY=$((READY+1))
+    curl -sf http://localhost:2283 > /dev/null 2>&1 && READY=$((READY+1))
+    [ "$READY" -ge 1 ] && break
+    sleep 2
+done
+ok "Docker services running"
 
 # Make scripts executable
 chmod +x "$APP_DIR/start.sh" "$APP_DIR/watchdog.sh" "$APP_DIR/fix_audio.sh"

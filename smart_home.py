@@ -6,7 +6,7 @@ Connects to Home Assistant for entity states.
 Pushes notifications via the SSE reminder queue.
 """
 
-import os
+import os  # noqa: F401 — used in start_presence_monitor
 import sys
 import time
 import threading
@@ -102,8 +102,9 @@ def start_presence_monitor(alert_queue=None):
                 # Primary: local webcam + MobileNet SSD person detection
                 if _detector is not None:
                     try:
-                        from person_detector import capture_frame, detect_person
-                        if capture_frame("/dev/video0", frame_path):
+                        from person_detector import capture_frame, detect_person, detect_video_device
+                        device = detect_video_device() or "/dev/video0"
+                        if capture_frame(device, frame_path):
                             person_detected, conf, _ = detect_person(_detector, frame_path)
                     except Exception as e:
                         print(f"Presence: local detection failed: {e}", file=sys.stderr)
