@@ -145,8 +145,8 @@ def init_db():
     # Generate random admin password on first boot if not set
     row = db.execute("SELECT value FROM settings WHERE key = 'admin_password'").fetchone()
     if not row or not row[0]:
-        import random
-        pin = f"{random.randint(0, 999999):06d}"
+        import secrets as _secrets
+        pin = f"{_secrets.randbelow(1000000):06d}"
         db.execute(
             "INSERT OR REPLACE INTO settings (key, value) VALUES ('admin_password', ?)",
             (pin,),
@@ -400,7 +400,7 @@ def get_pill_adherence_today():
                     else:
                         status = "missed"
                 else:
-                    status = "pending" if t >= current_time else "pending"
+                    status = "pending" if t >= current_time else "missed"
 
                 # Convert to 12h display
                 h, m = t.split(":")

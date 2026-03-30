@@ -137,11 +137,14 @@ def start_presence_monitor(alert_queue=None):
 
                 # Push SSE event when presence changes
                 if alert_queue and effective_occupied != last_occupied:
-                    alert_queue.put({
-                        "type": "presence_change",
-                        "occupied": effective_occupied,
-                        "timestamp": datetime.now().strftime("%I:%M %p"),
-                    })
+                    try:
+                        alert_queue.put_nowait({
+                            "type": "presence_change",
+                            "occupied": effective_occupied,
+                            "timestamp": datetime.now().strftime("%I:%M %p"),
+                        })
+                    except Exception:
+                        pass
                 last_occupied = effective_occupied
             except Exception as e:
                 print(f"Presence monitor error: {e}", file=sys.stderr)
@@ -334,7 +337,10 @@ class SmartHomeMonitor:
                     "score": score,
                     "timestamp": datetime.now().strftime("%I:%M %p"),
                 }
-                self.alert_queue.put(alert_data)
+                try:
+                    self.alert_queue.put_nowait(alert_data)
+                except Exception:
+                    pass
                 print(f"ALERT: {title} (score={score:.0%})")
 
         self._last_event_time = time.time()

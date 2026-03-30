@@ -75,6 +75,14 @@ def timeago_filter(timestamp_str):
         return ""
 
 
+def _safe_int(value, default=0):
+    """Convert to int, returning default if value is None or non-numeric."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def _is_local_request():
     """Check if request is from LAN (no auth needed) vs remote (needs auth)."""
     # If CF-Connecting-IP header exists, request came through Cloudflare tunnel = REMOTE
@@ -1022,7 +1030,7 @@ def admin_youtube_new():
             "description": request.form.get("description", ""),
             "thumbnail_url": request.form.get("thumbnail_url", ""),
             "category": request.form.get("category", "Entertainment"),
-            "sort_order": int(request.form.get("sort_order", 0)),
+            "sort_order": _safe_int(request.form.get("sort_order"), 0),
         }
         models.create_youtube_channel(data)
         return redirect("/admin/youtube")
@@ -1041,7 +1049,7 @@ def admin_youtube_edit(ch_id):
             "description": request.form.get("description", ""),
             "thumbnail_url": request.form.get("thumbnail_url", ""),
             "category": request.form.get("category", "Entertainment"),
-            "sort_order": int(request.form.get("sort_order", 0)),
+            "sort_order": _safe_int(request.form.get("sort_order"), 0),
         }
         models.update_youtube_channel(ch_id, data)
         return redirect("/admin/youtube")
@@ -1467,9 +1475,13 @@ def api_take_screenshot():
 def admin_pills():
     pills = models.get_pills()
     for pill in pills:
-        pill["schedule_times_display"] = ", ".join(json.loads(pill["schedule_times"]))
-        days = json.loads(pill["schedule_days"])
-        pill["schedule_days_display"] = ", ".join(d.capitalize() for d in days)
+        try:
+            pill["schedule_times_display"] = ", ".join(json.loads(pill["schedule_times"]))
+            days = json.loads(pill["schedule_days"])
+            pill["schedule_days_display"] = ", ".join(d.capitalize() for d in days)
+        except (json.JSONDecodeError, TypeError):
+            pill["schedule_times_display"] = pill.get("schedule_times", "?")
+            pill["schedule_days_display"] = "?"
     return render_template("admin/pills.html", pills=pills)
 
 
@@ -1671,12 +1683,15 @@ def admin_message_send():
         })
 
         # Push notification to TV via SSE
-        reminder_queue.put({
-            "type": "family_message",
-            "msg_id": msg_id,
-            "sender": request.form.get("sender", "Family"),
-            "message": request.form.get("message", "")[:100],
-        })
+        try:
+            reminder_queue.put_nowait({
+                "type": "family_message",
+                "msg_id": msg_id,
+                "sender": request.form.get("sender", "Family"),
+                "message": request.form.get("message", "")[:100],
+            })
+        except Exception:
+            pass
 
         return redirect("/admin/messages")
     return render_template("admin/message_form.html")
@@ -2076,6 +2091,9 @@ def api_next_video():
         # Movie — verify stream URL exists
         try:
             stream_url = jf.get_stream_url(item["id"])
+            # Stream URL is a local path — make absolute for validation
+            if stream_url.startswith("/"):
+                stream_url = f"http://localhost:5000{stream_url}"
             resp = requests.head(stream_url, timeout=5, allow_redirects=True)
             if resp.status_code < 400:
                 url = f"/tv/plex/play/{item['id']}"
@@ -2217,14 +2235,14 @@ def api_tv_settings():
         "tts_enabled": get_setting_or_default("tts_enabled") != "0",
         "audio_processing": get_setting_or_default("audio_processing") == "1",
         "voice_boost": get_setting_or_default("voice_boost") or "mild",
-        "audio_target": int(get_setting_or_default("audio_target") or "-14"),
+        "audio_target": _safe_int(get_setting_or_default("audio_target"), -14),
     })
 
 
 @app.route("/api/volume-history")
 def api_volume_history():
     """Room volume readings from webcam mic."""
-    hours = int(request.args.get("hours", 24))
+    hours = _safe_int(request.args.get("hours"), 24)
     with models.get_db_safe() as db:
         rows = db.execute(
             """SELECT rms, db_level, sonos_volume, logged_at FROM volume_logs
@@ -2238,7 +2256,7 @@ def api_volume_history():
 @app.route("/api/volume-stats")
 def api_volume_stats():
     """Computed volume statistics: rolling averages and spike detection."""
-    hours = int(request.args.get("hours", 24))
+    hours = _safe_int(request.args.get("hours"), 24)
     with models.get_db_safe() as db:
         rows = db.execute(
             """SELECT db_level, sonos_volume, logged_at FROM volume_logs
