@@ -10,6 +10,15 @@
     <div class="home-page">
         <div class="home-scroll" id="home-scroll">
 
+            {% if first_boot %}
+            <div style="background:linear-gradient(135deg,#1a1a2e,#16213e);border:2px solid #e94560;border-radius:20px;padding:40px;margin:20px 40px;text-align:center;">
+                <div style="font-size:48px;margin-bottom:16px;">📺 Welcome to Senior TV</div>
+                <div style="font-size:28px;color:#a0a0b0;margin-bottom:24px;">The system needs to be set up before use.</div>
+                <div style="font-size:24px;color:#e94560;">Open the admin panel from any device on your network:</div>
+                <div style="font-size:32px;font-weight:700;margin-top:12px;color:#4ecdc4;">http://{{ request.host }}/admin</div>
+            </div>
+            {% endif %}
+
             <!-- TOP ROW: Info+Content left, Stream right -->
             <div class="home-top-row">
                 <div class="home-top-left">

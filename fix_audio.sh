@@ -2,7 +2,7 @@
 # Fix HDMI audio output — ensure PipeWire routes to Samsung TV
 # Called by watchdog.sh and start.sh
 
-export XDG_RUNTIME_DIR=/run/user/1000
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 
 # Find the HDMI sink ID (starred = default)
 HDMI_SINK=$(wpctl status 2>/dev/null | grep -i "rembrandt.*hdmi\|radeon.*hdmi\|SAMSUNG" | grep -oP '\d+\.' | head -1 | tr -d '.')

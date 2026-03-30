@@ -37,14 +37,15 @@ fi
 
 # --- 3. HDMI Audio ---
 AUDIO_OK=false
-DEFAULT_SINK=$(sudo -u media XDG_RUNTIME_DIR=/run/user/1000 wpctl status 2>/dev/null | grep -E '^\s*│?\s*\*' | head -1)
+INSTALL_UID=$(id -u)
+DEFAULT_SINK=$(XDG_RUNTIME_DIR=/run/user/$INSTALL_UID wpctl status 2>/dev/null | grep -E '^\s*│?\s*\*' | head -1)
 if echo "$DEFAULT_SINK" | grep -qi "hdmi\|radeon\|rembrandt\|samsung"; then
     AUDIO_OK=true
 fi
 if [ "$AUDIO_OK" = "false" ]; then
     log "FAIL: HDMI audio not default (current: $DEFAULT_SINK)"
     repair "Fixing HDMI audio routing"
-    sudo -u media bash "$PROJECT_DIR/fix_audio.sh" >> "$LOG" 2>&1
+    XDG_RUNTIME_DIR=/run/user/$INSTALL_UID bash "$PROJECT_DIR/fix_audio.sh" >> "$LOG" 2>&1
     ISSUES=$((ISSUES + 1))
 fi
 

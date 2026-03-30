@@ -10,17 +10,29 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-DEVICE = "plughw:1,0"  # C920 webcam mic
 RATE = 16000
 DURATION = 1  # 1-second sample
 INTERVAL = 10  # every 10 seconds
-SONOS_ENTITY = "media_player.family_room"
 
 
-def measure_volume():
+def _detect_mic_device():
+    """Auto-detect the first USB microphone ALSA device."""
+    try:
+        result = subprocess.run(["arecord", "-l"], capture_output=True, text=True, timeout=5)
+        for line in result.stdout.splitlines():
+            if "card" in line and "USB" in line.upper():
+                # Extract card number: "card 1: ..."
+                card = line.split(":")[0].replace("card", "").strip()
+                return f"plughw:{card},0"
+    except Exception:
+        pass
+    return "plughw:0,0"  # fallback to first device
+
+
+def measure_volume(device):
     """Record 1 second from the webcam mic and return (rms, db_level)."""
     proc = subprocess.run(
-        ["arecord", "-D", DEVICE, "-f", "S16_LE", "-r", str(RATE), "-c", "1",
+        ["arecord", "-D", device, "-f", "S16_LE", "-r", str(RATE), "-c", "1",
          "-d", str(DURATION), "-t", "raw", "-q"],
         capture_output=True, timeout=5,
     )
@@ -38,17 +50,18 @@ def measure_volume():
     return round(rms, 1), round(db_level, 1)
 
 
-def get_sonos_volume():
-    """Read current Sonos volume (0.0-1.0) from Home Assistant."""
+def get_speaker_volume():
+    """Read current speaker volume (0.0-1.0) from Home Assistant media_player entity."""
     try:
         import requests
         from models import get_setting
         ha_url = get_setting("ha_url")
         ha_token = get_setting("ha_token")
-        if not ha_url or not ha_token:
+        entity = get_setting("ha_speaker_entity") or ""
+        if not ha_url or not ha_token or not entity:
             return None
         r = requests.get(
-            f"{ha_url}/api/states/{SONOS_ENTITY}",
+            f"{ha_url}/api/states/{entity}",
             headers={"Authorization": f"Bearer {ha_token}"},
             timeout=3,
         )
@@ -70,18 +83,20 @@ def store(rms, db_level, sonos_volume):
 
 
 def main():
-    print("Volume monitor started", file=sys.stderr)
     from models import init_db
     init_db()
 
+    mic_device = _detect_mic_device()
+    print(f"Volume monitor started (mic: {mic_device})", file=sys.stderr)
+
     while True:
         try:
-            rms, db_level = measure_volume()
+            rms, db_level = measure_volume(mic_device)
             if rms is not None:
-                sonos_vol = get_sonos_volume()
-                store(rms, db_level, sonos_vol)
-                sonos_pct = f"{int(sonos_vol * 100)}%" if sonos_vol is not None else "?"
-                print(f"RMS: {rms:>8.1f}  dB: {db_level:>6.1f}  Sonos: {sonos_pct}", file=sys.stderr)
+                speaker_vol = get_speaker_volume()
+                store(rms, db_level, speaker_vol)
+                vol_pct = f"{int(speaker_vol * 100)}%" if speaker_vol is not None else "?"
+                print(f"RMS: {rms:>8.1f}  dB: {db_level:>6.1f}  Speaker: {vol_pct}", file=sys.stderr)
         except Exception as e:
             print(f"Volume monitor error: {e}", file=sys.stderr)
         time.sleep(INTERVAL - DURATION)

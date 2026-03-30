@@ -9,25 +9,29 @@ MAX_UPLOAD_SIZE = 100 * 1024 * 1024  # 100MB for video uploads
 
 # Defaults (overridable via admin panel / settings table)
 DEFAULTS = {
-    "greeting_names": "Colleen & Don",
-    "weather_lat": "40.7128",
-    "weather_lon": "-74.0060",
+    # Empty = unconfigured (setup wizard will prompt)
+    "greeting_names": "",
+    "weather_lat": "",
+    "weather_lon": "",
     "weather_unit": "fahrenheit",
     "news_feeds": "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",
-    "jellyfin_url": "http://192.168.50.20:8096",
+    # Service URLs — empty until configured via admin panel
+    "jellyfin_url": "",
     "jellyfin_api_key": "",
     "jellyfin_user_id": "",
-    "frigate_url": "https://192.168.50.114:8971",
-    "frigate_user": "admin",
+    "frigate_url": "",
+    "frigate_user": "",
     "frigate_pass": "",
     "frigate_cameras": "front_door",
-    "ha_url": "http://192.168.50.76:8123",
+    "ha_url": "",
     "ha_token": "",
     "photo_interval": "10",
     "photo_nas_path": "",
     "immich_url": "",
     "immich_api_key": "",
-    "admin_password": "family2026",
+    # Admin password — generated on first boot by init_db() if not set
+    "admin_password": "",
+    # Audio/accessibility — sensible universal defaults
     "tts_enabled": "1",
     "audio_processing": "0",
     "voice_boost": "mild",
