@@ -29,4 +29,8 @@ DEFAULTS = {
     "immich_api_key": "",
     "admin_password": "family2026",
     "tts_enabled": "1",
+    "inactivity_alert_hours": "4",
+    "stretch_enabled": "1",
+    "stretch_times": "09:00,13:00,17:00,21:00",
+    "stretch_duration": "15",
 }

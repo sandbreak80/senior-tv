@@ -23,7 +23,7 @@
                href="/tv/live">All</a>
             {% for cat in categories[:8] %}
             <a class="category-tab navigable {% if selected_category == cat.name %}active{% endif %}"
-               href="/tv/live?category={{ cat.name }}">{{ cat.name }}</a>
+               href="/tv/live?category={{ cat.slug }}">{{ cat.name }}</a>
             {% endfor %}
         </div>
 
@@ -74,5 +74,79 @@
     </div>
 
     <script src="/static/js/tv.js?v=6"></script>
+    <script>
+    (function() {
+        // AJAX category switching — no full page reload
+        document.addEventListener("keydown", function(e) {
+            if (e.key !== "Enter") return;
+            var sel = document.querySelector(".category-tab.navigable.selected");
+            if (!sel) return;
+
+            // Prevent default navigation
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Extract category from href
+            var href = sel.getAttribute("href");
+            var match = href.match(/category=([^&]*)/);
+            var category = match ? decodeURIComponent(match[1]) : "";
+            var apiUrl = category ? "/api/live-channels?category=" + encodeURIComponent(category) : "/api/live-channels";
+
+            // Update active tab
+            document.querySelectorAll(".category-tab").forEach(function(t) {
+                t.classList.remove("active");
+            });
+            sel.classList.add("active");
+
+            // Update URL without reload
+            history.pushState(null, "", href);
+
+            // Fetch channels
+            var container = document.querySelector(".content-body.scroll-container");
+            if (!container) return;
+            container.innerHTML = '<div class="empty-state">Loading...</div>';
+
+            fetch(apiUrl)
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (!data.channels || data.channels.length === 0) {
+                        container.innerHTML = '<div class="empty-state">No channels found for this category.</div>';
+                        return;
+                    }
+                    var html = "";
+                    data.channels.forEach(function(ch) {
+                        html += '<a class="channel-item navigable" href="/tv/live/play/' + ch.id + '">';
+                        html += '<div class="channel-logo-wrap">';
+                        if (ch.logo) {
+                            html += '<img class="channel-logo" src="' + ch.logo + '" alt="' + ch.name + '" loading="lazy">';
+                        } else {
+                            html += '<div class="channel-logo-placeholder">' + ch.name.substring(0, 3) + '</div>';
+                        }
+                        html += '</div>';
+                        html += '<div class="channel-info">';
+                        html += '<div class="channel-name">' + ch.name + '</div>';
+                        if (ch.current_program) {
+                            html += '<div class="channel-now-playing">Now: ' + ch.current_program.title + '</div>';
+                            if (ch.current_program.description) {
+                                html += '<div class="channel-description">' + ch.current_program.description + '</div>';
+                            }
+                        }
+                        html += '</div>';
+                        if (ch.number > 0) {
+                            html += '<div class="channel-number">' + ch.number + '</div>';
+                        }
+                        html += '</a>';
+                    });
+                    container.innerHTML = html;
+
+                    // Refresh navigation items so arrow keys work on new channels
+                    if (typeof refreshNavItems === "function") refreshNavItems();
+                })
+                .catch(function() {
+                    container.innerHTML = '<div class="empty-state">Error loading channels.</div>';
+                });
+        }, true); // capture phase to intercept before tv.js
+    })();
+    </script>
 </body>
 </html>

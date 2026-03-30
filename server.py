@@ -803,8 +803,36 @@ def tv_live():
     category = request.args.get("category")
     channels, error = pluto_tv.get_channels(category_filter=category)
     categories, _ = pluto_tv.get_categories()
+    # Add URL-safe slug for each category (preserves '+' as %2B)
+    from urllib.parse import quote
+    for cat in categories:
+        cat["slug"] = quote(cat["name"], safe="")
     return render_template("tv/live.html", channels=channels, categories=categories,
                            selected_category=category, error=error)
+
+
+@app.route("/api/live-channels")
+def api_live_channels():
+    """JSON endpoint for AJAX category switching on Live TV page."""
+    import pluto_tv
+    category = request.args.get("category") or None
+    channels, error = pluto_tv.get_channels(category_filter=category)
+    if error:
+        return jsonify({"error": str(error), "channels": []})
+    result = []
+    for ch in channels:
+        prog = ch.get("current_program")
+        result.append({
+            "id": ch["id"],
+            "name": ch["name"],
+            "logo": ch.get("logo", ""),
+            "number": ch.get("number", 0),
+            "current_program": {
+                "title": prog["title"],
+                "description": prog.get("description", ""),
+            } if prog else None,
+        })
+    return jsonify({"channels": result})
 
 
 @app.route("/tv/live/play/<channel_id>")
@@ -1210,8 +1238,9 @@ def admin_dashboard():
         except Exception:
             pass
 
-    # Pill adherence
+    # Pill adherence — exclude stretch breaks (managed in Settings, not pills)
     pill_adherence = models.get_pill_adherence_today()
+    pill_adherence = [e for e in pill_adherence if "stretch" not in e.get("pill_name", "").lower()]
     pill_summary = {"taken": 0, "missed": 0, "pending": 0, "total": 0}
     for entry in pill_adherence:
         pill_summary[entry["status"]] += 1
@@ -1460,6 +1489,8 @@ def api_take_screenshot():
 @app.route("/admin/pills")
 def admin_pills():
     pills = models.get_pills()
+    # Hide stretch breaks — managed via Settings page, not here
+    pills = [p for p in pills if "stretch" not in p["name"].lower()]
     for pill in pills:
         pill["schedule_times_display"] = ", ".join(json.loads(pill["schedule_times"]))
         days = json.loads(pill["schedule_days"])
@@ -1760,10 +1791,45 @@ def admin_settings():
                      "immich_url", "immich_api_key", "immich_album_id",
                      "admin_password",
                      "classical_music_enabled", "classical_music_hour",
-                     "tts_enabled"]:
+                     "tts_enabled",
+                     "stretch_enabled", "stretch_times", "stretch_duration"]:
             val = request.form.get(key)
             if val is not None:
                 models.set_setting(key, val)
+
+        # Sync stretch break pill from settings
+        stretch_enabled = request.form.get("stretch_enabled", "0")
+        stretch_times = request.form.get("stretch_times", "09:00,13:00,17:00,21:00")
+        stretch_duration = request.form.get("stretch_duration", "15")
+        times_list = [t.strip() for t in stretch_times.split(",") if t.strip()]
+
+        # Find existing stretch pill
+        with models.get_db_safe() as db:
+            stretch_pill = db.execute(
+                "SELECT * FROM pills WHERE LOWER(name) LIKE '%stretch%'"
+            ).fetchone()
+            stretch_pill = dict(stretch_pill) if stretch_pill else None
+
+        if stretch_enabled == "1":
+            if stretch_pill:
+                models.update_pill(stretch_pill["id"], {
+                    "schedule_times": times_list,
+                    "instructions": f"Time to stand up and stretch! ({stretch_duration} min)",
+                    "enabled": 1,
+                })
+            else:
+                models.create_pill({
+                    "name": "Stretch Break",
+                    "dosage": "",
+                    "instructions": f"Time to stand up and stretch! ({stretch_duration} min)",
+                    "schedule_times": times_list,
+                    "schedule_days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+                    "enabled": 1,
+                })
+        else:
+            if stretch_pill:
+                models.update_pill(stretch_pill["id"], {"enabled": 0})
+
         return redirect("/admin/settings")
     settings = {}
     for key in config.DEFAULTS:
@@ -2159,6 +2225,7 @@ def api_immich_slideshow():
 @app.route("/api/daily-digest")
 def api_daily_digest():
     """Get this day in history and a daily quote."""
+    import random
     digest = {}
 
     # This Day in History (Wikipedia)
@@ -2172,7 +2239,6 @@ def api_daily_digest():
         if resp.status_code == 200:
             events = resp.json().get("selected", [])
             if events:
-                import random
                 event = random.choice(events[:10])
                 digest["history"] = {
                     "year": event.get("year", ""),
@@ -2312,6 +2378,41 @@ def api_health():
             health["checks"]["immich"] = {"connected": ok, "detail": msg, "ok": ok}
     except Exception:
         pass
+
+    # Inactivity
+    try:
+        last_activity = models.get_last_activity_time()
+        threshold_hours = int(get_setting_or_default("inactivity_alert_hours", "4"))
+        now = datetime.now()
+        is_daytime = 8 <= now.hour < 22
+
+        if last_activity:
+            last_dt = datetime.fromisoformat(last_activity)
+            hours_idle = round((now - last_dt).total_seconds() / 3600, 1)
+            if is_daytime:
+                inactivity_ok = hours_idle < threshold_hours
+            else:
+                inactivity_ok = True
+            health["checks"]["inactivity"] = {
+                "ok": inactivity_ok,
+                "hours_idle": hours_idle,
+                "last_activity": last_activity,
+                "threshold_hours": threshold_hours,
+            }
+        else:
+            health["checks"]["inactivity"] = {
+                "ok": not is_daytime,
+                "hours_idle": None,
+                "last_activity": None,
+                "threshold_hours": threshold_hours,
+            }
+    except Exception:
+        health["checks"]["inactivity"] = {
+            "ok": True,
+            "hours_idle": None,
+            "last_activity": None,
+            "threshold_hours": 4,
+        }
 
     # Overall
     all_ok = all(c.get("ok", True) for c in health["checks"].values())
