@@ -56,6 +56,28 @@ body {
     color: white;
 }
 
+/* Secondary nav — technical/monitoring pages */
+.admin-nav-secondary {
+    background: #12121f;
+    padding: 8px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.admin-nav-secondary a {
+    color: rgba(255,255,255,0.5);
+    text-decoration: none;
+    font-size: 13px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    transition: background 0.2s, color 0.2s;
+}
+.admin-nav-secondary a:hover, .admin-nav-secondary a.active {
+    background: rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.85);
+}
+
 /* Container */
 .container {
     max-width: 800px;

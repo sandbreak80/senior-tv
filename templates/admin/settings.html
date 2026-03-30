@@ -52,23 +52,11 @@
     </div>
 
     <div class="card">
-        <h2>🚪 Smart Home (Frigate)</h2>
+        <h2>🚪 Front Door Camera</h2>
         <div class="form-group">
-            <label for="frigate_url">Frigate URL</label>
-            <input type="text" id="frigate_url" name="frigate_url" value="{{ settings.frigate_url }}">
-        </div>
-        <div class="form-group">
-            <label for="frigate_user">Frigate Username</label>
-            <input type="text" id="frigate_user" name="frigate_user" value="{{ settings.frigate_user }}">
-        </div>
-        <div class="form-group">
-            <label for="frigate_pass">Frigate Password</label>
-            <input type="text" id="frigate_pass" name="frigate_pass" value="{{ settings.frigate_pass }}">
-        </div>
-        <div class="form-group">
-            <label for="frigate_cameras">Alert Cameras (comma-separated)</label>
-            <input type="text" id="frigate_cameras" name="frigate_cameras" value="{{ settings.frigate_cameras }}">
-            <div class="hint">Camera names to monitor for person detection. e.g. "front_door,back_patio"</div>
+            <label for="ip_camera_snapshot_url">Camera Snapshot URL</label>
+            <input type="text" id="ip_camera_snapshot_url" name="ip_camera_snapshot_url" value="{{ settings.ip_camera_snapshot_url }}" placeholder="http://192.168.1.100/snap.jpg">
+            <div class="hint">HTTP URL that returns a JPEG snapshot from your IP camera. Person detection runs automatically every 5 seconds. Works with Amcrest, Reolink, Hikvision, and most ONVIF cameras. Leave blank if no camera.</div>
         </div>
     </div>
 
