@@ -45,4 +45,3 @@ data/
 # Claude Code local state
 .claude/
 .pre_test_backup
-deployment/
