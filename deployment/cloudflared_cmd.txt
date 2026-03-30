@@ -1,0 +1,1 @@
+ExecStart=/usr/bin/cloudflared --no-autoupdate tunnel run --token eyJhIjoiMjA1MjAyZjZjZjc3OGM1NWRkNTJmM2ZkMjIzYjU5MjAiLCJ0IjoiMTAxYjdkMGQtMTE4Yi00OTg5LWFmNzktMTZmNTMxMzc0Y2RiIiwicyI6Ik5URmxZbVE0TldRdE5XRmxaaTAwWWpNMExUa3daVEl0TlRVeU1UWmpabVUwTUdOaiJ9
