@@ -336,6 +336,11 @@ window.quickNav = function(url) {
                         showShowAlert(data);
                     } else if (data.type === "family_message") {
                         showFamilyMessage(data);
+                    } else if (data.type === "message_deleted") {
+                        // Admin deleted a message — dismiss alert if it's for this message
+                        if (reminderActive && currentReminderId === "__family_msg_" + data.msg_id) {
+                            dismissReminder();
+                        }
                     } else if (data.type === "auto_play") {
                         // Only auto-play if someone is watching (skip if room empty)
                         if (data.url && !window._roomEmpty) {

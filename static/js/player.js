@@ -16,6 +16,15 @@
 
     if (!video) return;
 
+    // --- Enable subtitles by default ---
+    // The <track default> attribute should do this, but Chrome sometimes
+    // needs explicit activation. Enable the first available text track.
+    video.addEventListener("loadedmetadata", function() {
+        if (video.textTracks && video.textTracks.length > 0) {
+            video.textTracks[0].mode = "showing";
+        }
+    }, { once: true });
+
     // --- Audio detection & HLS fallback ---
     // Static streams may have EAC3/DTS audio Chrome can't decode.
     // Detect silent playback and switch to HLS transcode (AAC audio).

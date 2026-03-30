@@ -252,8 +252,44 @@ class JellyfinAPI:
         return url
 
     def get_subtitle_url(self, item_id):
-        """Get proxied subtitle URL."""
-        return f"/api/jellyfin-stream/{item_id}/Subtitles/0/0/Stream.vtt"
+        """Get proxied subtitle URL for English subtitles.
+        Returns None if no English subtitle track exists.
+        Prefers external SRT (from Bazarr) > embedded, and HI > non-HI."""
+        try:
+            resp = _session.get(
+                f"{self.base_url}/Items/{item_id}",
+                params={"api_key": self.api_key, "Fields": "MediaStreams"},
+                timeout=10,
+            )
+            if not resp.ok:
+                return None
+            streams = resp.json().get("MediaStreams", [])
+            best = None
+            best_score = -1
+            for s in streams:
+                if s.get("Type") != "Subtitle":
+                    continue
+                lang = (s.get("Language") or "").lower()
+                if lang not in ("eng", "en", "english", ""):
+                    continue
+                # Score: prefer external (Bazarr .srt), then HI tracks
+                score = 0
+                if s.get("IsExternal"):
+                    score += 10  # External subs (Bazarr) are most reliable
+                title = (s.get("Title") or s.get("DisplayTitle") or "").lower()
+                if "hi" in title or "hearing" in title or "sdh" in title:
+                    score += 5  # HI/SDH tracks include [sounds] descriptions
+                if s.get("IsDefault"):
+                    score += 2
+                if score > best_score:
+                    best_score = score
+                    best = s
+            if best is None:
+                return None
+            idx = best.get("Index", 0)
+            return f"/api/jellyfin-stream/{item_id}/Subtitles/{idx}/0/Stream.vtt"
+        except Exception:
+            return None
 
     def get_transcode_url(self, item_id):
         """Get a proxied HLS transcode URL as fallback."""

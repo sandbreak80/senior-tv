@@ -21,11 +21,12 @@ bash fix_audio.sh 2>/dev/null
 CEC_PID=0
 SERVER_PID=0
 CHROME_PID=0
+VOLMON_PID=""
 RUNNING=true
 
 cleanup() {
     RUNNING=false
-    kill $CEC_PID $SERVER_PID $CHROME_PID 2>/dev/null
+    kill $CEC_PID $SERVER_PID $CHROME_PID ${VOLMON_PID:-} 2>/dev/null
     wait 2>/dev/null
 }
 trap cleanup EXIT INT TERM
@@ -109,5 +110,11 @@ while $RUNNING; do
     # Check CEC bridge (non-critical)
     if ! kill -0 $CEC_PID 2>/dev/null; then
         start_cec
+    fi
+
+    # Check volume monitor (non-critical)
+    if [ -z "$VOLMON_PID" ] || ! kill -0 $VOLMON_PID 2>/dev/null; then
+        python3 volume_monitor.py >> /tmp/senior_tv_volume.log 2>&1 &
+        VOLMON_PID=$!
     fi
 done

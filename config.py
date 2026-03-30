@@ -29,4 +29,7 @@ DEFAULTS = {
     "immich_api_key": "",
     "admin_password": "family2026",
     "tts_enabled": "1",
+    "audio_processing": "0",
+    "voice_boost": "mild",
+    "audio_target": "-14",
 }

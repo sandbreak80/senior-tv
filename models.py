@@ -130,6 +130,15 @@ def init_db():
             button_description TEXT,
             logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+
+
+        CREATE TABLE IF NOT EXISTS volume_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            rms REAL NOT NULL,
+            db_level REAL NOT NULL,
+            sonos_volume REAL,
+            logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
     """)
     db.commit()
     db.close()
@@ -374,6 +383,9 @@ def prune_old_logs(activity_days=30, remote_days=7):
         db.execute(
             "DELETE FROM remote_logs WHERE logged_at < datetime('now', ?)",
             (f"-{remote_days} days",),
+        )
+        db.execute(
+            "DELETE FROM volume_logs WHERE logged_at < datetime('now', '-30 days')",
         )
         db.execute("VACUUM")
         db.commit()

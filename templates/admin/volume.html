@@ -1,0 +1,231 @@
+{% extends "admin/base.html" %}
+{% block title %}Room Volume{% endblock %}
+{% block content %}
+<h1 style="margin: 20px 0;">Room Volume</h1>
+
+<div class="card">
+    <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+        <button onclick="loadData(1)" class="btn" id="btn-1">1h</button>
+        <button onclick="loadData(6)" class="btn" id="btn-6">6h</button>
+        <button onclick="loadData(24)" class="btn btn-primary" id="btn-24">24h</button>
+        <button onclick="loadData(72)" class="btn" id="btn-72">3d</button>
+        <button onclick="loadData(168)" class="btn" id="btn-168">7d</button>
+        <label style="margin-left:auto;display:flex;align-items:center;gap:6px;">
+            <input type="checkbox" id="auto-refresh" checked> Auto-refresh (30s)
+        </label>
+    </div>
+
+    <!-- Rolling Averages Chart -->
+    <h3 style="margin:0 0 8px;">Rolling Averages</h3>
+    <div style="position:relative;height:300px;">
+        <canvas id="avg-chart"></canvas>
+    </div>
+
+    <!-- Raw + Sonos Chart -->
+    <h3 style="margin:20px 0 8px;">Raw Readings + Sonos</h3>
+    <div style="position:relative;height:250px;">
+        <canvas id="raw-chart"></canvas>
+    </div>
+
+    <!-- Spikes Chart -->
+    <h3 style="margin:20px 0 8px;">Volume Spikes</h3>
+    <div style="position:relative;height:200px;">
+        <canvas id="spike-chart"></canvas>
+    </div>
+</div>
+
+<!-- Current + Summary -->
+<div style="display:flex;gap:16px;margin-top:16px;flex-wrap:wrap;">
+    <div class="card" style="flex:1;min-width:150px;">
+        <h2>Room (mic)</h2>
+        <div id="current-room" style="font-size:44px;font-weight:700;font-variant-numeric:tabular-nums;">--</div>
+        <div style="color:#888;">dB (latest)</div>
+    </div>
+    <div class="card" style="flex:1;min-width:150px;">
+        <h2>Sonos</h2>
+        <div id="current-sonos" style="font-size:44px;font-weight:700;font-variant-numeric:tabular-nums;">--</div>
+        <div style="color:#888;">% volume</div>
+    </div>
+    <div class="card" style="flex:1;min-width:150px;">
+        <h2>1m Avg</h2>
+        <div id="current-1m" style="font-size:44px;font-weight:700;font-variant-numeric:tabular-nums;">--</div>
+        <div style="color:#888;">dB</div>
+    </div>
+    <div class="card" style="flex:1;min-width:150px;">
+        <h2>5m Avg</h2>
+        <div id="current-5m" style="font-size:44px;font-weight:700;font-variant-numeric:tabular-nums;">--</div>
+        <div style="color:#888;">dB</div>
+    </div>
+    <div class="card" style="flex:1;min-width:150px;">
+        <h2>10m Avg</h2>
+        <div id="current-10m" style="font-size:44px;font-weight:700;font-variant-numeric:tabular-nums;">--</div>
+        <div style="color:#888;">dB</div>
+    </div>
+</div>
+
+<!-- Statistics Table -->
+<div class="card" style="margin-top:16px;">
+    <h2>Statistics</h2>
+    <table style="width:100%;border-collapse:collapse;" id="stats-table">
+        <thead><tr style="border-bottom:1px solid #444;">
+            <th style="text-align:left;padding:8px;">Metric</th>
+            <th style="text-align:right;padding:8px;">Value</th>
+        </tr></thead>
+        <tbody id="stats-body"></tbody>
+    </table>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<script>
+var commonScaleX = { type: 'time', time: { tooltipFormat: 'MMM d, h:mm a' }, grid: { color: '#333' }, ticks: { color: '#aaa' } };
+var commonOpts = { responsive: true, maintainAspectRatio: false, interaction: { intersect: false, mode: 'index' } };
+var lineDefaults = { pointRadius: 0, tension: 0.3, borderWidth: 2 };
+
+// Rolling Averages chart
+var avgChart = new Chart(document.getElementById('avg-chart').getContext('2d'), {
+    type: 'line',
+    data: { datasets: [
+        Object.assign({ label: '1min avg', data: [], borderColor: '#ff6b6b', backgroundColor: 'rgba(255,107,107,0.05)', fill: false }, lineDefaults),
+        Object.assign({ label: '5min avg', data: [], borderColor: '#ffd93d', backgroundColor: 'rgba(255,217,61,0.05)', fill: false, borderWidth: 2.5 }, lineDefaults),
+        Object.assign({ label: '10min avg', data: [], borderColor: '#6bcb77', backgroundColor: 'rgba(107,203,119,0.1)', fill: true, borderWidth: 3 }, lineDefaults),
+    ]},
+    options: Object.assign({}, commonOpts, {
+        scales: {
+            x: commonScaleX,
+            y: { title: { display: true, text: 'dB', color: '#aaa' }, grid: { color: '#333' }, ticks: { color: '#aaa' }, suggestedMin: -50, suggestedMax: 0 }
+        },
+        plugins: { legend: { labels: { color: '#ccc' } } },
+    })
+});
+
+// Raw + Sonos chart
+var rawChart = new Chart(document.getElementById('raw-chart').getContext('2d'), {
+    type: 'line',
+    data: { datasets: [
+        Object.assign({ label: 'Raw dB', data: [], borderColor: '#e94560', backgroundColor: 'rgba(233,69,96,0.08)', fill: true, borderWidth: 1, yAxisID: 'y' }, lineDefaults),
+        Object.assign({ label: 'Sonos %', data: [], borderColor: '#4ecdc4', fill: false, borderDash: [6, 3], yAxisID: 'y1' }, lineDefaults),
+    ]},
+    options: Object.assign({}, commonOpts, {
+        scales: {
+            x: commonScaleX,
+            y: { title: { display: true, text: 'Room dB', color: '#e94560' }, grid: { color: '#333' }, ticks: { color: '#e94560' }, suggestedMin: -60, suggestedMax: 0, position: 'left' },
+            y1: { title: { display: true, text: 'Sonos %', color: '#4ecdc4' }, grid: { drawOnChartArea: false }, ticks: { color: '#4ecdc4' }, min: 0, max: 100, position: 'right' }
+        },
+        plugins: { legend: { labels: { color: '#ccc' } } },
+    })
+});
+
+// Spikes chart
+var spikeChart = new Chart(document.getElementById('spike-chart').getContext('2d'), {
+    type: 'bar',
+    data: { datasets: [{
+        label: 'Volume Spikes (dB)',
+        data: [],
+        backgroundColor: 'rgba(255,82,82,0.7)',
+        borderColor: '#ff5252',
+        borderWidth: 1,
+    }]},
+    options: Object.assign({}, commonOpts, {
+        scales: {
+            x: Object.assign({}, commonScaleX, { offset: true }),
+            y: { title: { display: true, text: 'dB', color: '#aaa' }, grid: { color: '#333' }, ticks: { color: '#aaa' }, suggestedMin: -30, suggestedMax: 0 }
+        },
+        plugins: {
+            legend: { display: false },
+            tooltip: {
+                callbacks: {
+                    afterLabel: function(ctx) {
+                        var sp = ctx.raw._spike;
+                        return sp ? 'Sonos: ' + (sp.sonos_volume != null ? Math.round(sp.sonos_volume*100)+'%' : '?') + '\nThreshold: ' + sp.threshold + ' dB' : '';
+                    }
+                }
+            }
+        }
+    })
+});
+
+var currentHours = 24;
+var refreshTimer;
+
+function toDate(s) { return new Date(s + 'Z'); }
+
+function loadData(hours) {
+    currentHours = hours || currentHours;
+    document.querySelectorAll('.btn').forEach(function(b) { b.classList.remove('btn-primary'); });
+    var btn = document.getElementById('btn-' + currentHours);
+    if (btn) btn.classList.add('btn-primary');
+
+    // Fetch both endpoints in parallel
+    Promise.all([
+        fetch('/api/volume-history?hours=' + currentHours).then(function(r) { return r.json(); }),
+        fetch('/api/volume-stats?hours=' + currentHours).then(function(r) { return r.json(); }),
+    ]).then(function(results) {
+        var raw = results[0];
+        var stats = results[1];
+
+        // Raw chart
+        rawChart.data.datasets[0].data = raw.map(function(r) { return { x: toDate(r.logged_at), y: r.db_level }; });
+        rawChart.data.datasets[1].data = raw.filter(function(r) { return r.sonos_volume != null; }).map(function(r) { return { x: toDate(r.logged_at), y: Math.round(r.sonos_volume * 100) }; });
+        rawChart.update('none');
+
+        // Averages chart
+        if (stats.avg_1m) {
+            avgChart.data.datasets[0].data = stats.avg_1m.map(function(r) { return { x: toDate(r.logged_at), y: r.db_level }; });
+            avgChart.data.datasets[1].data = stats.avg_5m.map(function(r) { return { x: toDate(r.logged_at), y: r.db_level }; });
+            avgChart.data.datasets[2].data = stats.avg_10m.map(function(r) { return { x: toDate(r.logged_at), y: r.db_level }; });
+        }
+        avgChart.update('none');
+
+        // Spikes chart
+        spikeChart.data.datasets[0].data = (stats.spikes || []).map(function(sp) {
+            return { x: toDate(sp.logged_at), y: sp.db_level, _spike: sp };
+        });
+        spikeChart.update('none');
+
+        // Current values
+        if (raw.length) {
+            var last = raw[raw.length - 1];
+            document.getElementById('current-room').textContent = last.db_level + ' dB';
+            document.getElementById('current-sonos').textContent = last.sonos_volume != null ? Math.round(last.sonos_volume * 100) + '%' : '--';
+        }
+        if (stats.avg_1m && stats.avg_1m.length) {
+            document.getElementById('current-1m').textContent = stats.avg_1m[stats.avg_1m.length - 1].db_level + ' dB';
+        }
+        if (stats.avg_5m && stats.avg_5m.length) {
+            document.getElementById('current-5m').textContent = stats.avg_5m[stats.avg_5m.length - 1].db_level + ' dB';
+        }
+        if (stats.avg_10m && stats.avg_10m.length) {
+            document.getElementById('current-10m').textContent = stats.avg_10m[stats.avg_10m.length - 1].db_level + ' dB';
+        }
+
+        // Summary stats table
+        var s = stats.summary || {};
+        var rows = [
+            ['Readings', s.count || 0],
+            ['Mean', (s.mean || '--') + ' dB'],
+            ['Median', (s.median || '--') + ' dB'],
+            ['Std Dev', (s.stdev || '--') + ' dB'],
+            ['Min', (s.min || '--') + ' dB'],
+            ['Max', (s.max || '--') + ' dB'],
+            ['Spikes (>2σ)', s.spike_count || 0],
+            ['Sonos Avg', s.sonos_mean != null ? s.sonos_mean + '%' : '--'],
+        ];
+        document.getElementById('stats-body').innerHTML = rows.map(function(r) {
+            return '<tr style="border-bottom:1px solid #333;"><td style="padding:8px;">' + r[0] + '</td><td style="text-align:right;padding:8px;font-weight:600;">' + r[1] + '</td></tr>';
+        }).join('');
+    });
+}
+
+function startAutoRefresh() {
+    clearInterval(refreshTimer);
+    if (document.getElementById('auto-refresh').checked) {
+        refreshTimer = setInterval(function() { loadData(); }, 30000);
+    }
+}
+
+document.getElementById('auto-refresh').addEventListener('change', startAutoRefresh);
+loadData(24);
+startAutoRefresh();
+</script>
+{% endblock %}

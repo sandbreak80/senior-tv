@@ -1679,6 +1679,11 @@ def admin_message_send():
 @app.route("/admin/messages/<int:msg_id>/delete", methods=["POST"])
 def admin_message_delete(msg_id):
     models.delete_message(msg_id)
+    # Notify TV to dismiss any active alert for this message
+    try:
+        reminder_queue.put_nowait({"type": "message_deleted", "msg_id": msg_id})
+    except Exception:
+        pass
     return redirect("/admin/messages")
 
 
@@ -1760,7 +1765,7 @@ def admin_settings():
                      "immich_url", "immich_api_key", "immich_album_id",
                      "admin_password",
                      "classical_music_enabled", "classical_music_hour",
-                     "tts_enabled"]:
+                     "tts_enabled", "audio_processing", "voice_boost", "audio_target"]:
             val = request.form.get(key)
             if val is not None:
                 models.set_setting(key, val)
@@ -1771,7 +1776,7 @@ def admin_settings():
     # Also get non-default settings
     for key in ["ha_tv_entity", "immich_album_id", "admin_password",
                  "classical_music_enabled", "classical_music_hour",
-                 "tts_enabled"]:
+                 "tts_enabled", "audio_processing", "voice_boost", "audio_target"]:
         settings[key] = models.get_setting(key) or ""
 
     # Immich status and albums
@@ -2204,7 +2209,103 @@ def api_tv_settings():
     """Settings needed by the TV client (fetched once on page load)."""
     return jsonify({
         "tts_enabled": get_setting_or_default("tts_enabled") != "0",
+        "audio_processing": get_setting_or_default("audio_processing") == "1",
+        "voice_boost": get_setting_or_default("voice_boost") or "mild",
+        "audio_target": int(get_setting_or_default("audio_target") or "-14"),
     })
+
+
+@app.route("/api/volume-history")
+def api_volume_history():
+    """Room volume readings from webcam mic."""
+    hours = int(request.args.get("hours", 24))
+    with models.get_db_safe() as db:
+        rows = db.execute(
+            """SELECT rms, db_level, sonos_volume, logged_at FROM volume_logs
+               WHERE logged_at >= datetime('now', ?)
+               ORDER BY logged_at""",
+            (f"-{hours} hours",),
+        ).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/volume-stats")
+def api_volume_stats():
+    """Computed volume statistics: rolling averages and spike detection."""
+    hours = int(request.args.get("hours", 24))
+    with models.get_db_safe() as db:
+        rows = db.execute(
+            """SELECT db_level, sonos_volume, logged_at FROM volume_logs
+               WHERE logged_at >= datetime('now', ?)
+               ORDER BY logged_at""",
+            (f"-{hours} hours",),
+        ).fetchall()
+
+    if not rows:
+        return jsonify({"averages": {}, "spikes": [], "summary": {}})
+
+    data = [dict(r) for r in rows]
+    dbs = [r["db_level"] for r in data]
+    sonos = [r["sonos_volume"] for r in data if r["sonos_volume"] is not None]
+
+    # Rolling averages (1min=6 samples, 5min=30, 10min=60 at 10s intervals)
+    def rolling_avg(values, timestamps, window_size):
+        result = []
+        for i in range(len(values)):
+            start = max(0, i - window_size + 1)
+            window = values[start:i + 1]
+            result.append({
+                "logged_at": timestamps[i],
+                "db_level": round(sum(window) / len(window), 1),
+            })
+        return result
+
+    timestamps = [r["logged_at"] for r in data]
+    avg_1m = rolling_avg(dbs, timestamps, 6)
+    avg_5m = rolling_avg(dbs, timestamps, 30)
+    avg_10m = rolling_avg(dbs, timestamps, 60)
+
+    # Spike detection: readings > 2 std devs above the rolling 5min average
+    import statistics
+    spikes = []
+    if len(dbs) > 30:
+        mean = statistics.mean(dbs)
+        stdev = statistics.stdev(dbs) if len(dbs) > 1 else 0
+        threshold = mean + (2 * stdev)
+        for i, r in enumerate(data):
+            if r["db_level"] > threshold:
+                spikes.append({
+                    "logged_at": r["logged_at"],
+                    "db_level": r["db_level"],
+                    "sonos_volume": r["sonos_volume"],
+                    "threshold": round(threshold, 1),
+                })
+
+    # Summary stats
+    summary = {
+        "count": len(dbs),
+        "mean": round(statistics.mean(dbs), 1),
+        "median": round(statistics.median(dbs), 1),
+        "stdev": round(statistics.stdev(dbs), 1) if len(dbs) > 1 else 0,
+        "min": round(min(dbs), 1),
+        "max": round(max(dbs), 1),
+        "spike_count": len(spikes),
+        "sonos_mean": round(statistics.mean(sonos) * 100) if sonos else None,
+    }
+
+    return jsonify({
+        "avg_1m": avg_1m,
+        "avg_5m": avg_5m,
+        "avg_10m": avg_10m,
+        "spikes": spikes,
+        "summary": summary,
+    })
+
+
+@app.route("/admin/volume")
+def admin_volume():
+    """Room volume trend chart."""
+    return render_template("admin/volume.html")
 
 
 @app.route("/api/health")

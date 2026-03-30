@@ -145,7 +145,37 @@
     </div>
 
     <div class="card">
-        <h2>🔊 Spoken Reminders (Text-to-Speech)</h2>
+        <h2>🔊 Audio</h2>
+        <div class="form-group">
+            <label for="audio_processing">Audio Processing <span style="background:#e67e22;color:#fff;padding:2px 8px;border-radius:4px;font-size:0.75em;margin-left:8px">BETA</span></label>
+            <select id="audio_processing" name="audio_processing">
+                <option value="0" {% if settings.audio_processing != '1' %}selected{% endif %}>Disabled — no audio processing (recommended)</option>
+                <option value="1" {% if settings.audio_processing == '1' %}selected{% endif %}>Enabled — volume normalization + voice boost</option>
+            </select>
+            <div class="hint">Enables browser-based audio processing (EQ, compression, volume normalization). <strong>Beta:</strong> may cause audio/video sync issues (lips not matching words) due to Web Audio API latency. Disable if you notice desync. A system-level fix via PipeWire is planned.</div>
+        </div>
+        <div class="form-group">
+            <label for="voice_boost">Voice Boost (Dialogue Clarity)</label>
+            <select id="voice_boost" name="voice_boost">
+                <option value="off" {% if settings.voice_boost == 'off' %}selected{% endif %}>Off — no EQ adjustment</option>
+                <option value="mild" {% if settings.voice_boost != 'off' and settings.voice_boost != 'strong' %}selected{% endif %}>Mild — gentle dialogue boost</option>
+                <option value="strong" {% if settings.voice_boost == 'strong' %}selected{% endif %}>Strong — maximum dialogue clarity</option>
+            </select>
+            <div class="hint">Boosts speech frequencies and reduces background rumble. Only applies when Audio Processing is enabled.</div>
+        </div>
+        <div class="form-group">
+            <label for="audio_target">Target Volume Level</label>
+            <select id="audio_target" name="audio_target">
+                <option value="-20" {% if settings.audio_target == '-20' %}selected{% endif %}>Quiet (-20 LUFS) — nighttime, sleeping nearby</option>
+                <option value="-18" {% if settings.audio_target == '-18' %}selected{% endif %}>Low (-18 LUFS) — background viewing</option>
+                <option value="-16" {% if settings.audio_target == '-16' %}selected{% endif %}>Medium-Low (-16 LUFS)</option>
+                <option value="-14" {% if settings.audio_target != '-20' and settings.audio_target != '-18' and settings.audio_target != '-16' and settings.audio_target != '-12' and settings.audio_target != '-10' and settings.audio_target != '-8' %}selected{% endif %}>Medium (-14 LUFS) — broadcast standard, recommended</option>
+                <option value="-12" {% if settings.audio_target == '-12' %}selected{% endif %}>Medium-Loud (-12 LUFS)</option>
+                <option value="-10" {% if settings.audio_target == '-10' %}selected{% endif %}>Loud (-10 LUFS) — hearing impaired</option>
+                <option value="-8" {% if settings.audio_target == '-8' %}selected{% endif %}>Very Loud (-8 LUFS) — significant hearing loss</option>
+            </select>
+            <div class="hint">Target loudness for all content. Only applies when Audio Processing is enabled.</div>
+        </div>
         <div class="form-group">
             <label for="tts_enabled">Speak Reminders Aloud</label>
             <select id="tts_enabled" name="tts_enabled">

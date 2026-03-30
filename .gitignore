@@ -27,3 +27,16 @@ screenshots/
 # OS
 .DS_Store
 Thumbs.db
+
+# Database backups
+*.db.backup.*
+
+# Camera snapshots
+static/camera_snaps/
+
+# Flirc config (hardware-specific)
+*.fcfg
+*.fcfg.fcfg
+
+# Claude Code local state
+.claude/

@@ -1,11 +1,12 @@
-"""Home Assistant + Frigate integration for Senior TV.
+"""Home Assistant integration + local person detection for Senior TV.
 
-Polls Frigate for person detection events (doorbell alerts).
-TV room presence tracking via webcam.
+TV room presence tracking via USB webcam + MobileNet SSD (~100MB RAM).
+Falls back to HA occupancy sensors if webcam/model unavailable.
 Connects to Home Assistant for entity states.
 Pushes notifications via the SSE reminder queue.
 """
 
+import os
 import sys
 import time
 import threading
@@ -63,35 +64,52 @@ def _update_presence(person_detected):
 def start_presence_monitor(alert_queue=None):
     """Start background thread that tracks TV room presence.
 
-    Uses multiple signals to avoid false 'empty' readings when seniors
-    sit still (Frigate loses them). Only declares room empty when:
-    - No person detected AND no speech/sound in the room for several polls.
+    Uses local MobileNet SSD person detection on the USB webcam (~100MB RAM,
+    ~30ms per frame). Falls back to HA occupancy sensor if webcam unavailable.
+    Only declares room empty after sustained absence (6 consecutive empty polls).
     """
     def _poll():
         last_occupied = False
         empty_streak = 0  # How many consecutive polls show empty
         EMPTY_THRESHOLD = 6  # Need 6 consecutive empty polls (60s) before declaring empty
 
+        # Load person detection model once
+        _detector = None
+        try:
+            from person_detector import detect_person, capture_frame
+            import cv2
+            import os
+            model_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
+            prototxt = os.path.join(model_dir, "MobileNetSSD_deploy.prototxt")
+            caffemodel = os.path.join(model_dir, "MobileNetSSD_deploy.caffemodel")
+            if os.path.exists(prototxt) and os.path.exists(caffemodel):
+                _detector = cv2.dnn.readNetFromCaffe(prototxt, caffemodel)
+                print("Presence monitor started (local person detection)", file=sys.stderr)
+            else:
+                print("Presence monitor: model files missing, using HA fallback", file=sys.stderr)
+        except Exception as e:
+            print(f"Presence monitor: can't load detector ({e}), using HA fallback", file=sys.stderr)
+
+        import tempfile
+        frame_path = os.path.join(tempfile.gettempdir(), "presence_frame.jpg")
+
         while True:
             try:
                 from models import get_setting
 
-                # Check local USB camera (tv_room) via local Frigate
                 person_detected = False
-                try:
-                    resp = requests.get(
-                        "http://localhost:5001/api/events",
-                        params={"cameras": "tv_room", "label": "person",
-                                "limit": 1, "after": time.time() - 60},
-                        timeout=5,
-                    )
-                    if resp.ok:
-                        person_detected = len(resp.json()) > 0
-                except Exception as e:
-                    print(f"Presence: local Frigate check failed: {e}", file=sys.stderr)
 
-                # Fallback: also check network Frigate den camera via HA
-                if not person_detected:
+                # Primary: local webcam + MobileNet SSD person detection
+                if _detector is not None:
+                    try:
+                        from person_detector import capture_frame, detect_person
+                        if capture_frame("/dev/video0", frame_path):
+                            person_detected, conf, _ = detect_person(_detector, frame_path)
+                    except Exception as e:
+                        print(f"Presence: local detection failed: {e}", file=sys.stderr)
+
+                # Fallback: HA occupancy sensor
+                if not person_detected and _detector is None:
                     try:
                         ha_url = (get_setting("ha_url") or "").rstrip("/")
                         ha_token = get_setting("ha_token") or ""

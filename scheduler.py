@@ -267,13 +267,34 @@ def trigger_classical_music():
     if datetime.now().hour != target_hour:
         return
 
-    # Get a random classical video
-    channel_id = get_setting("classical_music_channel", "UCJ5v_MCY6GNUBTO8-D3XoAg")
+    # Get a random classical video (must be >= 15 minutes)
+    channel_id = get_setting("classical_music_channel", "UClScm1QV2xecmZrAuADnP9g")
     try:
         feed = feedparser.parse(f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}")
         if feed.entries:
-            entry = _random.choice(feed.entries[:15])
-            vid_id = entry.get("yt_videoid", "")
+            candidates = list(feed.entries[:15])
+            _random.shuffle(candidates)
+            vid_id = ""
+            for entry in candidates:
+                vid_id = entry.get("yt_videoid", "")
+                if not vid_id:
+                    continue
+                # Check duration — skip short videos
+                try:
+                    import urllib.request, re
+                    req = urllib.request.Request(
+                        f"https://www.youtube.com/watch?v={vid_id}",
+                        headers={"User-Agent": "Mozilla/5.0"},
+                    )
+                    html = urllib.request.urlopen(req, timeout=10).read().decode("utf-8", errors="ignore")
+                    m = re.search(r'"lengthSeconds":"(\d+)"', html)
+                    if m and int(m.group(1)) < 900:  # 15 minutes
+                        print(f"Scheduler: skipping short video {vid_id} ({int(m.group(1))}s)", file=sys.stderr)
+                        vid_id = ""
+                        continue
+                except Exception:
+                    pass  # If we can't check duration, allow it
+                break
             if vid_id:
                 event_data = {
                     "type": "auto_play",
