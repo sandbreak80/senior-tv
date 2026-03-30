@@ -38,5 +38,9 @@ static/camera_snaps/
 *.fcfg
 *.fcfg.fcfg
 
+# Generated at install time (deployment-specific)
+docker-compose.yml
+data/
+
 # Claude Code local state
 .claude/

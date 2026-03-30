@@ -263,21 +263,9 @@ ok "User $INSTALL_USER added to video, audio, docker groups"
 # -----------------------------------------------------------
 step 8 "Configuring HDMI audio..."
 
-cat > "$APP_DIR/fix_audio.sh" << 'AUDIO'
-#!/bin/bash
-# Route audio to HDMI output and set volume
-HDMI_SINK=$(LANG=C wpctl status 2>/dev/null | grep -i "hdmi\|HDMI" | grep -oP '^\s*\K\d+' | head -1)
-if [ -n "$HDMI_SINK" ]; then
-    wpctl set-default "$HDMI_SINK" 2>/dev/null
-    wpctl set-volume "$HDMI_SINK" 1.0 2>/dev/null
-    wpctl set-mute "$HDMI_SINK" 0 2>/dev/null
-    echo "AUDIO_OK: HDMI sink $HDMI_SINK set as default, volume 100%, unmuted"
-else
-    echo "AUDIO_WARN: No HDMI sink found"
-fi
-AUDIO
 chmod +x "$APP_DIR/fix_audio.sh"
-ok "Audio routing script configured"
+# Test audio routing
+sudo -u "$INSTALL_USER" bash "$APP_DIR/fix_audio.sh" 2>/dev/null && ok "HDMI audio configured" || warn "HDMI audio not detected (will retry on boot)"
 
 # -----------------------------------------------------------
 # Step 9: Systemd services
@@ -340,7 +328,19 @@ EOF
 systemctl daemon-reload
 systemctl enable senior-tv.service
 systemctl enable senior-tv-watchdog.timer
-ok "Systemd services installed and enabled"
+
+# Cron jobs (screenshots + health check agent)
+CRON_TMP=$(mktemp)
+sudo -u "$INSTALL_USER" crontab -l 2>/dev/null | grep -v "senior_tv" > "$CRON_TMP" || true
+echo "*/15 * * * * $APP_DIR/take_screenshot.sh" >> "$CRON_TMP"
+echo "7 * * * * $APP_DIR/health_check_agent.sh" >> "$CRON_TMP"
+sudo -u "$INSTALL_USER" crontab "$CRON_TMP"
+rm -f "$CRON_TMP"
+
+# Screenshots directory
+sudo -u "$INSTALL_USER" mkdir -p "$APP_DIR/screenshots"
+
+ok "Systemd services, cron jobs installed and enabled"
 
 # -----------------------------------------------------------
 # Step 10: Tailscale
