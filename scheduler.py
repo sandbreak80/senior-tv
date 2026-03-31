@@ -4,7 +4,7 @@ import queue
 import threading
 from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
-from models import get_pills, log_pill_acknowledgment
+from models import get_pills, log_pill_acknowledgment, get_setting
 
 # Global event queue for SSE — bounded to prevent memory growth
 reminder_queue = queue.Queue(maxsize=50)
@@ -64,10 +64,22 @@ def trigger_reminder(pill, scheduled_time):
             "triggered_at": datetime.now().isoformat(),
         }
 
-    # Blocking reminders: shower time and stretch breaks — 15 minutes, can't dismiss
+    # Blocking reminders: shower time and stretch breaks — can't dismiss
     name_lower = pill["name"].lower()
     is_blocking = "shower" in name_lower or "stretch" in name_lower
     is_shower = "shower" in name_lower
+    is_stretch = "stretch" in name_lower
+
+    # Configurable block duration for stretch breaks
+    if is_stretch:
+        try:
+            block_minutes = int(get_setting("stretch_duration", "15") or "15")
+        except (TypeError, ValueError):
+            block_minutes = 15
+    elif is_blocking:
+        block_minutes = 15
+    else:
+        block_minutes = 0
 
     event_data = {
         "type": "pill_reminder",
@@ -79,8 +91,8 @@ def trigger_reminder(pill, scheduled_time):
         "reminder_type": pill["reminder_type"],
         "reminder_media": pill["reminder_media"],
         "reminder_message": pill["reminder_message"] or f"Time to take your {pill['name']}!",
-        "block_minutes": 15 if is_blocking else 0,
-        "icon": "🚿" if is_shower else ("🧘" if "stretch" in name_lower else "💊"),
+        "block_minutes": block_minutes,
+        "icon": "🚿" if is_shower else ("🧘" if is_stretch else "💊"),
     }
     try:
         reminder_queue.put_nowait(event_data)
@@ -121,7 +133,9 @@ def acknowledge_reminder(reminder_id):
         reminder = active_reminders.pop(reminder_id, None)
     if reminder:
         if "pill" in reminder and "scheduled_time" in reminder:
-            log_pill_acknowledgment(reminder["pill"]["id"], reminder["scheduled_time"])
+            pill = reminder["pill"]
+            if "id" in pill and reminder["scheduled_time"] != "quick":
+                log_pill_acknowledgment(pill["id"], reminder["scheduled_time"])
         return True
     return False
 
@@ -163,7 +177,15 @@ def get_next_pill_info():
         ampm = "AM" if h_int < 12 else "PM"
         h_12 = h_int % 12 or 12
         display_time = f"{h_12}:{m} {ampm}"
-        return {"name": next_pill, "time": display_time}
+        # Icon based on pill type
+        name_lower = next_pill.lower()
+        if "yoga" in name_lower or "stretch" in name_lower:
+            icon = "🧘"
+        elif "shower" in name_lower:
+            icon = "🚿"
+        else:
+            icon = "💊"
+        return {"name": next_pill, "time": display_time, "icon": icon}
     return None
 
 

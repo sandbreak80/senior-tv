@@ -92,5 +92,118 @@
     </div>
 
     <script src="/static/js/tv.js?v=6"></script>
+    <script>
+    (function() {
+        var libraryId = window.location.pathname.split('/').pop();
+
+        function ajaxLoad(url) {
+            var params = new URL(url, window.location.origin).searchParams;
+            var apiUrl = '/api/plex-library/' + libraryId + '?' + params.toString();
+            fetch(apiUrl).then(function(r) { return r.json(); }).then(function(data) {
+                // Update poster grid
+                var grid = document.getElementById('poster-grid');
+                if (grid) {
+                    if (data.items.length === 0) {
+                        grid.parentElement.innerHTML = '<div class="empty-state">No items found.</div>';
+                    } else {
+                        var html = '';
+                        for (var i = 0; i < data.items.length; i++) {
+                            var item = data.items[i];
+                            var href = item.type === 'series'
+                                ? '/tv/plex/show/' + item.id
+                                : '/tv/plex/play/' + item.id;
+                            html += '<a class="poster-card navigable" href="' + href + '">';
+                            if (item.thumb) {
+                                html += '<img class="poster-img" src="' + item.thumb + '" alt="' + (item.title || '').replace(/"/g, '&quot;') + '" loading="lazy">';
+                            } else {
+                                html += '<div class="poster-img poster-placeholder">\uD83C\uDFAC</div>';
+                            }
+                            html += '<div class="poster-title">' + (item.title || '') + '</div>';
+                            var sub = '';
+                            if (item.year) sub += item.year;
+                            if (item.duration) sub += (sub ? ' \u00b7 ' : '') + item.duration;
+                            if (item.official_rating) sub += (sub ? ' \u00b7 ' : '') + item.official_rating;
+                            if (item.rating) sub += (sub ? ' \u00b7 ' : '') + '\u2605' + parseFloat(item.rating).toFixed(1);
+                            html += '<div class="poster-subtitle">' + sub + '</div>';
+                            html += '</a>';
+                        }
+                        grid.innerHTML = html;
+                    }
+                }
+
+                // Update pagination
+                var pagBar = document.querySelector('.pagination-bar');
+                if (pagBar) {
+                    var pagHtml = '';
+                    var curPage = data.page || 0;
+                    var curParams = new URL(url, window.location.origin).searchParams;
+                    var sort = curParams.get('sort') || 'SortName';
+                    var order = curParams.get('order') || '';
+                    var genre = curParams.get('genre') || '';
+                    if (curPage > 0) {
+                        var prevHref = '/tv/plex/library/' + libraryId + '?page=' + (curPage - 1) + '&sort=' + sort;
+                        if (order) prevHref += '&order=' + order;
+                        if (genre) prevHref += '&genre=' + genre;
+                        pagHtml += '<a class="pagination-btn navigable" href="' + prevHref + '">\u25C0 Previous</a>';
+                    }
+                    if (data.has_more) {
+                        var nextHref = '/tv/plex/library/' + libraryId + '?page=' + (curPage + 1) + '&sort=' + sort;
+                        if (order) nextHref += '&order=' + order;
+                        if (genre) nextHref += '&genre=' + genre;
+                        pagHtml += '<a class="pagination-btn navigable" href="' + nextHref + '">Next \u25B6</a>';
+                    }
+                    pagBar.innerHTML = pagHtml;
+                }
+
+                // Update active states on tabs
+                var activeGenre = params.get('genre') || '';
+                document.querySelectorAll('.category-tab').forEach(function(tab) {
+                    var tabUrl = new URL(tab.href);
+                    var tabGenre = tabUrl.searchParams.get('genre') || '';
+                    tab.classList.toggle('active', tabGenre === activeGenre);
+                });
+                var activeSort = params.get('sort') || 'SortName';
+                document.querySelectorAll('.sort-option').forEach(function(opt) {
+                    var optUrl = new URL(opt.href);
+                    var optSort = optUrl.searchParams.get('sort') || 'SortName';
+                    opt.classList.toggle('active', optSort === activeSort);
+                });
+
+                // Update browser URL
+                history.pushState(null, '', url);
+
+                // Refresh navigation system
+                if (typeof refreshNavItems === 'function') refreshNavItems();
+
+                // Scroll grid back to top
+                var scrollContainer = document.querySelector('.scroll-container');
+                if (scrollContainer) scrollContainer.scrollTop = 0;
+            }).catch(function(err) {
+                // Fallback to full page nav on error
+                window.location.href = url;
+            });
+        }
+
+        function interceptClick(e) {
+            var link = e.target.closest('.category-tab, .sort-option, .pagination-btn');
+            if (!link) return;
+            e.preventDefault();
+            e.stopPropagation();
+            ajaxLoad(link.getAttribute('href'));
+        }
+
+        document.addEventListener('click', interceptClick, true);
+
+        // Register _ajaxHandler on all AJAX-capable elements for tv.js integration
+        document.querySelectorAll('.category-tab, .sort-option, .pagination-btn').forEach(function(el) {
+            el._ajaxHandler = function() { ajaxLoad(el.getAttribute('href')); };
+        });
+
+        // Handle browser back/forward
+        window.addEventListener('popstate', function() {
+            ajaxLoad(window.location.pathname + window.location.search);
+        });
+    })();
+    </script>
 </body>
 </html>

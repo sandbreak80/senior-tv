@@ -182,5 +182,149 @@
             }, true);
         })();
     </script>
+    <script>
+        // AJAX genre switching — avoids full page reload
+        (function() {
+            var genreTabs = document.querySelectorAll('.genre-tab');
+            var trackList = document.querySelector('.content-body.scroll-container');
+
+            function getGenreFromHref(href) {
+                var match = href.match(/[?&]genre=([^&]*)/);
+                return match ? decodeURIComponent(match[1]) : '';
+            }
+
+            function buildTrackHTML(tracks, genre) {
+                if (!tracks || tracks.length === 0) {
+                    var msg = 'No music found';
+                    if (genre) msg += ' for "' + genre + '"';
+                    msg += '.';
+                    return '<div class="empty-state">' + msg + '</div>';
+                }
+                var html = '';
+                for (var i = 0; i < tracks.length; i++) {
+                    var t = tracks[i];
+                    html += '<div class="track-item navigable" data-stream="' + (t.stream_url || '') +
+                        '" data-title="' + (t.title || '').replace(/"/g, '&quot;') +
+                        '" data-artist="' + (t.artist || '').replace(/"/g, '&quot;') +
+                        '" data-thumb="' + (t.thumb || '') +
+                        '" data-id="' + (t.id || '') + '">';
+                    if (t.thumb) {
+                        html += '<img class="track-thumb" src="' + t.thumb + '" alt="" loading="lazy">';
+                    } else {
+                        html += '<div class="track-thumb" style="display:flex;align-items:center;justify-content:center;font-size:28px;">\uD83C\uDFB5</div>';
+                    }
+                    html += '<div><div class="track-title">' + (t.title || '') + '</div>' +
+                        '<div class="track-artist">' + (t.artist || '') + '</div></div>' +
+                        '<div class="track-duration">' + (t.duration || '') + '</div></div>';
+                }
+                return html;
+            }
+
+            function switchGenre(genre, tabEl) {
+                // Update active tab
+                genreTabs.forEach(function(tab) { tab.classList.remove('active'); });
+                tabEl.classList.add('active');
+
+                // Update URL without reload
+                var newUrl = genre ? '/tv/music?genre=' + encodeURIComponent(genre) : '/tv/music';
+                history.pushState({genre: genre}, '', newUrl);
+
+                // Fetch new tracks
+                var apiUrl = '/api/music-tracks' + (genre ? '?genre=' + encodeURIComponent(genre) : '');
+                fetch(apiUrl)
+                    .then(function(resp) { return resp.json(); })
+                    .then(function(data) {
+                        trackList.innerHTML = buildTrackHTML(data.tracks, genre);
+                        // Re-bind track items for the music player
+                        rebindTracks();
+                        // Refresh navigation system
+                        if (typeof refreshNavItems === 'function') refreshNavItems();
+                    })
+                    .catch(function() {
+                        trackList.innerHTML = '<div class="empty-state">Error loading music. Please try again.</div>';
+                        if (typeof refreshNavItems === 'function') refreshNavItems();
+                    });
+            }
+
+            function rebindTracks() {
+                // Update the tracks NodeList used by the player IIFE above
+                // We re-query and re-attach the Enter handler logic
+                var newTracks = document.querySelectorAll('.track-item');
+                var audio = document.getElementById('audio-player');
+                var playerBar = document.getElementById('music-player');
+                var currentIndex = -1;
+
+                function playTrack(index) {
+                    if (index < 0 || index >= newTracks.length) return;
+                    newTracks.forEach(function(t) { t.classList.remove('playing'); });
+                    currentIndex = index;
+                    var track = newTracks[index];
+                    track.classList.add('playing');
+                    audio.src = track.dataset.stream;
+                    audio.play().catch(function(){});
+                    document.getElementById('player-title').textContent = track.dataset.title;
+                    document.getElementById('player-artist').textContent = track.dataset.artist;
+                    var thumb = document.getElementById('player-thumb');
+                    if (track.dataset.thumb) thumb.src = track.dataset.thumb;
+                    playerBar.classList.add('active');
+                    if (window.logActivity) window.logActivity('music_play', track.dataset.title, 'audio');
+                }
+
+                // Replace the ended handler to use new tracks
+                audio.onended = function() {
+                    if (currentIndex < newTracks.length - 1) {
+                        playTrack(currentIndex + 1);
+                    } else {
+                        window.location.reload();
+                    }
+                };
+
+                // Store playTrack globally so the keydown handler can use it
+                window._musicPlayTrack = playTrack;
+                window._musicTracks = newTracks;
+            }
+
+            // Register AJAX handlers on genre tabs
+            genreTabs.forEach(function(tab) {
+                var genre = getGenreFromHref(tab.getAttribute('href'));
+                tab._ajaxHandler = function() { switchGenre(genre, tab); };
+                tab.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    switchGenre(genre, tab);
+                });
+            });
+
+            // Handle track play after AJAX reload
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    // Handle track play after AJAX reload
+                    if (window._musicTracks && window._musicPlayTrack) {
+                        var selected = document.querySelector('.track-item.selected');
+                        if (selected) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            var idx = Array.from(window._musicTracks).indexOf(selected);
+                            if (idx >= 0) window._musicPlayTrack(idx);
+                        }
+                    }
+                }
+            }, true);
+
+            // Handle browser back/forward
+            window.addEventListener('popstate', function(e) {
+                var genre = (e.state && e.state.genre) || '';
+                var targetTab = null;
+                genreTabs.forEach(function(tab) {
+                    if (getGenreFromHref(tab.getAttribute('href')) === genre) {
+                        targetTab = tab;
+                    }
+                });
+                if (targetTab) switchGenre(genre, targetTab);
+            });
+
+            // Initialize: bind tracks on first load
+            rebindTracks();
+        })();
+    </script>
 </body>
 </html>

@@ -4,6 +4,7 @@ import re
 import secrets
 import shutil
 import subprocess
+import threading
 from datetime import datetime
 from pathlib import Path
 
@@ -630,6 +631,72 @@ def tv_calendar():
         return render_template("tv/calendar.html", view="upcoming", events=events)
 
 
+@app.route("/api/calendar")
+def api_calendar():
+    """JSON endpoint for AJAX calendar view switching."""
+    view = request.args.get("view", "daily")
+    now = datetime.now()
+    events = models.get_upcoming_events(days=60)
+
+    if view == "daily":
+        today_str = now.strftime("%A, %B %d, %Y")
+        today_date = now.strftime("%Y-%m-%d")
+        today_events = [e for e in events if e["event_date"] == today_date]
+        day_hours = []
+        for h in range(6, 23):
+            ampm = f"{h % 12 or 12}:00 {'AM' if h < 12 else 'PM'}"
+            hour_events = [{"title": e["title"]} for e in today_events if e.get("event_time", "").startswith(f"{h:02d}:")]
+            day_hours.append({"label": ampm, "events": hour_events})
+        from datetime import timedelta as _td
+        upcoming_days = []
+        for d in range(1, 6):
+            day = now + _td(days=d)
+            day_date = day.strftime("%Y-%m-%d")
+            day_events = [e for e in events if e["event_date"] == day_date]
+            upcoming_days.append({
+                "label": day.strftime("%A, %B %d"),
+                "events": [{"title": e["title"], "event_time": e.get("event_time", "")} for e in day_events],
+            })
+        return jsonify({"view": "daily", "today": today_str, "hours": day_hours, "upcoming": upcoming_days})
+
+    elif view == "monthly":
+        import calendar
+        month_name = now.strftime("%B")
+        year = now.year
+        month = now.month
+        first_day = datetime(year, month, 1)
+        first_weekday = (first_day.weekday() + 1) % 7  # 0=Sun
+        days_in_month = calendar.monthrange(year, month)[1]
+        event_dates = {e["event_date"] for e in events}
+        month_days = []
+        for _ in range(first_weekday):
+            month_days.append({"num": 0, "is_today": False, "has_event": False})
+        for d in range(1, days_in_month + 1):
+            date_str = f"{year}-{month:02d}-{d:02d}"
+            month_days.append({"num": d, "is_today": d == now.day, "has_event": date_str in event_dates})
+        weekday_labels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+        return jsonify({"view": "monthly", "month_name": f"{month_name} {year}", "weekday_labels": weekday_labels, "days": month_days, "today": now.day})
+
+    elif view == "upcoming":
+        events = models.get_upcoming_events(days=365)
+        result = []
+        for e in events:
+            try:
+                display_date = datetime.strptime(e["event_date"], "%Y-%m-%d").strftime("%A, %B %d")
+            except Exception:
+                display_date = e["event_date"]
+            result.append({
+                "title": e["title"],
+                "date": e["event_date"],
+                "display_date": display_date,
+                "event_time": e.get("event_time", ""),
+                "description": e.get("description", ""),
+            })
+        return jsonify({"view": "upcoming", "events": result})
+
+    return jsonify({"view": view})
+
+
 # --- Plex Integration ---
 
 def _get_jellyfin():
@@ -711,6 +778,43 @@ def tv_plex_library(library_id):
                                page=0, has_more=False, error=str(e))
 
 
+@app.route("/api/plex-library/<library_id>")
+def api_plex_library(library_id):
+    """JSON endpoint for AJAX genre/sort/pagination on library browser."""
+    jf = _get_jellyfin()
+    if not jf:
+        return jsonify({"items": [], "has_more": False})
+    genre = request.args.get("genre", "")
+    sort = request.args.get("sort", "SortName")
+    order = request.args.get("order", "Ascending")
+    try:
+        page = int(request.args.get("page", 0))
+    except (ValueError, TypeError):
+        page = 0
+    per_page = 40
+    try:
+        items = jf.get_library_items(library_id, sort=sort, sort_order=order,
+                                     genre=genre if genre else None,
+                                     limit=per_page, start=page * per_page)
+        items = [i for i in items if i["id"] not in _excluded_ids]
+        has_more = len(items) == per_page
+        result = []
+        for item in items:
+            result.append({
+                "id": item["id"],
+                "title": item.get("title", ""),
+                "thumb": item.get("thumb", ""),
+                "year": item.get("year", ""),
+                "type": item.get("type", ""),
+                "duration": item.get("duration", ""),
+                "official_rating": item.get("official_rating", ""),
+                "rating": item.get("rating", ""),
+            })
+        return jsonify({"items": result, "has_more": has_more, "page": page})
+    except Exception:
+        return jsonify({"items": [], "has_more": False})
+
+
 @app.route("/tv/plex/daily")
 def tv_plex_daily():
     """Today's 20 movies — different every day."""
@@ -774,6 +878,30 @@ def tv_plex_show(item_id):
         return render_template("tv/plex_show.html", show=None, seasons=[], episodes=[], selected_season=None, error=str(e))
 
 
+@app.route("/api/plex-episodes/<item_id>")
+def api_plex_episodes(item_id):
+    """JSON endpoint for AJAX season switching on show page."""
+    jf = _get_jellyfin()
+    if not jf:
+        return jsonify({"episodes": []})
+    season_id = request.args.get("season", "")
+    try:
+        episodes = jf.get_episodes(item_id, season_id) if season_id else []
+        result = []
+        for ep in episodes:
+            result.append({
+                "id": ep.get("id", ""),
+                "title": ep.get("title", ""),
+                "index": ep.get("index", 0),
+                "thumb": ep.get("thumb", ""),
+                "duration": ep.get("duration", 0),
+                "summary": ep.get("summary", ""),
+            })
+        return jsonify({"episodes": result})
+    except Exception:
+        return jsonify({"episodes": []})
+
+
 @app.route("/tv/plex/play/<item_id>")
 def tv_plex_play(item_id):
     """Play a Jellyfin item in our built-in player."""
@@ -820,11 +948,34 @@ def tv_message_view(msg_id):
 def tv_live():
     """Live TV channel guide powered by Pluto TV."""
     import pluto_tv
+    from urllib.parse import quote
     category = request.args.get("category")
     channels, error = pluto_tv.get_channels(category_filter=category)
     categories, _ = pluto_tv.get_categories()
+    for cat in categories:
+        cat["slug"] = quote(cat["name"], safe="")
     return render_template("tv/live.html", channels=channels, categories=categories,
                            selected_category=category, error=error)
+
+
+@app.route("/api/live-channels")
+def api_live_channels():
+    import pluto_tv
+    category = request.args.get("category") or None
+    channels, error = pluto_tv.get_channels(category_filter=category)
+    if error:
+        return jsonify({"error": str(error), "channels": []})
+    result = []
+    for ch in channels:
+        prog = ch.get("current_program")
+        result.append({
+            "id": ch["id"],
+            "name": ch["name"],
+            "logo": ch.get("logo", ""),
+            "number": ch.get("number", 0),
+            "current_program": {"title": prog["title"], "description": prog.get("description", "")} if prog else None,
+        })
+    return jsonify({"channels": result})
 
 
 @app.route("/tv/live/play/<channel_id>")
@@ -1062,17 +1213,54 @@ def admin_youtube_delete(ch_id):
     return redirect("/admin/youtube")
 
 
-# --- SSE endpoint for pill reminders ---
+# --- SSE endpoint for pill reminders (broadcast to all clients) ---
+
+_sse_clients = []  # list of queue.Queue, one per connected client
+_sse_lock = threading.Lock()
+
+
+def _sse_broadcaster():
+    """Background thread that reads from reminder_queue and fans out to all SSE clients."""
+    while True:
+        try:
+            event = reminder_queue.get(timeout=60)
+            event_json = json.dumps(event)
+            with _sse_lock:
+                dead = []
+                for q in _sse_clients:
+                    try:
+                        q.put_nowait(event_json)
+                    except Exception:
+                        dead.append(q)
+                for q in dead:
+                    _sse_clients.remove(q)
+        except Exception:
+            pass  # timeout, loop again
+
+
+_broadcaster_thread = threading.Thread(target=_sse_broadcaster, daemon=True)
+_broadcaster_thread.start()
+
 
 @app.route("/events")
 def sse_events():
+    import queue as _queue
+    client_q = _queue.Queue(maxsize=50)
+    with _sse_lock:
+        _sse_clients.append(client_q)
+
     def stream():
-        while True:
-            try:
-                event = reminder_queue.get(timeout=30)
-                yield f"data: {json.dumps(event)}\n\n"
-            except Exception:
-                yield ": keepalive\n\n"
+        try:
+            while True:
+                try:
+                    event_json = client_q.get(timeout=30)
+                    yield f"data: {event_json}\n\n"
+                except Exception:
+                    yield ": keepalive\n\n"
+        finally:
+            with _sse_lock:
+                if client_q in _sse_clients:
+                    _sse_clients.remove(client_q)
 
     return Response(stream(), mimetype="text/event-stream",
                     headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
@@ -1232,6 +1420,7 @@ def admin_dashboard():
 
     # Pill adherence
     pill_adherence = models.get_pill_adherence_today()
+    pill_adherence = [e for e in pill_adherence if "stretch" not in e.get("pill_name", "").lower()]
     pill_summary = {"taken": 0, "missed": 0, "pending": 0, "total": 0}
     for entry in pill_adherence:
         pill_summary[entry["status"]] += 1
@@ -1474,6 +1663,7 @@ def api_take_screenshot():
 @app.route("/admin/pills")
 def admin_pills():
     pills = models.get_pills()
+    pills = [p for p in pills if "stretch" not in p["name"].lower()]
     for pill in pills:
         try:
             pill["schedule_times_display"] = ", ".join(json.loads(pill["schedule_times"]))
@@ -1786,10 +1976,31 @@ def admin_settings():
                      "immich_url", "immich_api_key", "immich_album_id",
                      "admin_password",
                      "classical_music_enabled", "classical_music_hour",
-                     "tts_enabled", "audio_processing", "voice_boost", "audio_target"]:
+                     "tts_enabled", "audio_processing", "voice_boost", "audio_target",
+                     "exercise_enabled", "exercise_hour_1", "exercise_hour_2",
+                     "ip_camera_snapshot_url",
+                     "stretch_enabled", "stretch_times", "stretch_duration"]:
             val = request.form.get(key)
             if val is not None:
                 models.set_setting(key, val)
+
+        # Sync stretch break pill from settings
+        stretch_enabled = request.form.get("stretch_enabled", "0")
+        stretch_times = request.form.get("stretch_times", "09:00,13:00,17:00,21:00")
+        stretch_duration = request.form.get("stretch_duration", "15")
+        times_list = [t.strip() for t in stretch_times.split(",") if t.strip()]
+        with models.get_db_safe() as db:
+            stretch_pill = db.execute("SELECT * FROM pills WHERE LOWER(name) LIKE '%stretch%'").fetchone()
+            stretch_pill = dict(stretch_pill) if stretch_pill else None
+        if stretch_enabled == "1":
+            if stretch_pill:
+                models.update_pill(stretch_pill["id"], {"schedule_times": times_list, "instructions": f"Time to stand up and stretch! ({stretch_duration} min)", "enabled": 1})
+            else:
+                models.create_pill({"name": "Stretch Break", "dosage": "", "instructions": f"Time to stand up and stretch! ({stretch_duration} min)", "schedule_times": times_list, "schedule_days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"], "enabled": 1})
+        else:
+            if stretch_pill:
+                models.update_pill(stretch_pill["id"], {"enabled": 0})
+
         return redirect("/admin/settings")
     settings = {}
     for key in config.DEFAULTS:
@@ -1797,7 +2008,10 @@ def admin_settings():
     # Also get non-default settings
     for key in ["ha_tv_entity", "immich_album_id", "admin_password",
                  "classical_music_enabled", "classical_music_hour",
-                 "tts_enabled", "audio_processing", "voice_boost", "audio_target"]:
+                 "tts_enabled", "audio_processing", "voice_boost", "audio_target",
+                 "exercise_enabled", "exercise_hour_1", "exercise_hour_2",
+                 "ip_camera_snapshot_url",
+                 "stretch_enabled", "stretch_times", "stretch_duration"]:
         settings[key] = models.get_setting(key) or ""
 
     # Immich status and albums
@@ -1843,6 +2057,43 @@ def api_home_data():
     })
 
 
+@app.route("/api/active-blocking-reminder")
+def api_active_blocking_reminder():
+    """Check if there's an active blocking reminder (stretch/shower) that should persist across refreshes."""
+    reminders = get_active_reminders()
+    for rid, data in reminders.items():
+        pill = data.get("pill", {})
+        name_lower = pill.get("name", "").lower()
+        if "stretch" in name_lower or "shower" in name_lower:
+            try:
+                triggered = datetime.fromisoformat(data["triggered_at"])
+                # Use stored block_minutes if available (from quick actions), otherwise read from settings
+                if "block_minutes" in data:
+                    block_mins = data["block_minutes"]
+                elif "stretch" in name_lower:
+                    from models import get_setting
+                    block_mins = int(get_setting("stretch_duration") or "15")
+                else:
+                    block_mins = 15
+                elapsed = (datetime.now() - triggered).total_seconds() / 60
+                remaining = max(0, block_mins - elapsed)
+                if remaining > 0:
+                    # Use stored icon if available, otherwise derive from name
+                    icon = data.get("icon", "\U0001f6bf" if "shower" in name_lower else "\U0001f9d8")
+                    return jsonify({
+                        "active": True,
+                        "reminder_id": rid,
+                        "name": pill.get("name", ""),
+                        "icon": icon,
+                        "block_minutes": block_mins,
+                        "remaining_minutes": round(remaining, 1),
+                        "instructions": pill.get("instructions", ""),
+                    })
+            except Exception:
+                pass
+    return jsonify({"active": False})
+
+
 @app.route("/api/trigger-reminder/<int:pill_id>", methods=["POST"])
 def api_trigger_test_reminder(pill_id):
     """Admin: trigger a test reminder for a pill."""
@@ -1852,6 +2103,56 @@ def api_trigger_test_reminder(pill_id):
         trigger_reminder(pill, "test")
         return jsonify({"status": "triggered"})
     return jsonify({"status": "not_found"}), 404
+
+
+@app.route("/api/trigger-quick-action", methods=["POST"])
+def api_trigger_quick_action():
+    """Admin: trigger a custom blocking reminder (stretch break, shower, etc.)."""
+    data = request.get_json() or {}
+    action = data.get("action", "stretch")
+    minutes = int(data.get("minutes", 5))
+
+    if action == "stretch":
+        name = "Stretch Break"
+        icon = "\U0001f9d8"
+        message = f"Time to stand up and stretch! ({minutes} min)"
+    elif action == "shower":
+        name = "Shower Time"
+        icon = "\U0001f6bf"
+        message = f"Time for your shower! ({minutes} min)"
+    else:
+        name = data.get("name", "Break Time")
+        icon = data.get("icon", "\U0001f6d1")
+        message = data.get("message", f"Take a break! ({minutes} min)")
+
+    reminder_id = f"quick_{action}_{datetime.now().strftime('%H%M%S')}"
+    event_data = {
+        "type": "pill_reminder",
+        "reminder_id": reminder_id,
+        "pill_id": 0,
+        "name": name,
+        "dosage": "",
+        "instructions": message,
+        "reminder_type": "text",
+        "reminder_media": "",
+        "reminder_message": message,
+        "block_minutes": minutes,
+        "icon": icon,
+    }
+    try:
+        from scheduler import reminder_queue, active_reminders, _lock
+        with _lock:
+            active_reminders[reminder_id] = {
+                "pill": {"name": name, "instructions": message},
+                "scheduled_time": "quick",
+                "triggered_at": datetime.now().isoformat(),
+                "block_minutes": minutes,
+                "icon": icon,
+            }
+        reminder_queue.put_nowait(event_data)
+        return jsonify({"status": "triggered", "reminder_id": reminder_id, "minutes": minutes})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 # --- Frigate snapshot proxy ---
@@ -1889,6 +2190,20 @@ def tv_music():
         except Exception:
             pass
     return render_template("tv/music.html", tracks=tracks, genre=genre)
+
+
+@app.route("/api/music-tracks")
+def api_music_tracks():
+    """JSON endpoint for AJAX genre switching on music page."""
+    genre = request.args.get("genre", "")
+    jf = _get_jellyfin()
+    if not jf:
+        return jsonify({"tracks": []})
+    try:
+        tracks = jf.get_music_tracks(genre=genre or None, limit=30)
+        return jsonify({"tracks": tracks})
+    except Exception:
+        return jsonify({"tracks": []})
 
 
 @app.route("/tv/photos")
@@ -2188,6 +2503,7 @@ def api_immich_slideshow():
 @app.route("/api/daily-digest")
 def api_daily_digest():
     """Get this day in history and a daily quote."""
+    import random
     digest = {}
 
     # This Day in History (Wikipedia)
@@ -2201,7 +2517,6 @@ def api_daily_digest():
         if resp.status_code == 200:
             events = resp.json().get("selected", [])
             if events:
-                import random
                 event = random.choice(events[:10])
                 digest["history"] = {
                     "year": event.get("year", ""),
@@ -2437,6 +2752,27 @@ def api_health():
             health["checks"]["immich"] = {"connected": ok, "detail": msg, "ok": ok}
     except Exception:
         pass
+
+    # Inactivity
+    try:
+        last_activity = models.get_last_activity_time()
+        threshold_hours = int(get_setting_or_default("inactivity_alert_hours") or "4")
+        now = datetime.now()
+        is_daytime = 8 <= now.hour < 22
+        if last_activity:
+            last_dt = datetime.fromisoformat(last_activity)
+            # Activity timestamps may be UTC — use max(now, utcnow) comparison to avoid negatives
+            from datetime import timezone
+            now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+            compare_time = max(now, now_utc)  # whichever is later matches the DB convention
+            hours_idle = round((compare_time - last_dt).total_seconds() / 3600, 1)
+            hours_idle = max(hours_idle, 0)  # never negative
+            inactivity_ok = hours_idle < threshold_hours if is_daytime else True
+            health["checks"]["inactivity"] = {"ok": inactivity_ok, "hours_idle": hours_idle, "last_activity": last_activity, "threshold_hours": threshold_hours}
+        else:
+            health["checks"]["inactivity"] = {"ok": not is_daytime, "hours_idle": None, "last_activity": None, "threshold_hours": threshold_hours}
+    except Exception:
+        health["checks"]["inactivity"] = {"ok": True, "hours_idle": None, "last_activity": None, "threshold_hours": 4}
 
     # Overall
     all_ok = all(c.get("ok", True) for c in health["checks"].values())

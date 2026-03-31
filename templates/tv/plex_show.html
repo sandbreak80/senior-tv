@@ -92,5 +92,66 @@
     </div>
 
     <script src="/static/js/tv.js?v=6"></script>
+    <script>
+    (function() {
+        var seasonTabs = document.querySelectorAll('.season-tab');
+        if (!seasonTabs.length) return;
+
+        function switchSeason(tab) {
+            if (tab.classList.contains('active')) return;
+            var href = tab.getAttribute('href');
+            var match = href.match(/show\/([^?]+)\?season=(.+)/);
+            if (!match) return;
+            var showId = match[1];
+            var seasonId = match[2];
+
+            // Update active tab immediately
+            seasonTabs.forEach(function(t) { t.classList.remove('active'); });
+            tab.classList.add('active');
+
+            // Fetch episodes
+            fetch('/api/plex-episodes/' + showId + '?season=' + encodeURIComponent(seasonId))
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    var container = document.querySelector('.content-body.scroll-container');
+                    if (!container) return;
+                    if (!data.episodes || !data.episodes.length) {
+                        container.innerHTML = '<div class="empty-state">No episodes found.</div>';
+                    } else {
+                        var html = '';
+                        data.episodes.forEach(function(ep) {
+                            html += '<a class="episode-item navigable" href="/tv/plex/play/' + ep.id + '">';
+                            html += '<div class="episode-thumb-wrap">';
+                            if (ep.thumb) {
+                                html += '<img class="episode-thumb" src="' + ep.thumb + '" alt="" loading="lazy">';
+                            } else {
+                                html += '<div class="episode-thumb-placeholder">▶</div>';
+                            }
+                            html += '</div>';
+                            html += '<div class="episode-info">';
+                            html += '<div class="episode-title">' + ep.index + '. ' + ep.title + '</div>';
+                            if (ep.duration) html += '<div class="episode-duration">' + ep.duration + '</div>';
+                            if (ep.summary) html += '<div class="episode-summary">' + ep.summary + '</div>';
+                            html += '</div></a>';
+                        });
+                        container.innerHTML = html;
+                    }
+                    // Update URL without reload
+                    history.pushState(null, '', '/tv/plex/show/' + showId + '?season=' + encodeURIComponent(seasonId));
+                    // Refresh navigation items for remote control
+                    if (typeof refreshNavItems === 'function') refreshNavItems();
+                })
+                .catch(function() {});
+        }
+
+        seasonTabs.forEach(function(tab) {
+            tab._ajaxHandler = function() { switchSeason(tab); };
+            tab.addEventListener('click', function(e) {
+                e.preventDefault();
+                switchSeason(tab);
+            });
+        });
+    })();
+    </script>
 </body>
 </html>

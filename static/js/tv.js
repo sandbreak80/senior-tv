@@ -107,7 +107,14 @@ window.quickNav = function(url) {
             .catch(function() {});
 
         if (navItems.length > 0) {
-            selectItem(0);
+            var activeIdx = 0;
+            for (var i = 0; i < navItems.length; i++) {
+                if (navItems[i].classList.contains("active")) {
+                    activeIdx = i;
+                    break;
+                }
+            }
+            selectItem(activeIdx);
         }
 
         document.addEventListener("keydown", handleKeyDown);
@@ -115,11 +122,67 @@ window.quickNav = function(url) {
         startAutoRefresh();
         initAutoPlay();
         loadDailyDigest();
+        checkActiveBlockingReminder();
+    }
+
+    function checkActiveBlockingReminder() {
+        // Skip if a reminder is already showing (SSE already delivered it)
+        if (reminderActive) return;
+        fetch("/api/active-blocking-reminder")
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.active || reminderActive) return;
+                // Re-show the blocking reminder overlay
+                var overlay = document.getElementById("reminder-overlay");
+                if (!overlay) return;
+                var iconEl = overlay.querySelector(".reminder-icon");
+                var titleEl = overlay.querySelector(".reminder-title");
+                if (iconEl) iconEl.textContent = data.icon || "\U0001f9d8";
+                if (titleEl) {
+                    var nameLower = (data.name || "").toLowerCase();
+                    if (nameLower.indexOf("shower") >= 0) titleEl.textContent = "Shower Time!";
+                    else if (nameLower.indexOf("stretch") >= 0) titleEl.textContent = "Stretch Break!";
+                    else titleEl.textContent = data.name || "Break Time!";
+                }
+                document.getElementById("reminder-name").textContent = data.name;
+                document.getElementById("reminder-dosage").textContent = "";
+                document.getElementById("reminder-message").textContent = data.instructions || "";
+                var dismissEl = overlay.querySelector(".reminder-dismiss");
+                overlay.classList.add("active");
+                reminderActive = true;
+                reminderBlocked = true;
+                currentReminderId = data.reminder_id;
+                muteAllMedia();
+                // Live MM:SS countdown
+                if (data.remaining_minutes > 0) {
+                    var unlockMs = data.remaining_minutes * 60 * 1000;
+                    function updateCountdown() {
+                        var totalSecs = Math.ceil(unlockMs / 1000);
+                        var m = Math.floor(totalSecs / 60);
+                        var s = totalSecs % 60;
+                        if (dismissEl) dismissEl.textContent = "TV Will Be Back In: " + m + ":" + String(s).padStart(2, "0");
+                    }
+                    updateCountdown();
+                    blockCountdownInterval = setInterval(function() {
+                        unlockMs -= 1000;
+                        if (unlockMs <= 0) {
+                            clearInterval(blockCountdownInterval);
+                            blockCountdownInterval = null;
+                            reminderBlocked = false;
+                            if (dismissEl) dismissEl.textContent = "Press OK to continue";
+                        } else {
+                            updateCountdown();
+                        }
+                    }, 1000);
+                }
+            })
+            .catch(function() {});
     }
 
     function refreshNavItems() {
         navItems = document.querySelectorAll(".navigable");
     }
+    window.refreshNavItems = refreshNavItems;
 
     // --- Navigation ---
 
@@ -134,6 +197,11 @@ window.quickNav = function(url) {
     function activateItem() {
         if (navItems.length === 0) return;
         const item = navItems[selectedIndex];
+        // Check if this element has an AJAX handler (set by page-specific scripts)
+        if (item._ajaxHandler) {
+            item._ajaxHandler();
+            return;
+        }
         const url = item.getAttribute("data-url") || item.getAttribute("href");
         if (url) {
             window.quickNav(url);
@@ -390,6 +458,35 @@ window.quickNav = function(url) {
         connectSSE();
     }
 
+    // --- Media Mute/Pause for Overlays ---
+
+    var _mutedMedia = [];
+    function muteAllMedia() {
+        _mutedMedia = [];
+        // Pause and mute all video/audio elements
+        document.querySelectorAll("video, audio").forEach(function(el) {
+            if (!el.paused || !el.muted) {
+                _mutedMedia.push({ el: el, wasPaused: el.paused, wasMuted: el.muted });
+                el.muted = true;
+                if (!el.paused) el.pause();
+            }
+        });
+        // Mute iframes by hiding them (can't control cross-origin audio)
+        document.querySelectorAll("iframe").forEach(function(el) {
+            el.style.visibility = "hidden";
+        });
+    }
+    function unmuteAllMedia() {
+        _mutedMedia.forEach(function(item) {
+            item.el.muted = item.wasMuted;
+            if (!item.wasPaused) item.el.play().catch(function() {});
+        });
+        _mutedMedia = [];
+        document.querySelectorAll("iframe").forEach(function(el) {
+            el.style.visibility = "";
+        });
+    }
+
     // --- Pill Reminder Display ---
 
     function showReminder(data) {
@@ -428,6 +525,7 @@ window.quickNav = function(url) {
 
         overlay.classList.add("active");
         reminderActive = true;
+        muteAllMedia();
 
         // Pause any playing video
         const mainVideo = document.getElementById("video-player");
@@ -440,12 +538,17 @@ window.quickNav = function(url) {
             let secondsLeft = blockMinutes * 60;
             const dismissEl = overlay.querySelector(".reminder-dismiss");
 
+            // Clear any existing countdown first
+            if (blockCountdownInterval) {
+                clearInterval(blockCountdownInterval);
+                blockCountdownInterval = null;
+            }
             blockCountdownInterval = setInterval(() => {
                 secondsLeft--;
                 const mins = Math.floor(secondsLeft / 60);
                 const secs = secondsLeft % 60;
                 if (dismissEl) {
-                    dismissEl.textContent = "TV will be back in " + mins + ":" + String(secs).padStart(2, "0");
+                    dismissEl.textContent = "TV Will Be Back In: " + mins + ":" + String(secs).padStart(2, "0");
                 }
                 if (secondsLeft <= 0) {
                     clearInterval(blockCountdownInterval);
@@ -487,6 +590,7 @@ window.quickNav = function(url) {
 
         overlay.classList.remove("active");
         reminderActive = false;
+        unmuteAllMedia();
 
         // Reset dismiss text and icon
         const dismissEl = overlay.querySelector(".reminder-dismiss");
@@ -629,6 +733,7 @@ window.quickNav = function(url) {
 
         overlay.classList.add("active");
         reminderActive = true;
+        muteAllMedia();
 
         // Pause any playing video
         const mainVideo = document.getElementById("video-player");
@@ -690,6 +795,7 @@ window.quickNav = function(url) {
 
         overlay.classList.add("active");
         reminderActive = true;
+        muteAllMedia();
 
         // Play happy tune
         try {
@@ -744,6 +850,7 @@ window.quickNav = function(url) {
 
         overlay.classList.add("active");
         reminderActive = true;
+        muteAllMedia();
         playChime();
         setTimeout(function() { speakAlert("show_alert", data); }, 1000);
 
@@ -778,6 +885,7 @@ window.quickNav = function(url) {
 
         overlay.classList.add("active");
         reminderActive = true;
+        muteAllMedia();
 
         // Play gentle notification
         playChime();

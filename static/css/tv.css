@@ -18,7 +18,7 @@
     --accent-soft: #533483;
     --success: #4ecca3;
     --border-radius: 20px;
-    --glow: 0 0 30px rgba(233, 69, 96, 0.4);
+    --glow: inset 0 0 40px rgba(233, 69, 96, 0.4);
 }
 
 html, body {
@@ -228,7 +228,6 @@ html, body {
     background: var(--bg-selected);
     border-color: var(--accent);
     box-shadow: var(--glow);
-    transform: scale(1.03);
 }
 
 /* Menu items — shared style */
@@ -258,7 +257,6 @@ html, body {
     background: var(--bg-selected);
     border-color: var(--accent);
     box-shadow: var(--glow);
-    transform: scale(1.02);
 }
 
 /* Stream on the right */
@@ -408,7 +406,6 @@ html, body {
 .home-reco-card.selected {
     border-color: var(--accent);
     box-shadow: var(--glow);
-    transform: scale(1.08);
     z-index: 2;
 }
 
@@ -432,6 +429,7 @@ html, body {
     display: flex;
     flex-direction: column;
     gap: 12px;
+    padding: 4px 0;
 }
 
 .menu-item {
@@ -460,7 +458,6 @@ html, body {
     background: var(--bg-selected);
     border-color: var(--accent);
     box-shadow: var(--glow);
-    transform: scale(1.02);
 }
 
 /* --- Navigation Hint --- */
@@ -563,6 +560,7 @@ html, body {
     flex-direction: column;
     height: 100vh;
     padding: 60px 80px;
+    overflow: hidden;
 }
 
 .page-header {
@@ -744,6 +742,7 @@ html, body {
     flex: 1;
     overflow-y: auto;
     scrollbar-width: none;
+    padding: 8px 10px;
 }
 
 .scroll-container::-webkit-scrollbar {
@@ -816,7 +815,6 @@ html, body {
 .poster-card.selected {
     border-color: var(--accent);
     box-shadow: var(--glow);
-    transform: scale(1.05);
     z-index: 2;
 }
 

@@ -158,5 +158,119 @@
     </div>
 
     <script src="/static/js/tv.js?v=6"></script>
+    <script>
+    (function() {
+        var contentBody = document.querySelector('.content-body');
+        var tabs = document.querySelectorAll('.cal-tab');
+
+        function setActiveTab(view) {
+            var viewMap = { daily: 'Today', monthly: 'This Month', upcoming: 'Upcoming' };
+            tabs.forEach(function(t) {
+                t.classList.remove('active');
+                if (t.textContent.trim() === viewMap[view]) t.classList.add('active');
+            });
+        }
+
+        function renderDaily(data) {
+            var html = '<div class="day-header">' + data.today + '</div>';
+            html += '<div class="day-timeline">';
+            data.hours.forEach(function(hr) {
+                var hasEv = hr.events && hr.events.length > 0;
+                html += '<div class="day-hour' + (hasEv ? ' has-event' : '') + '">';
+                html += '<span class="day-hour-label">' + hr.label + '</span>';
+                if (hasEv) {
+                    hr.events.forEach(function(ev) {
+                        html += '<span class="event-name">' + ev.title + '</span>';
+                    });
+                }
+                html += '</div>';
+            });
+            html += '</div>';
+            if (data.upcoming && data.upcoming.length > 0) {
+                html += '<div style="margin-top: 30px;">';
+                html += '<div style="font-size: 36px; font-weight: 700; margin-bottom: 16px; color: var(--text-muted);">Coming Up</div>';
+                data.upcoming.forEach(function(day) {
+                    html += '<div style="margin-bottom: 12px; padding: 14px 20px; background: var(--bg-card); border-radius: 14px;">';
+                    html += '<div style="font-size: 30px; font-weight: 600;">' + day.label + '</div>';
+                    if (day.events && day.events.length > 0) {
+                        day.events.forEach(function(ev) {
+                            html += '<div style="font-size: 26px; color: var(--success); margin-top: 4px;">' + (ev.event_time || '') + ' ' + ev.title + '</div>';
+                        });
+                    } else {
+                        html += '<div style="font-size: 24px; color: var(--text-muted);">No events</div>';
+                    }
+                    html += '</div>';
+                });
+                html += '</div>';
+            }
+            return html;
+        }
+
+        function renderMonthly(data) {
+            var html = '<div class="month-header">' + data.month_name + '</div>';
+            html += '<div class="month-grid">';
+            data.weekday_labels.forEach(function(lbl) {
+                html += '<div class="month-day-label">' + lbl + '</div>';
+            });
+            data.days.forEach(function(d) {
+                var cls = 'month-day';
+                if (!d.num) cls += ' empty';
+                if (d.is_today) cls += ' today';
+                if (d.has_event) cls += ' has-event';
+                html += '<div class="' + cls + '">' + (d.num || '') + '</div>';
+            });
+            html += '</div>';
+            return html;
+        }
+
+        function renderUpcoming(data) {
+            if (!data.events || data.events.length === 0) {
+                return '<div class="empty-state">No upcoming events.</div>';
+            }
+            var html = '';
+            data.events.forEach(function(ev) {
+                var dayNum = parseInt(ev.date.substring(8, 10), 10);
+                var monthYear = parseInt(ev.date.substring(5, 7), 10) + '/' + ev.date.substring(0, 4);
+                html += '<div class="calendar-event">';
+                html += '<div class="event-date-box">';
+                html += '<div class="event-day-num">' + dayNum + '</div>';
+                html += '<div class="event-month">' + monthYear + '</div>';
+                html += '</div><div>';
+                html += '<div class="event-title">' + ev.title + '</div>';
+                if (ev.event_time) html += '<div class="event-time">' + ev.event_time + '</div>';
+                if (ev.description) html += '<div class="event-desc">' + ev.description + '</div>';
+                html += '</div></div>';
+            });
+            return html;
+        }
+
+        function switchView(view) {
+            fetch('/api/calendar?view=' + encodeURIComponent(view))
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    var html = '';
+                    if (data.view === 'daily') html = renderDaily(data);
+                    else if (data.view === 'monthly') html = renderMonthly(data);
+                    else if (data.view === 'upcoming') html = renderUpcoming(data);
+                    contentBody.innerHTML = html;
+                    setActiveTab(data.view);
+                    history.replaceState(null, '', '/tv/calendar?view=' + data.view);
+                    if (typeof refreshNavItems === 'function') refreshNavItems();
+                })
+                .catch(function(err) { console.error('Calendar AJAX error:', err); });
+        }
+
+        tabs.forEach(function(tab) {
+            var href = tab.getAttribute('href') || '';
+            var match = href.match(/view=(\w+)/);
+            var view = match ? match[1] : 'daily';
+            tab._ajaxHandler = function() { switchView(view); };
+            tab.addEventListener('click', function(e) {
+                e.preventDefault();
+                switchView(view);
+            });
+        });
+    })();
+    </script>
 </body>
 </html>
