@@ -37,7 +37,7 @@ fi
 
 # --- 3. HDMI Audio ---
 AUDIO_OK=false
-INSTALL_UID=$(id -u)
+INSTALL_UID=$(id -u media)
 DEFAULT_SINK=$(XDG_RUNTIME_DIR=/run/user/$INSTALL_UID wpctl status 2>/dev/null | grep -E '^\s*│?\s*\*' | head -1)
 if echo "$DEFAULT_SINK" | grep -qi "hdmi\|radeon\|rembrandt\|samsung"; then
     AUDIO_OK=true
