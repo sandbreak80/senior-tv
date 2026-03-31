@@ -30,7 +30,7 @@
                         <span>{{ weather_icon }} {{ weather.temp }} {{ weather.condition }}</span>
                     </div>
                     {% if next_pill %}
-                    <div class="pill-status has-pill">💊 {{ next_pill.name }} at {{ next_pill.time }}</div>
+                    <div class="pill-status has-pill">{{ next_pill.icon }} {{ next_pill.name }} at {{ next_pill.time }}</div>
                     {% endif %}
                     {% if next_event %}
                     <div class="home-next-event">📅 {{ next_event.title }}</div>

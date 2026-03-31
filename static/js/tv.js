@@ -107,7 +107,14 @@ window.quickNav = function(url) {
             .catch(function() {});
 
         if (navItems.length > 0) {
-            selectItem(0);
+            var activeIdx = 0;
+            for (var i = 0; i < navItems.length; i++) {
+                if (navItems[i].classList.contains("active")) {
+                    activeIdx = i;
+                    break;
+                }
+            }
+            selectItem(activeIdx);
         }
 
         document.addEventListener("keydown", handleKeyDown);
@@ -120,6 +127,7 @@ window.quickNav = function(url) {
     function refreshNavItems() {
         navItems = document.querySelectorAll(".navigable");
     }
+    window.refreshNavItems = refreshNavItems;
 
     // --- Navigation ---
 

@@ -31,6 +31,11 @@ DEFAULTS = {
     "immich_api_key": "",
     # Admin password — generated on first boot by init_db() if not set
     "admin_password": "",
+    # Inactivity / stretch breaks
+    "inactivity_alert_hours": "4",
+    "stretch_enabled": "1",
+    "stretch_times": "09:00,13:00,17:00,21:00",
+    "stretch_duration": "15",
     # Audio/accessibility — sensible universal defaults
     "tts_enabled": "1",
     "audio_processing": "0",

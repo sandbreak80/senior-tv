@@ -203,12 +203,13 @@ def log_activity(activity_type, item_id=None, item_title=None, item_type=None, d
 
 
 def log_activity_stop(item_id, duration_seconds):
+    from datetime import datetime
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     with get_db_safe() as db:
         db.execute(
-            """UPDATE activity_logs SET stopped_at = CURRENT_TIMESTAMP, duration_seconds = ?
-               WHERE item_id = ? AND stopped_at IS NULL
-               ORDER BY id DESC LIMIT 1""",
-            (duration_seconds, item_id),
+            """UPDATE activity_logs SET stopped_at = ?, duration_seconds = ?
+               WHERE id = (SELECT id FROM activity_logs WHERE item_id = ? AND stopped_at IS NULL ORDER BY id DESC LIMIT 1)""",
+            (now_str, duration_seconds, item_id),
         )
         db.commit()
 

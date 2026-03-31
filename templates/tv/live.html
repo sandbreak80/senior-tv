@@ -20,10 +20,10 @@
         <!-- Category filter tabs -->
         <div class="category-tabs">
             <a class="category-tab navigable {% if not selected_category %}active{% endif %}"
-               href="/tv/live">All</a>
+               href="/tv/live" data-category="">All</a>
             {% for cat in categories[:8] %}
             <a class="category-tab navigable {% if selected_category == cat.name %}active{% endif %}"
-               href="/tv/live?category={{ cat.name }}">{{ cat.name }}</a>
+               href="/tv/live?category={{ cat.slug }}" data-category="{{ cat.name }}">{{ cat.name }}</a>
             {% endfor %}
         </div>
 
@@ -74,5 +74,69 @@
     </div>
 
     <script src="/static/js/tv.js?v=6"></script>
+    <script>
+    (function() {
+        var tabs = document.querySelectorAll('.category-tab');
+        function switchCategory(tab, e) {
+                e.preventDefault();
+                e.stopPropagation();
+                var cat = tab.getAttribute('data-category');
+                var url = cat ? '/api/live-channels?category=' + encodeURIComponent(cat) : '/api/live-channels';
+                // Update active tab
+                tabs.forEach(function(t) { t.classList.remove('active'); });
+                tab.classList.add('active');
+                // Fetch channels via AJAX
+                fetch(url).then(function(r) { return r.json(); }).then(function(data) {
+                    var container = document.querySelector('.content-body.scroll-container');
+                    if (!container) return;
+                    if (data.channels && data.channels.length > 0) {
+                        var html = '';
+                        data.channels.forEach(function(ch) {
+                            html += '<a class="channel-item navigable" href="/tv/live/play/' + ch.id + '">';
+                            html += '<div class="channel-logo-wrap">';
+                            if (ch.logo) {
+                                html += '<img class="channel-logo" src="' + ch.logo + '" alt="' + ch.name + '" loading="lazy">';
+                            } else {
+                                html += '<div class="channel-logo-placeholder">' + ch.name.substring(0, 3) + '</div>';
+                            }
+                            html += '</div><div class="channel-info">';
+                            html += '<div class="channel-name">' + ch.name + '</div>';
+                            if (ch.current_program) {
+                                html += '<div class="channel-now-playing">Now: ' + ch.current_program.title + '</div>';
+                                if (ch.current_program.description) {
+                                    html += '<div class="channel-description">' + ch.current_program.description + '</div>';
+                                }
+                            }
+                            html += '</div>';
+                            if (ch.number > 0) {
+                                html += '<div class="channel-number">' + ch.number + '</div>';
+                            }
+                            html += '</a>';
+                        });
+                        container.innerHTML = html;
+                    } else {
+                        container.innerHTML = '<div class="empty-state">No channels found for this category.</div>';
+                    }
+                    // Update URL without reload
+                    var newUrl = cat ? '/tv/live?category=' + encodeURIComponent(cat) : '/tv/live';
+                    history.pushState(null, '', newUrl);
+                    // Refresh navigation items
+                    if (typeof refreshNavItems === 'function') refreshNavItems();
+                }).catch(function() {
+                    // Fallback: navigate normally
+                    window.location.href = tab.getAttribute('href');
+                });
+        }
+        tabs.forEach(function(tab) {
+            tab.addEventListener('keydown', function(e) {
+                if (e.key !== 'Enter') return;
+                switchCategory(tab, e);
+            });
+            tab.addEventListener('click', function(e) {
+                switchCategory(tab, e);
+            });
+        });
+    })();
+    </script>
 </body>
 </html>
