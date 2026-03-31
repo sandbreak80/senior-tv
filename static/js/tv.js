@@ -122,6 +122,55 @@ window.quickNav = function(url) {
         startAutoRefresh();
         initAutoPlay();
         loadDailyDigest();
+        checkActiveBlockingReminder();
+    }
+
+    function checkActiveBlockingReminder() {
+        fetch("/api/active-blocking-reminder")
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.active) return;
+                // Re-show the blocking reminder overlay
+                var overlay = document.getElementById("reminder-overlay");
+                if (!overlay) return;
+                var iconEl = overlay.querySelector(".reminder-icon");
+                var titleEl = overlay.querySelector(".reminder-title");
+                if (iconEl) iconEl.textContent = data.icon || "\U0001f9d8";
+                if (titleEl) {
+                    if (data.icon === "\U0001f6bf") titleEl.textContent = "Shower Time!";
+                    else titleEl.textContent = "Stretch Break!";
+                }
+                document.getElementById("reminder-name").textContent = data.name;
+                document.getElementById("reminder-dosage").textContent = "";
+                document.getElementById("reminder-message").textContent = data.instructions || "";
+                var dismissEl = overlay.querySelector(".reminder-dismiss");
+                if (dismissEl) {
+                    var mins = Math.ceil(data.remaining_minutes);
+                    dismissEl.textContent = "Blocks TV for " + mins + " more minute" + (mins !== 1 ? "s" : "");
+                }
+                overlay.classList.add("active");
+                reminderActive = true;
+                reminderBlocked = true;
+                currentReminderId = data.reminder_id;
+                muteAllMedia();
+                // Auto-unlock countdown
+                if (data.remaining_minutes > 0) {
+                    var unlockMs = data.remaining_minutes * 60 * 1000;
+                    blockCountdownInterval = setInterval(function() {
+                        unlockMs -= 1000;
+                        if (unlockMs <= 0) {
+                            clearInterval(blockCountdownInterval);
+                            blockCountdownInterval = null;
+                            reminderBlocked = false;
+                            if (dismissEl) dismissEl.textContent = "Press OK to dismiss";
+                        } else {
+                            var m = Math.ceil(unlockMs / 60000);
+                            if (dismissEl) dismissEl.textContent = "Blocks TV for " + m + " more minute" + (m !== 1 ? "s" : "");
+                        }
+                    }, 1000);
+                }
+            })
+            .catch(function() {});
     }
 
     function refreshNavItems() {
@@ -403,6 +452,35 @@ window.quickNav = function(url) {
         connectSSE();
     }
 
+    // --- Media Mute/Pause for Overlays ---
+
+    var _mutedMedia = [];
+    function muteAllMedia() {
+        _mutedMedia = [];
+        // Pause and mute all video/audio elements
+        document.querySelectorAll("video, audio").forEach(function(el) {
+            if (!el.paused || !el.muted) {
+                _mutedMedia.push({ el: el, wasPaused: el.paused, wasMuted: el.muted });
+                el.muted = true;
+                if (!el.paused) el.pause();
+            }
+        });
+        // Mute iframes by hiding them (can't control cross-origin audio)
+        document.querySelectorAll("iframe").forEach(function(el) {
+            el.style.visibility = "hidden";
+        });
+    }
+    function unmuteAllMedia() {
+        _mutedMedia.forEach(function(item) {
+            item.el.muted = item.wasMuted;
+            if (!item.wasPaused) item.el.play().catch(function() {});
+        });
+        _mutedMedia = [];
+        document.querySelectorAll("iframe").forEach(function(el) {
+            el.style.visibility = "";
+        });
+    }
+
     // --- Pill Reminder Display ---
 
     function showReminder(data) {
@@ -441,6 +519,7 @@ window.quickNav = function(url) {
 
         overlay.classList.add("active");
         reminderActive = true;
+        muteAllMedia();
 
         // Pause any playing video
         const mainVideo = document.getElementById("video-player");
@@ -500,6 +579,7 @@ window.quickNav = function(url) {
 
         overlay.classList.remove("active");
         reminderActive = false;
+        unmuteAllMedia();
 
         // Reset dismiss text and icon
         const dismissEl = overlay.querySelector(".reminder-dismiss");
@@ -642,6 +722,7 @@ window.quickNav = function(url) {
 
         overlay.classList.add("active");
         reminderActive = true;
+        muteAllMedia();
 
         // Pause any playing video
         const mainVideo = document.getElementById("video-player");
@@ -703,6 +784,7 @@ window.quickNav = function(url) {
 
         overlay.classList.add("active");
         reminderActive = true;
+        muteAllMedia();
 
         // Play happy tune
         try {
@@ -757,6 +839,7 @@ window.quickNav = function(url) {
 
         overlay.classList.add("active");
         reminderActive = true;
+        muteAllMedia();
         playChime();
         setTimeout(function() { speakAlert("show_alert", data); }, 1000);
 
@@ -791,6 +874,7 @@ window.quickNav = function(url) {
 
         overlay.classList.add("active");
         reminderActive = true;
+        muteAllMedia();
 
         // Play gentle notification
         playChime();

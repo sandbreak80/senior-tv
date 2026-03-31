@@ -2019,6 +2019,39 @@ def api_home_data():
     })
 
 
+@app.route("/api/active-blocking-reminder")
+def api_active_blocking_reminder():
+    """Check if there's an active blocking reminder (stretch/shower) that should persist across refreshes."""
+    reminders = get_active_reminders()
+    for rid, data in reminders.items():
+        pill = data.get("pill", {})
+        name_lower = pill.get("name", "").lower()
+        if "stretch" in name_lower or "shower" in name_lower:
+            # Calculate remaining block time
+            try:
+                triggered = datetime.fromisoformat(data["triggered_at"])
+                from models import get_setting
+                if "stretch" in name_lower:
+                    block_mins = int(get_setting("stretch_duration") or "15")
+                else:
+                    block_mins = 15
+                elapsed = (datetime.now() - triggered).total_seconds() / 60
+                remaining = max(0, block_mins - elapsed)
+                if remaining > 0:
+                    return jsonify({
+                        "active": True,
+                        "reminder_id": rid,
+                        "name": pill.get("name", ""),
+                        "icon": "\U0001f6bf" if "shower" in name_lower else "\U0001f9d8",
+                        "block_minutes": block_mins,
+                        "remaining_minutes": round(remaining, 1),
+                        "instructions": pill.get("instructions", ""),
+                    })
+            except Exception:
+                pass
+    return jsonify({"active": False})
+
+
 @app.route("/api/trigger-reminder/<int:pill_id>", methods=["POST"])
 def api_trigger_test_reminder(pill_id):
     """Admin: trigger a test reminder for a pill."""
