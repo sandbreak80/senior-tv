@@ -2636,7 +2636,12 @@ def api_health():
         is_daytime = 8 <= now.hour < 22
         if last_activity:
             last_dt = datetime.fromisoformat(last_activity)
-            hours_idle = round((now - last_dt).total_seconds() / 3600, 1)
+            # Activity timestamps may be UTC — use max(now, utcnow) comparison to avoid negatives
+            from datetime import timezone
+            now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+            compare_time = max(now, now_utc)  # whichever is later matches the DB convention
+            hours_idle = round((compare_time - last_dt).total_seconds() / 3600, 1)
+            hours_idle = max(hours_idle, 0)  # never negative
             inactivity_ok = hours_idle < threshold_hours if is_daytime else True
             health["checks"]["inactivity"] = {"ok": inactivity_ok, "hours_idle": hours_idle, "last_activity": last_activity, "threshold_hours": threshold_hours}
         else:
