@@ -4,6 +4,7 @@ import re
 import secrets
 import shutil
 import subprocess
+import threading
 from datetime import datetime
 from pathlib import Path
 
@@ -1212,17 +1213,54 @@ def admin_youtube_delete(ch_id):
     return redirect("/admin/youtube")
 
 
-# --- SSE endpoint for pill reminders ---
+# --- SSE endpoint for pill reminders (broadcast to all clients) ---
+
+_sse_clients = []  # list of queue.Queue, one per connected client
+_sse_lock = threading.Lock()
+
+
+def _sse_broadcaster():
+    """Background thread that reads from reminder_queue and fans out to all SSE clients."""
+    while True:
+        try:
+            event = reminder_queue.get(timeout=60)
+            event_json = json.dumps(event)
+            with _sse_lock:
+                dead = []
+                for q in _sse_clients:
+                    try:
+                        q.put_nowait(event_json)
+                    except Exception:
+                        dead.append(q)
+                for q in dead:
+                    _sse_clients.remove(q)
+        except Exception:
+            pass  # timeout, loop again
+
+
+_broadcaster_thread = threading.Thread(target=_sse_broadcaster, daemon=True)
+_broadcaster_thread.start()
+
 
 @app.route("/events")
 def sse_events():
+    import queue as _queue
+    client_q = _queue.Queue(maxsize=50)
+    with _sse_lock:
+        _sse_clients.append(client_q)
+
     def stream():
-        while True:
-            try:
-                event = reminder_queue.get(timeout=30)
-                yield f"data: {json.dumps(event)}\n\n"
-            except Exception:
-                yield ": keepalive\n\n"
+        try:
+            while True:
+                try:
+                    event_json = client_q.get(timeout=30)
+                    yield f"data: {event_json}\n\n"
+                except Exception:
+                    yield ": keepalive\n\n"
+        finally:
+            with _sse_lock:
+                if client_q in _sse_clients:
+                    _sse_clients.remove(client_q)
 
     return Response(stream(), mimetype="text/event-stream",
                     headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
