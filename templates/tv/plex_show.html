@@ -145,15 +145,10 @@
         }
 
         seasonTabs.forEach(function(tab) {
+            tab._ajaxHandler = function() { switchSeason(tab); };
             tab.addEventListener('click', function(e) {
                 e.preventDefault();
                 switchSeason(tab);
-            });
-            tab.addEventListener('keydown', function(e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    switchSeason(tab);
-                }
             });
         });
     })();

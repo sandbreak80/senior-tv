@@ -142,6 +142,11 @@ window.quickNav = function(url) {
     function activateItem() {
         if (navItems.length === 0) return;
         const item = navItems[selectedIndex];
+        // Check if this element has an AJAX handler (set by page-specific scripts)
+        if (item._ajaxHandler) {
+            item._ajaxHandler();
+            return;
+        }
         const url = item.getAttribute("data-url") || item.getAttribute("href");
         if (url) {
             window.quickNav(url);

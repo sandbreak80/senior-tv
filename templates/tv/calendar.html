@@ -261,19 +261,13 @@
         }
 
         tabs.forEach(function(tab) {
+            var href = tab.getAttribute('href') || '';
+            var match = href.match(/view=(\w+)/);
+            var view = match ? match[1] : 'daily';
+            tab._ajaxHandler = function() { switchView(view); };
             tab.addEventListener('click', function(e) {
                 e.preventDefault();
-                var href = tab.getAttribute('href') || '';
-                var match = href.match(/view=(\w+)/);
-                if (match) switchView(match[1]);
-            });
-            tab.addEventListener('keydown', function(e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    var href = tab.getAttribute('href') || '';
-                    var match = href.match(/view=(\w+)/);
-                    if (match) switchView(match[1]);
-                }
+                switchView(view);
             });
         });
     })();

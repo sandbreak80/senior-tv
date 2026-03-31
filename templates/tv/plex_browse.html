@@ -194,16 +194,10 @@
 
         document.addEventListener('click', interceptClick, true);
 
-        // Intercept Enter key on these elements
-        document.addEventListener('keydown', function(e) {
-            if (e.key !== 'Enter') return;
-            var el = document.activeElement;
-            if (el && (el.classList.contains('category-tab') || el.classList.contains('sort-option') || el.classList.contains('pagination-btn'))) {
-                e.preventDefault();
-                e.stopPropagation();
-                ajaxLoad(el.getAttribute('href'));
-            }
-        }, true);
+        // Register _ajaxHandler on all AJAX-capable elements for tv.js integration
+        document.querySelectorAll('.category-tab, .sort-option, .pagination-btn').forEach(function(el) {
+            el._ajaxHandler = function() { ajaxLoad(el.getAttribute('href')); };
+        });
 
         // Handle browser back/forward
         window.addEventListener('popstate', function() {

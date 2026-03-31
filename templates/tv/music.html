@@ -284,27 +284,19 @@
                 window._musicTracks = newTracks;
             }
 
-            // Intercept clicks and Enter on genre tabs
+            // Register AJAX handlers on genre tabs
             genreTabs.forEach(function(tab) {
+                var genre = getGenreFromHref(tab.getAttribute('href'));
+                tab._ajaxHandler = function() { switchGenre(genre, tab); };
                 tab.addEventListener('click', function(e) {
                     e.preventDefault();
-                    e.stopPropagation();
-                    var genre = getGenreFromHref(tab.getAttribute('href'));
                     switchGenre(genre, tab);
                 });
             });
 
-            // Intercept Enter key on genre tabs
+            // Handle track play after AJAX reload
             document.addEventListener('keydown', function(e) {
                 if (e.key === 'Enter' || e.key === ' ') {
-                    var focused = document.querySelector('.genre-tab.selected');
-                    if (focused) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        var genre = getGenreFromHref(focused.getAttribute('href'));
-                        switchGenre(genre, focused);
-                        return;
-                    }
                     // Handle track play after AJAX reload
                     if (window._musicTracks && window._musicPlayTrack) {
                         var selected = document.querySelector('.track-item.selected');
