@@ -139,8 +139,10 @@ window.quickNav = function(url) {
                 var titleEl = overlay.querySelector(".reminder-title");
                 if (iconEl) iconEl.textContent = data.icon || "\U0001f9d8";
                 if (titleEl) {
-                    if (data.icon === "\U0001f6bf") titleEl.textContent = "Shower Time!";
-                    else titleEl.textContent = "Stretch Break!";
+                    var nameLower = (data.name || "").toLowerCase();
+                    if (nameLower.indexOf("shower") >= 0) titleEl.textContent = "Shower Time!";
+                    else if (nameLower.indexOf("stretch") >= 0) titleEl.textContent = "Stretch Break!";
+                    else titleEl.textContent = data.name || "Break Time!";
                 }
                 document.getElementById("reminder-name").textContent = data.name;
                 document.getElementById("reminder-dosage").textContent = "";

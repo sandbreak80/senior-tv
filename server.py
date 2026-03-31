@@ -2027,22 +2027,26 @@ def api_active_blocking_reminder():
         pill = data.get("pill", {})
         name_lower = pill.get("name", "").lower()
         if "stretch" in name_lower or "shower" in name_lower:
-            # Calculate remaining block time
             try:
                 triggered = datetime.fromisoformat(data["triggered_at"])
-                from models import get_setting
-                if "stretch" in name_lower:
+                # Use stored block_minutes if available (from quick actions), otherwise read from settings
+                if "block_minutes" in data:
+                    block_mins = data["block_minutes"]
+                elif "stretch" in name_lower:
+                    from models import get_setting
                     block_mins = int(get_setting("stretch_duration") or "15")
                 else:
                     block_mins = 15
                 elapsed = (datetime.now() - triggered).total_seconds() / 60
                 remaining = max(0, block_mins - elapsed)
                 if remaining > 0:
+                    # Use stored icon if available, otherwise derive from name
+                    icon = data.get("icon", "\U0001f6bf" if "shower" in name_lower else "\U0001f9d8")
                     return jsonify({
                         "active": True,
                         "reminder_id": rid,
                         "name": pill.get("name", ""),
-                        "icon": "\U0001f6bf" if "shower" in name_lower else "\U0001f9d8",
+                        "icon": icon,
                         "block_minutes": block_mins,
                         "remaining_minutes": round(remaining, 1),
                         "instructions": pill.get("instructions", ""),
@@ -2104,6 +2108,8 @@ def api_trigger_quick_action():
                 "pill": {"name": name, "instructions": message},
                 "scheduled_time": "quick",
                 "triggered_at": datetime.now().isoformat(),
+                "block_minutes": minutes,
+                "icon": icon,
             }
         reminder_queue.put_nowait(event_data)
         return jsonify({"status": "triggered", "reminder_id": reminder_id, "minutes": minutes})
