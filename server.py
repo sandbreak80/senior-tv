@@ -630,6 +630,72 @@ def tv_calendar():
         return render_template("tv/calendar.html", view="upcoming", events=events)
 
 
+@app.route("/api/calendar")
+def api_calendar():
+    """JSON endpoint for AJAX calendar view switching."""
+    view = request.args.get("view", "daily")
+    now = datetime.now()
+    events = models.get_upcoming_events(days=60)
+
+    if view == "daily":
+        today_str = now.strftime("%A, %B %d, %Y")
+        today_date = now.strftime("%Y-%m-%d")
+        today_events = [e for e in events if e["event_date"] == today_date]
+        day_hours = []
+        for h in range(6, 23):
+            ampm = f"{h % 12 or 12}:00 {'AM' if h < 12 else 'PM'}"
+            hour_events = [{"title": e["title"]} for e in today_events if e.get("event_time", "").startswith(f"{h:02d}:")]
+            day_hours.append({"label": ampm, "events": hour_events})
+        from datetime import timedelta as _td
+        upcoming_days = []
+        for d in range(1, 6):
+            day = now + _td(days=d)
+            day_date = day.strftime("%Y-%m-%d")
+            day_events = [e for e in events if e["event_date"] == day_date]
+            upcoming_days.append({
+                "label": day.strftime("%A, %B %d"),
+                "events": [{"title": e["title"], "event_time": e.get("event_time", "")} for e in day_events],
+            })
+        return jsonify({"view": "daily", "today": today_str, "hours": day_hours, "upcoming": upcoming_days})
+
+    elif view == "monthly":
+        import calendar
+        month_name = now.strftime("%B")
+        year = now.year
+        month = now.month
+        first_day = datetime(year, month, 1)
+        first_weekday = (first_day.weekday() + 1) % 7  # 0=Sun
+        days_in_month = calendar.monthrange(year, month)[1]
+        event_dates = {e["event_date"] for e in events}
+        month_days = []
+        for _ in range(first_weekday):
+            month_days.append({"num": 0, "is_today": False, "has_event": False})
+        for d in range(1, days_in_month + 1):
+            date_str = f"{year}-{month:02d}-{d:02d}"
+            month_days.append({"num": d, "is_today": d == now.day, "has_event": date_str in event_dates})
+        weekday_labels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+        return jsonify({"view": "monthly", "month_name": f"{month_name} {year}", "weekday_labels": weekday_labels, "days": month_days, "today": now.day})
+
+    elif view == "upcoming":
+        events = models.get_upcoming_events(days=365)
+        result = []
+        for e in events:
+            try:
+                display_date = datetime.strptime(e["event_date"], "%Y-%m-%d").strftime("%A, %B %d")
+            except Exception:
+                display_date = e["event_date"]
+            result.append({
+                "title": e["title"],
+                "date": e["event_date"],
+                "display_date": display_date,
+                "event_time": e.get("event_time", ""),
+                "description": e.get("description", ""),
+            })
+        return jsonify({"view": "upcoming", "events": result})
+
+    return jsonify({"view": view})
+
+
 # --- Plex Integration ---
 
 def _get_jellyfin():
@@ -711,6 +777,43 @@ def tv_plex_library(library_id):
                                page=0, has_more=False, error=str(e))
 
 
+@app.route("/api/plex-library/<library_id>")
+def api_plex_library(library_id):
+    """JSON endpoint for AJAX genre/sort/pagination on library browser."""
+    jf = _get_jellyfin()
+    if not jf:
+        return jsonify({"items": [], "has_more": False})
+    genre = request.args.get("genre", "")
+    sort = request.args.get("sort", "SortName")
+    order = request.args.get("order", "Ascending")
+    try:
+        page = int(request.args.get("page", 0))
+    except (ValueError, TypeError):
+        page = 0
+    per_page = 40
+    try:
+        items = jf.get_library_items(library_id, sort=sort, sort_order=order,
+                                     genre=genre if genre else None,
+                                     limit=per_page, start=page * per_page)
+        items = [i for i in items if i["id"] not in _excluded_ids]
+        has_more = len(items) == per_page
+        result = []
+        for item in items:
+            result.append({
+                "id": item["id"],
+                "title": item.get("title", ""),
+                "thumb": item.get("thumb", ""),
+                "year": item.get("year", ""),
+                "type": item.get("type", ""),
+                "duration": item.get("duration", ""),
+                "official_rating": item.get("official_rating", ""),
+                "rating": item.get("rating", ""),
+            })
+        return jsonify({"items": result, "has_more": has_more, "page": page})
+    except Exception:
+        return jsonify({"items": [], "has_more": False})
+
+
 @app.route("/tv/plex/daily")
 def tv_plex_daily():
     """Today's 20 movies — different every day."""
@@ -772,6 +875,30 @@ def tv_plex_show(item_id):
                                episodes=episodes, selected_season=season_id)
     except Exception as e:
         return render_template("tv/plex_show.html", show=None, seasons=[], episodes=[], selected_season=None, error=str(e))
+
+
+@app.route("/api/plex-episodes/<item_id>")
+def api_plex_episodes(item_id):
+    """JSON endpoint for AJAX season switching on show page."""
+    jf = _get_jellyfin()
+    if not jf:
+        return jsonify({"episodes": []})
+    season_id = request.args.get("season", "")
+    try:
+        episodes = jf.get_episodes(item_id, season_id) if season_id else []
+        result = []
+        for ep in episodes:
+            result.append({
+                "id": ep.get("id", ""),
+                "title": ep.get("title", ""),
+                "index": ep.get("index", 0),
+                "thumb": ep.get("thumb", ""),
+                "duration": ep.get("duration", 0),
+                "summary": ep.get("summary", ""),
+            })
+        return jsonify({"episodes": result})
+    except Exception:
+        return jsonify({"episodes": []})
 
 
 @app.route("/tv/plex/play/<item_id>")
@@ -1938,6 +2065,20 @@ def tv_music():
         except Exception:
             pass
     return render_template("tv/music.html", tracks=tracks, genre=genre)
+
+
+@app.route("/api/music-tracks")
+def api_music_tracks():
+    """JSON endpoint for AJAX genre switching on music page."""
+    genre = request.args.get("genre", "")
+    jf = _get_jellyfin()
+    if not jf:
+        return jsonify({"tracks": []})
+    try:
+        tracks = jf.get_music_tracks(genre=genre or None, limit=30)
+        return jsonify({"tracks": tracks})
+    except Exception:
+        return jsonify({"tracks": []})
 
 
 @app.route("/tv/photos")
