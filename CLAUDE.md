@@ -110,6 +110,59 @@ SSE reconnects with exponential backoff (5s → 60s max). Alert sounds use Web A
 - **Health endpoint**: `GET /api/health` returns JSON status of all subsystems
 - **BIOS**: Set "Restore on AC Power Loss = Power On" for power failure recovery
 
+## Git Workflow: Feature Branches + PRs
+
+**The golden rule: nobody commits directly to `main`.** Brad (sandbreak80) has the hardware in Sun City and merges PRs after testing on the real TV.
+
+### Contributors
+- **Ethan (prospedplayer/ethanstoner)** — remote development, feature branches, PRs
+- **Brad (sandbreak80)** — hardware owner, PR reviewer, merges to main after hardware testing
+
+### Step-by-step for each feature/session
+
+1. **Always start fresh from main**
+```bash
+git checkout main
+git pull origin main
+git checkout -b my-feature-name
+```
+
+2. **Do your work, commit often**
+```bash
+git add <files>
+git commit -m "describe what you did"
+git push origin my-feature-name
+```
+
+3. **Open a Pull Request on GitHub**
+   - Base: `main` ← Compare: `my-feature-name`
+   - This is a *request* to merge — Brad reviews it
+
+4. **Brad reviews + tests on hardware + approves**
+   - Reviews the diff, tests on the actual TV
+   - Clicks "Merge pull request" when it works
+
+5. **After merge, pull main before starting new work**
+```bash
+git checkout main
+git pull origin main
+```
+
+### Fixing conflicts
+```bash
+git checkout my-feature-branch
+git fetch origin
+git rebase origin/main
+# fix any conflicts, then:
+git push origin my-feature-branch --force-with-lease
+```
+
+### Rules
+- Never push directly to main
+- Never merge your own PR without Brad's approval (he has the hardware)
+- Always rebase onto latest main before opening/updating a PR
+- Keep PRs focused — one feature per branch
+
 ## Commands
 
 ```bash
