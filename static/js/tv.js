@@ -126,10 +126,12 @@ window.quickNav = function(url) {
     }
 
     function checkActiveBlockingReminder() {
+        // Skip if a reminder is already showing (SSE already delivered it)
+        if (reminderActive) return;
         fetch("/api/active-blocking-reminder")
             .then(function(r) { return r.json(); })
             .then(function(data) {
-                if (!data.active) return;
+                if (!data.active || reminderActive) return;
                 // Re-show the blocking reminder overlay
                 var overlay = document.getElementById("reminder-overlay");
                 if (!overlay) return;
@@ -534,6 +536,11 @@ window.quickNav = function(url) {
             let secondsLeft = blockMinutes * 60;
             const dismissEl = overlay.querySelector(".reminder-dismiss");
 
+            // Clear any existing countdown first
+            if (blockCountdownInterval) {
+                clearInterval(blockCountdownInterval);
+                blockCountdownInterval = null;
+            }
             blockCountdownInterval = setInterval(() => {
                 secondsLeft--;
                 const mins = Math.floor(secondsLeft / 60);
