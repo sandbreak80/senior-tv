@@ -13,6 +13,7 @@ senior_tv.db
 .env.local
 
 # User uploads and screenshots
+static/media/
 static/media/photos/
 static/media/uploads/
 screenshots/
