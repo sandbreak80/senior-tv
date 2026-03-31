@@ -52,35 +52,95 @@
 <!-- Quick Actions -->
 <div class="card">
     <h2>⚡ Quick Actions</h2>
-    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
-        <button onclick="triggerAction('stretch', 5)" class="btn btn-sm" style="background:var(--surface-alt); border:1px solid var(--border); padding:8px 16px; border-radius:8px; cursor:pointer; font-size:14px;">🧘 Stretch Break (5 min)</button>
-        <button onclick="triggerAction('stretch', 10)" class="btn btn-sm" style="background:var(--surface-alt); border:1px solid var(--border); padding:8px 16px; border-radius:8px; cursor:pointer; font-size:14px;">🧘 Stretch Break (10 min)</button>
-        <button onclick="triggerAction('stretch', 15)" class="btn btn-sm" style="background:var(--surface-alt); border:1px solid var(--border); padding:8px 16px; border-radius:8px; cursor:pointer; font-size:14px;">🧘 Stretch Break (15 min)</button>
-        <button onclick="triggerAction('shower', 15)" class="btn btn-sm" style="background:var(--surface-alt); border:1px solid var(--border); padding:8px 16px; border-radius:8px; cursor:pointer; font-size:14px;">🚿 Shower (15 min)</button>
+    <p style="font-size:13px; color:var(--text-muted); margin-bottom:16px;">Send a break reminder to the TV immediately. The screen will be blocked for the selected duration.</p>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">
+        <button onclick="triggerAction('stretch', 5)" class="qa-btn qa-stretch">
+            <span class="qa-icon">🧘</span>
+            <span class="qa-label">Stretch Break</span>
+            <span class="qa-time">5 min</span>
+        </button>
+        <button onclick="triggerAction('stretch', 10)" class="qa-btn qa-stretch">
+            <span class="qa-icon">🧘</span>
+            <span class="qa-label">Stretch Break</span>
+            <span class="qa-time">10 min</span>
+        </button>
+        <button onclick="triggerAction('stretch', 15)" class="qa-btn qa-stretch">
+            <span class="qa-icon">🧘</span>
+            <span class="qa-label">Stretch Break</span>
+            <span class="qa-time">15 min</span>
+        </button>
+        <button onclick="triggerAction('shower', 15)" class="qa-btn qa-shower">
+            <span class="qa-icon">🚿</span>
+            <span class="qa-label">Shower Time</span>
+            <span class="qa-time">15 min</span>
+        </button>
     </div>
-    <div style="display:flex; gap:8px; align-items:center;">
-        <select id="action-type" style="padding:8px; border-radius:8px; border:1px solid var(--border); font-size:14px;">
-            <option value="stretch">🧘 Stretch Break</option>
-            <option value="shower">🚿 Shower</option>
-        </select>
-        <input type="number" id="action-minutes" value="5" min="1" max="60" style="width:60px; padding:8px; border-radius:8px; border:1px solid var(--border); font-size:14px;">
-        <span style="font-size:14px; color:var(--text-muted);">min</span>
-        <button onclick="triggerCustomAction()" style="background:var(--primary); color:white; border:none; padding:8px 20px; border-radius:8px; cursor:pointer; font-size:14px; font-weight:600;">Trigger Now</button>
-    </div>
-    <div id="action-status" style="margin-top:8px; font-size:13px; color:var(--text-muted);"></div>
+
+    <details style="margin-top:8px;">
+        <summary style="cursor:pointer; font-size:13px; color:var(--text-muted); user-select:none;">Custom duration...</summary>
+        <div style="display:flex; gap:8px; align-items:center; margin-top:10px; flex-wrap:wrap;">
+            <select id="action-type" style="padding:8px 12px; border-radius:8px; border:1px solid var(--border); font-size:14px; background:white;">
+                <option value="stretch">🧘 Stretch Break</option>
+                <option value="shower">🚿 Shower Time</option>
+            </select>
+            <div style="display:flex; align-items:center; gap:4px;">
+                <input type="number" id="action-minutes" value="5" min="1" max="60" style="width:56px; padding:8px; border-radius:8px; border:1px solid var(--border); font-size:14px; text-align:center;">
+                <span style="font-size:13px; color:var(--text-muted);">min</span>
+            </div>
+            <button onclick="triggerCustomAction()" style="background:var(--primary); color:white; border:none; padding:8px 20px; border-radius:8px; cursor:pointer; font-size:14px; font-weight:600; white-space:nowrap;">Send to TV</button>
+        </div>
+    </details>
+
+    <div id="action-status" style="margin-top:10px; font-size:13px; padding:8px 12px; border-radius:8px; display:none;"></div>
 </div>
+
+<style>
+.qa-btn {
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+    padding:14px 8px; border-radius:12px; border:1.5px solid var(--border);
+    background:white; cursor:pointer; transition:all 0.15s ease;
+    font-family:inherit;
+}
+.qa-btn:hover { transform:translateY(-1px); box-shadow:0 4px 12px rgba(0,0,0,0.08); }
+.qa-btn:active { transform:translateY(0); }
+.qa-btn.qa-stretch { border-color:#a8e6cf; }
+.qa-btn.qa-stretch:hover { background:#f0faf4; border-color:#4ecca3; }
+.qa-btn.qa-shower { border-color:#a8d8ea; }
+.qa-btn.qa-shower:hover { background:#f0f7fa; border-color:#63b3ed; }
+.qa-btn.qa-triggered { border-color:var(--success); background:#f0faf4; pointer-events:none; }
+.qa-icon { font-size:28px; }
+.qa-label { font-size:13px; font-weight:600; color:var(--text); }
+.qa-time { font-size:12px; color:var(--text-muted); }
+</style>
+
 <script>
 function triggerAction(action, minutes) {
     fetch('/api/trigger-quick-action', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({action: action, minutes: minutes})
-    }).then(r => r.json()).then(data => {
-        document.getElementById('action-status').textContent =
-            data.status === 'triggered' ? '✅ ' + action + ' break triggered for ' + minutes + ' minutes' : '❌ Failed: ' + (data.message || 'unknown error');
-        setTimeout(() => document.getElementById('action-status').textContent = '', 5000);
-    }).catch(() => {
-        document.getElementById('action-status').textContent = '❌ Failed to trigger';
+    }).then(function(r) { return r.json(); }).then(function(data) {
+        var el = document.getElementById('action-status');
+        if (data.status === 'triggered') {
+            el.style.display = 'block';
+            el.style.background = '#f0faf4';
+            el.style.color = '#2d6a4f';
+            el.textContent = '✅ Sent! ' + (action === 'shower' ? 'Shower' : 'Stretch') + ' break for ' + minutes + ' minutes';
+        } else {
+            el.style.display = 'block';
+            el.style.background = '#fef2f2';
+            el.style.color = '#991b1b';
+            el.textContent = '❌ Failed: ' + (data.message || 'unknown error');
+        }
+        setTimeout(function() { el.style.display = 'none'; }, 5000);
+    }).catch(function() {
+        var el = document.getElementById('action-status');
+        el.style.display = 'block';
+        el.style.background = '#fef2f2';
+        el.style.color = '#991b1b';
+        el.textContent = '❌ Failed to send';
+        setTimeout(function() { el.style.display = 'none'; }, 5000);
     });
 }
 function triggerCustomAction() {
