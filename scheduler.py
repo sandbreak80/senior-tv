@@ -133,7 +133,9 @@ def acknowledge_reminder(reminder_id):
         reminder = active_reminders.pop(reminder_id, None)
     if reminder:
         if "pill" in reminder and "scheduled_time" in reminder:
-            log_pill_acknowledgment(reminder["pill"]["id"], reminder["scheduled_time"])
+            pill = reminder["pill"]
+            if "id" in pill and reminder["scheduled_time"] != "quick":
+                log_pill_acknowledgment(pill["id"], reminder["scheduled_time"])
         return True
     return False
 
