@@ -49,6 +49,47 @@
     </div>
 </div>
 
+<!-- Quick Actions -->
+<div class="card">
+    <h2>⚡ Quick Actions</h2>
+    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
+        <button onclick="triggerAction('stretch', 5)" class="btn btn-sm" style="background:var(--surface-alt); border:1px solid var(--border); padding:8px 16px; border-radius:8px; cursor:pointer; font-size:14px;">🧘 Stretch Break (5 min)</button>
+        <button onclick="triggerAction('stretch', 10)" class="btn btn-sm" style="background:var(--surface-alt); border:1px solid var(--border); padding:8px 16px; border-radius:8px; cursor:pointer; font-size:14px;">🧘 Stretch Break (10 min)</button>
+        <button onclick="triggerAction('stretch', 15)" class="btn btn-sm" style="background:var(--surface-alt); border:1px solid var(--border); padding:8px 16px; border-radius:8px; cursor:pointer; font-size:14px;">🧘 Stretch Break (15 min)</button>
+        <button onclick="triggerAction('shower', 15)" class="btn btn-sm" style="background:var(--surface-alt); border:1px solid var(--border); padding:8px 16px; border-radius:8px; cursor:pointer; font-size:14px;">🚿 Shower (15 min)</button>
+    </div>
+    <div style="display:flex; gap:8px; align-items:center;">
+        <select id="action-type" style="padding:8px; border-radius:8px; border:1px solid var(--border); font-size:14px;">
+            <option value="stretch">🧘 Stretch Break</option>
+            <option value="shower">🚿 Shower</option>
+        </select>
+        <input type="number" id="action-minutes" value="5" min="1" max="60" style="width:60px; padding:8px; border-radius:8px; border:1px solid var(--border); font-size:14px;">
+        <span style="font-size:14px; color:var(--text-muted);">min</span>
+        <button onclick="triggerCustomAction()" style="background:var(--primary); color:white; border:none; padding:8px 20px; border-radius:8px; cursor:pointer; font-size:14px; font-weight:600;">Trigger Now</button>
+    </div>
+    <div id="action-status" style="margin-top:8px; font-size:13px; color:var(--text-muted);"></div>
+</div>
+<script>
+function triggerAction(action, minutes) {
+    fetch('/api/trigger-quick-action', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action: action, minutes: minutes})
+    }).then(r => r.json()).then(data => {
+        document.getElementById('action-status').textContent =
+            data.status === 'triggered' ? '✅ ' + action + ' break triggered for ' + minutes + ' minutes' : '❌ Failed: ' + (data.message || 'unknown error');
+        setTimeout(() => document.getElementById('action-status').textContent = '', 5000);
+    }).catch(() => {
+        document.getElementById('action-status').textContent = '❌ Failed to trigger';
+    });
+}
+function triggerCustomAction() {
+    var action = document.getElementById('action-type').value;
+    var minutes = parseInt(document.getElementById('action-minutes').value) || 5;
+    triggerAction(action, minutes);
+}
+</script>
+
 <!-- C: Pill Tracker -->
 <div class="card">
     <h2>💊 Today's Pills</h2>

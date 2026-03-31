@@ -144,28 +144,30 @@ window.quickNav = function(url) {
                 document.getElementById("reminder-dosage").textContent = "";
                 document.getElementById("reminder-message").textContent = data.instructions || "";
                 var dismissEl = overlay.querySelector(".reminder-dismiss");
-                if (dismissEl) {
-                    var mins = Math.ceil(data.remaining_minutes);
-                    dismissEl.textContent = "Blocks TV for " + mins + " more minute" + (mins !== 1 ? "s" : "");
-                }
                 overlay.classList.add("active");
                 reminderActive = true;
                 reminderBlocked = true;
                 currentReminderId = data.reminder_id;
                 muteAllMedia();
-                // Auto-unlock countdown
+                // Live MM:SS countdown
                 if (data.remaining_minutes > 0) {
                     var unlockMs = data.remaining_minutes * 60 * 1000;
+                    function updateCountdown() {
+                        var totalSecs = Math.ceil(unlockMs / 1000);
+                        var m = Math.floor(totalSecs / 60);
+                        var s = totalSecs % 60;
+                        if (dismissEl) dismissEl.textContent = "TV Will Be Back In: " + m + ":" + String(s).padStart(2, "0");
+                    }
+                    updateCountdown();
                     blockCountdownInterval = setInterval(function() {
                         unlockMs -= 1000;
                         if (unlockMs <= 0) {
                             clearInterval(blockCountdownInterval);
                             blockCountdownInterval = null;
                             reminderBlocked = false;
-                            if (dismissEl) dismissEl.textContent = "Press OK to dismiss";
+                            if (dismissEl) dismissEl.textContent = "Press OK to continue";
                         } else {
-                            var m = Math.ceil(unlockMs / 60000);
-                            if (dismissEl) dismissEl.textContent = "Blocks TV for " + m + " more minute" + (m !== 1 ? "s" : "");
+                            updateCountdown();
                         }
                     }, 1000);
                 }
@@ -537,7 +539,7 @@ window.quickNav = function(url) {
                 const mins = Math.floor(secondsLeft / 60);
                 const secs = secondsLeft % 60;
                 if (dismissEl) {
-                    dismissEl.textContent = "TV will be back in " + mins + ":" + String(secs).padStart(2, "0");
+                    dismissEl.textContent = "TV Will Be Back In: " + mins + ":" + String(secs).padStart(2, "0");
                 }
                 if (secondsLeft <= 0) {
                     clearInterval(blockCountdownInterval);

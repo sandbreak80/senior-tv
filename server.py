@@ -2063,6 +2063,54 @@ def api_trigger_test_reminder(pill_id):
     return jsonify({"status": "not_found"}), 404
 
 
+@app.route("/api/trigger-quick-action", methods=["POST"])
+def api_trigger_quick_action():
+    """Admin: trigger a custom blocking reminder (stretch break, shower, etc.)."""
+    data = request.get_json() or {}
+    action = data.get("action", "stretch")
+    minutes = int(data.get("minutes", 5))
+
+    if action == "stretch":
+        name = "Stretch Break"
+        icon = "\U0001f9d8"
+        message = f"Time to stand up and stretch! ({minutes} min)"
+    elif action == "shower":
+        name = "Shower Time"
+        icon = "\U0001f6bf"
+        message = f"Time for your shower! ({minutes} min)"
+    else:
+        name = data.get("name", "Break Time")
+        icon = data.get("icon", "\U0001f6d1")
+        message = data.get("message", f"Take a break! ({minutes} min)")
+
+    reminder_id = f"quick_{action}_{datetime.now().strftime('%H%M%S')}"
+    event_data = {
+        "type": "pill_reminder",
+        "reminder_id": reminder_id,
+        "pill_id": 0,
+        "name": name,
+        "dosage": "",
+        "instructions": message,
+        "reminder_type": "text",
+        "reminder_media": "",
+        "reminder_message": message,
+        "block_minutes": minutes,
+        "icon": icon,
+    }
+    try:
+        from scheduler import reminder_queue, active_reminders, _lock
+        with _lock:
+            active_reminders[reminder_id] = {
+                "pill": {"name": name, "instructions": message},
+                "scheduled_time": "quick",
+                "triggered_at": datetime.now().isoformat(),
+            }
+        reminder_queue.put_nowait(event_data)
+        return jsonify({"status": "triggered", "reminder_id": reminder_id, "minutes": minutes})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 # --- Frigate snapshot proxy ---
 
 @app.route("/api/frigate-snapshot/<path:path>")
