@@ -2,17 +2,20 @@
 Description=Senior TV Entertainment System
 After=network.target graphical.target
 Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple
-User=media
-WorkingDirectory=/home/media/code_projectsd/senior_tv
+User=seniortv
+WorkingDirectory=/home/seniortv/claude/senior-tv
 Environment=DISPLAY=:0
 Environment=WAYLAND_DISPLAY=wayland-0
 Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 ExecStartPre=/bin/sleep 5
-ExecStart=/home/media/code_projectsd/senior_tv/start.sh
-Restart=on-failure
+ExecStart=/home/seniortv/claude/senior-tv/start.sh
+Restart=always
 RestartSec=10
 
 [Install]
