@@ -29,9 +29,17 @@ Every external service (Jellyfin, Immich, Home Assistant, Frigate) is optional. 
 
 ---
 
-## Current State (March 2026)
+## Current State (April 2026)
 
 Single-deployment system built for Don & Colleen in Sun City, CA. Runs on one GMKtec NucBox K11 (AMD Ryzen 5, 28GB RAM, 937GB NVMe) connected to a Samsung 65" TV via HDMI. Remote access via SSH + Tailscale + Cloudflare tunnel (`seniortv.riffyx.com`). Self-healing with local watchdog (3 min) and Claude AI health agent (hourly).
+
+**Fully automated deployment** — `install.sh` handles everything from bare Ubuntu to working kiosk: system packages, Chrome with uBlock Origin, Docker services (Jellyfin + Immich + Bazarr + Nginx), first-time wizard automation for both Jellyfin and Immich (user creation, API keys, library setup, VA-API transcoding), Cloudflare tunnel registration, systemd services, cron jobs, database initialization, and environment-based settings. Zero manual post-install steps.
+
+**Media stack operational:**
+- Jellyfin: 17 classic movies (6.9 GB), 39+ classical music collections (1.4 GB), 1 show series (149 MB) — all public domain from Archive.org. Content loader script (`scripts/load_jellyfin_content.py`) manages a 50 GB budget with rate limiting.
+- Immich: running with ML disabled (RAM savings), API key auto-generated, photos proxied through Flask.
+- Bazarr: configured for automatic subtitle downloads.
+- Nginx: reverse proxy on port 80 for Cloudflare tunnel (routes to Flask, Jellyfin, Immich).
 
 ---
 
@@ -72,7 +80,7 @@ These are high-impact for both Don & Colleen AND the project. Work on these firs
 | ~~**Commercial loudness taming**~~ | 5 | 4 | 9 | DONE — Fast limiter (1ms attack, -3dB ceiling) catches all peaks. AGC compressor evens levels. |
 | **Auto-subtitles (Bazarr + Whisper)** | 5 | 4 | 9 | Both are hearing-impaired. Subtitles on all 5K+ movies/shows = transformative. Bazarr is the one *Arr tool that's P0. |
 | **Audio/video sync fix** | 5 | 4 | 9 | Web Audio API processing chain adds latency that desynchronizes audio from video. Lips don't match words. Must compensate with `ctx.baseLatency` + `ctx.outputLatency` or use `delayNode` on video. |
-| **`install.sh`** | 1 | 5 | 6* | Low D&C score but **the front door** for every other family. Nothing else matters if people can't install it. Elevated to P0. |
+| ~~**`install.sh`**~~ | 1 | 5 | 6* | DONE — Fully automated: Jellyfin wizard, Immich wizard, Cloudflare tunnel, VA-API transcoding, systemd, cron, all via REST APIs. Zero manual post-install steps. |
 | **Remove hardcoded values** | 1 | 5 | 6* | "Don & Colleen" baked into templates, Sun City coordinates, specific IPs. Blocks all other deployments. Elevated to P0. |
 | **Profiles table** | 1 | 5 | 6* | Foundation for everything — care templates, content engine, setup wizard all depend on this. Elevated to P0. |
 
