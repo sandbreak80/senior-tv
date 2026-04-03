@@ -247,9 +247,9 @@ Accessible from any device on the network at **http://192.168.50.159:5000/admin*
 - **TV:** Samsung 65" connected via HDMI
 - **Browser:** Google Chrome kiosk mode (dedicated profile, uBlock Origin ad blocker)
 - **Backend:** Python/Flask, SQLite, APScheduler
-- **Media:** Jellyfin (5,112 movies + 108 shows on 192.168.50.20)
+- **Media:** Jellyfin (local Docker on localhost:8096 — public domain movies, classical music, classic TV shows from Archive.org)
 - **Live TV:** Pluto TV (421 channels with logos, HLS proxy for CORS bypass)
-- **Photos:** Immich (143,350 family photos on 192.168.50.165)
+- **Photos:** Immich (local Docker on localhost:2283 — family photo library, ML disabled for RAM savings)
 - **Smart Home:** Frigate (doorbell camera, 192.168.50.114), Home Assistant (TV control, 192.168.50.76)
 - **Remote:** Samsung TV remote via HDMI-CEC → keyboard events via xdotool
 - **Auto-start:** systemd service with process supervision (Flask + Chrome + CEC bridge)

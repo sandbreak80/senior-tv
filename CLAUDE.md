@@ -19,6 +19,8 @@ Senior TV is a full-screen kiosk-style entertainment, communication, and care sy
 - **Pluto TV** (`pluto_tv.py`) — 421 free live TV channels via HLS, logos via `path` key (not `url`)
 - **Immich API** (`immich_api.py`) — family photos from Immich at `localhost:2283` (local Docker, ML disabled); photos proxied through `/api/immich-photo/<id>` to hide API key
 - **Smart Home** (`smart_home.py`) — Frigate person detection on front_door camera, HA integration, room presence tracking
+- **Display** — forced to 1920x1080 (no 4K content); `monitors.xml` covers both HDMI ports, `start.sh` enforces via Mutter DBus API
+- **HDMI audio** (`fix_audio.sh`) — finds any HDMI sink via PipeWire `object.path`, works with either HDMI port; called by `start.sh` and `watchdog.sh`
 - **Process supervision** (`start.sh`) — monitors Flask + Chrome + CEC bridge every 10s, restarts any that die
 - **systemd** (`senior-tv.service`) — auto-start on boot, `Restart=always`
 - **Watchdog** (`watchdog.sh`) — runs every 3 min via systemd timer; checks/repairs Flask, Chrome, audio, network, Tailscale, disk, memory
@@ -115,6 +117,67 @@ SSE reconnects with exponential backoff (5s → 60s max). Alert sounds use Web A
 - **Tailscale** mesh VPN with SSH enabled (`tailscale up --ssh`)
 - **Health endpoint**: `GET /api/health` returns JSON status of all subsystems
 - **BIOS**: Set "Restore on AC Power Loss = Power On" for power failure recovery
+
+## Jellyfin Setup & Content Population
+
+### How install.sh configures Jellyfin (fully automated)
+1. Starts Jellyfin Docker container, waits for it to respond on port 8096
+2. Runs first-time setup wizard via REST API: sets locale (en-US), creates admin user (`seniortv`/`seniortv`), enables remote access, completes wizard
+3. Authenticates via `/Users/AuthenticateByName` to get a session token
+4. Creates three libraries via `/Library/VirtualFolders`: Movies (`/media/movies`), Shows (`/media/shows`), Music (`/media/music`) — all with `EnableRealtimeMonitor: true` so new files are auto-detected
+5. Creates a permanent API key via `/Auth/Keys?app=SeniorTV` and stores it in `senior_tv.db` settings table
+6. Enables Intel VA-API hardware transcoding if `/dev/dri/renderD128` exists (Intel N95 supports H.264/HEVC/VP9/AV1 decode)
+
+### Content population
+Media lives in `~/media/{movies,shows,music}/` (mounted read-only into the Jellyfin container). Two loader scripts:
+
+- **`scripts/load_jellyfin_content.py`** (primary) — Downloads public domain content from Archive.org. 50 GB budget, rate limiting (auto-waits 60s on 429), resumes partial downloads, triggers Jellyfin library scan on completion. Categories: music (classical for Colleen), movies (westerns/comedy/drama), shows (game shows/sitcoms), ambient (fireplace/aquarium for wind-down).
+- **`scripts/load_jellyfin.sh`** (legacy) — Bash-based alternative, same Archive.org sources.
+
+```bash
+# Preview what will download
+python3 scripts/load_jellyfin_content.py --list
+
+# Download all categories (50 GB budget)
+python3 scripts/load_jellyfin_content.py
+
+# Single category
+python3 scripts/load_jellyfin_content.py --category music
+
+# Just trigger a library scan
+python3 scripts/load_jellyfin_content.py --scan
+```
+
+### Key Jellyfin API patterns
+- Auth header: `X-Emby-Token: <api_key>` (not Bearer)
+- Library scan: `POST /Library/Refresh` (returns 204)
+- Create library: `POST /Library/VirtualFolders?name=X&collectionType=Y&refreshLibrary=false` with `PathInfos` in body
+- First-time wizard endpoints: `/Startup/Configuration`, `/Startup/User`, `/Startup/RemoteAccess`, `/Startup/Complete`
+- Hardware transcoding config: `POST /System/Configuration/encoding` with VA-API device path
+
+## Immich Setup
+
+### How install.sh configures Immich (fully automated)
+1. Starts Immich stack (server + Redis + PostgreSQL with pgvecto-rs), waits for port 2283
+2. Creates admin account via `/api/auth/admin-sign-up` (only works on first run, silently fails if admin exists)
+3. Authenticates via `/api/auth/login` to get a Bearer token
+4. Creates permanent API key via `/api/api-keys` with `permissions: ["all"]`
+5. Disables ML via `/api/system-config` PUT (saves ~400 MB RAM — face recognition is nice-to-have, not essential)
+6. Tunes job concurrency for 8 GB RAM: thumbnail/metadata at 2, video/search/background/migration at 1
+7. Enables VA-API video transcoding in ffmpeg config
+8. Stores API key in `senior_tv.db` settings table
+
+### Immich architecture notes
+- Uses `tensorchord/pgvecto-rs:pg14-v0.2.0` for PostgreSQL (vector search extension)
+- ML container intentionally omitted from docker-compose — saves RAM, face recognition not needed for photo slideshow use case
+- Photos proxied through Flask (`/api/immich-photo/<id>`) to hide API key from browser
+- Upload path: `./data/immich/upload` → mapped to `/usr/src/app/upload` in container
+
+### Immich API patterns
+- Auth header: `x-api-key: <key>` (lowercase) or `Authorization: Bearer <token>` for session auth
+- Random photos: `GET /api/search/random` (used for slideshow)
+- System config: `GET/PUT /api/system-config` (disable ML, tune jobs, set ffmpeg config)
+- Admin signup: `POST /api/auth/admin-sign-up` (first-run only, returns 400 if admin exists)
 
 ## Commands
 
@@ -218,6 +281,15 @@ Accessible from any device on LAN at `http://<host-ip>:5000/admin`
 - `watchdog.sh` — Local self-repair (3 min interval via systemd timer)
 - `fix_audio.sh` — HDMI audio routing fix (wpctl)
 - `health_check_agent.sh` — Hourly Claude CLI health check (cron)
+- `install.sh` — Fully automated installer (system packages, Chrome, Docker, Jellyfin, Immich, Cloudflare, systemd, cron)
+- `docker-compose.yml` — Jellyfin + Immich stack + Bazarr + Nginx reverse proxy
+- `nginx.conf` — Routes: `/` → Flask (5000), `/jellyfin/` → 8096, `/immich/` → 2283
+- `seed_content.sh` — Downloads sample photos for screensaver on first install
+- `scripts/load_jellyfin_content.py` — Archive.org content downloader (movies, shows, music, ambient)
+- `scripts/load_jellyfin.sh` — Legacy bash-based content loader
+- `scripts/load_music.py` — Classical music downloader (curated for Alzheimer's care)
+- `scripts/load_photos.py` — Photo import helper
+- `scripts/load_images.py` — Image download utility
 - `static/js/tv.js` — Row-aware navigation, `quickNav()`, SSE handler, idle screensaver, all alert types, offline banner
 - `static/js/player.js` — Video player controls (play/pause, skip, volume)
 - `static/js/hls.min.js` — HLS.js for Pluto TV live streams
@@ -226,3 +298,5 @@ Accessible from any device on LAN at `http://<host-ip>:5000/admin`
 - `templates/tv/` — 20 TV-facing templates
 - `templates/admin/` — 15 admin templates (extend `base.html`)
 - `test_ui.py` — Playwright test suite (93 tests, requires `pip install playwright`)
+- `.env.example` — Template for environment variables (credentials, tokens, service config)
+- `data/` — Persistent Docker volumes (Jellyfin config/cache, Immich uploads/postgres, Bazarr config)
