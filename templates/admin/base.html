@@ -16,7 +16,8 @@
         <a href="/admin/calendar" {% if '/calendar' in request.path %}class="active"{% endif %}>Calendar</a>
         <a href="/admin/cameras" {% if '/cameras' in request.path %}class="active"{% endif %}>Cameras</a>
         <a href="/admin/pills" class="admin-only {% if '/pills' in request.path %}active{% endif %}" {% if '/pills' in request.path %}{% endif %}>Pills</a>
-        <a href="/admin/youtube" class="admin-only {% if '/youtube' in request.path %}active{% endif %}">YouTube</a>
+        <a href="/admin/youtube" class="admin-only {% if '/youtube' in request.path and '/free-movies' not in request.path %}active{% endif %}">YouTube</a>
+        <a href="/admin/free-movies" class="admin-only {% if '/free-movies' in request.path %}active{% endif %}">Free Movies</a>
         <a href="/admin/settings" class="admin-only {% if '/settings' in request.path %}active{% endif %}">Settings</a>
         <button class="mode-toggle" id="mode-toggle" onclick="toggleMode()">
             <span class="mode-label" id="mode-label">Family</span>

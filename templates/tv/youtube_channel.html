@@ -17,7 +17,7 @@
             {% if videos %}
             <div class="poster-grid" id="poster-grid" style="grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));">
                 {% for video in videos %}
-                <a class="poster-card navigable" href="/tv/youtube/watch/{{ video.video_id }}" style="max-width: 420px;">
+                <a class="poster-card navigable" href="/tv/youtube/watch/{{ video.video_id }}?channel={{ channel_id }}" style="max-width: 420px;">
                     {% if video.thumbnail %}
                     <img class="poster-img" src="{{ video.thumbnail }}" alt="{{ video.title }}" loading="lazy"
                          style="aspect-ratio: 16/9; object-fit: cover;">

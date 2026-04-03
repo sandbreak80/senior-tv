@@ -344,7 +344,13 @@ window.quickNav = function(url) {
                     } else if (data.type === "auto_play") {
                         // Only auto-play if someone is watching (skip if room empty)
                         if (data.url && !window._roomEmpty) {
-                            window.quickNav(data.url);
+                            var interrupt = data.interrupt || "always";
+                            var onIdlePage = window.location.pathname === "/" ||
+                                             window.location.pathname.indexOf("/tv/photos") === 0;
+                            // "always" = interrupt anything, "idle_only" = only if on home/screensaver
+                            if (interrupt === "always" || onIdlePage) {
+                                window.quickNav(data.url);
+                            }
                         }
                     } else if (data.type === "presence_change") {
                         window._roomEmpty = !data.occupied;
@@ -848,11 +854,16 @@ window.quickNav = function(url) {
                 });
         }, AUTO_PLAY_DELAY);
 
-        // Cancel auto-play if user navigates manually
+        // Cancel auto-play if user navigates manually — but restart it after 2 min
+        // so the TV never gets permanently stuck with no content
         document.addEventListener("keydown", function() {
             if (autoPlayTimer) {
                 clearTimeout(autoPlayTimer);
-                autoPlayTimer = null;
+                autoPlayTimer = setTimeout(function() {
+                    if (window.location.pathname === "/") {
+                        initAutoPlay();
+                    }
+                }, 120000);
             }
         }, { once: true });
     }

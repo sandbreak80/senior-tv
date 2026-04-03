@@ -49,17 +49,26 @@
 <body>
     <div class="yt-back-bar" id="back-bar">
         <span class="back-label">◀ BACK</span>
-        <span>YouTube</span>
-        <span class="hint">Press BACK to return</span>
+        <span>{% if yt_movie %}🍿 {{ yt_movie.title }}{% else %}YouTube{% endif %}</span>
+        <span class="hint">{% if yt_movie %}{{ yt_movie.genre }} · {{ yt_movie.duration_minutes }} min{% else %}Press BACK to return{% endif %}</span>
     </div>
 
     <div class="yt-container">
-        <iframe
+        {% if playlist_ids and playlist_ids|length > 1 %}
+        {# Playlist: plays through all channel videos ONCE, no loop, then goes home #}
+        <iframe id="yt-player"
+            src="https://www.youtube.com/embed/{{ video_id }}?autoplay=1&mute=0&rel=0&modestbranding=1&disablekb=1&iv_load_policy=3&fs=0&playlist={{ playlist_ids[1:]|join(',') }}"
+            allow="autoplay; encrypted-media"
+            sandbox="allow-scripts allow-same-origin allow-presentation"
+            ></iframe>
+        {% else %}
+        {# Single video: play ONCE, then go home for next auto-play content #}
+        <iframe id="yt-player"
             src="https://www.youtube.com/embed/{{ video_id }}?autoplay=1&mute=0&rel=0&modestbranding=1&disablekb=1&iv_load_policy=3&fs=0"
             allow="autoplay; encrypted-media"
             sandbox="allow-scripts allow-same-origin allow-presentation"
-            >
-        </iframe>
+            ></iframe>
+        {% endif %}
         <!-- Transparent overlay blocks all YouTube clickable elements -->
         <div id="yt-overlay" style="position:fixed;inset:0;z-index:50;cursor:default;"></div>
     </div>
@@ -78,29 +87,43 @@
 
     <script src="/static/js/tv.js?v=6"></script>
     <script>
-        const bar = document.getElementById('back-bar');
-        let hideTimeout;
+        var bar = document.getElementById('back-bar');
+        var hideTimeout;
+        var navigatingAway = false;
 
         function showBar() {
             bar.classList.remove('hidden');
             clearTimeout(hideTimeout);
-            hideTimeout = setTimeout(() => bar.classList.add('hidden'), 4000);
+            hideTimeout = setTimeout(function() { bar.classList.add('hidden'); }, 4000);
         }
 
-        function quickBack() { window.quickNav('back'); }
+        function moveOn() {
+            // Video/playlist ended — go home, auto-play will pick next content
+            if (navigatingAway) return;
+            navigatingAway = true;
+            window.quickNav('/');
+        }
 
         document.addEventListener('keydown', function(e) {
             if (document.getElementById('reminder-overlay').classList.contains('active')) return;
             if (e.key === 'Escape' || e.key === 'Backspace' || e.key === 'BrowserBack') {
                 e.preventDefault();
                 e.stopPropagation();
-                quickBack();
+                window.quickNav('back');
             } else {
                 showBar();
             }
         }, true);
 
         showBar();
+
+        // --- Duration-based move-on timer ---
+        // Server fetched the actual video/playlist duration from YouTube.
+        // Timer fires when playback should be done. No repeat, ever.
+        var MOVE_ON_SECONDS = {{ move_on_seconds|default(5400) }};
+        setTimeout(function() {
+            moveOn();
+        }, MOVE_ON_SECONDS * 1000);
     </script>
 </body>
 </html>

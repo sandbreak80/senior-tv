@@ -1,0 +1,168 @@
+{% extends "admin/base.html" %}
+{% block title %}Free Movies{% endblock %}
+{% block content %}
+<div style="display: flex; align-items: center; justify-content: space-between; margin: 20px 0;">
+    <h1>🍿 Free YouTube Movies</h1>
+    <div class="btn-group">
+        <a href="/admin/free-movies/discover" class="btn btn-primary">🔍 Discover Movies</a>
+        <a href="/admin/free-movies/new" class="btn btn-primary">+ Add Movie</a>
+    </div>
+</div>
+
+<!-- Stats -->
+{% if stats %}
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px;">
+    <div class="card" style="padding: 16px; text-align: center;">
+        <div style="font-size: 28px; font-weight: 700; color: var(--primary);">{{ stats.enabled }}</div>
+        <div style="font-size: 13px; color: var(--text-muted);">Movies</div>
+    </div>
+    <div class="card" style="padding: 16px; text-align: center;">
+        <div style="font-size: 28px; font-weight: 700; color: var(--primary);">{{ stats.total_plays }}</div>
+        <div style="font-size: 13px; color: var(--text-muted);">Total Plays</div>
+    </div>
+    <div class="card" style="padding: 16px; text-align: center;">
+        <div style="font-size: 28px; font-weight: 700; color: var(--primary);">{{ stats.total_hours }}h</div>
+        <div style="font-size: 13px; color: var(--text-muted);">Library Duration</div>
+    </div>
+    <div class="card" style="padding: 16px; text-align: center;">
+        <div style="font-size: 28px; font-weight: 700; color: var(--primary);">{{ stats.never_played }}</div>
+        <div style="font-size: 13px; color: var(--text-muted);">Never Played</div>
+    </div>
+    <div class="card" style="padding: 16px; text-align: center;">
+        <div style="font-size: 28px; font-weight: 700; color: var(--primary);">{{ genres|length }}</div>
+        <div style="font-size: 13px; color: var(--text-muted);">Genres</div>
+    </div>
+</div>
+
+<!-- Genre breakdown -->
+<div class="card" style="padding: 12px; margin-bottom: 16px;">
+    <div style="display: flex; gap: 16px; flex-wrap: wrap; align-items: center;">
+        {% for gc in stats.genre_counts %}
+        <span style="font-size: 14px;">
+            <strong>{{ gc.genre }}</strong>: {{ gc.c }}
+        </span>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Recently Played -->
+{% if stats.recently_played %}
+<div class="card" style="padding: 12px; margin-bottom: 16px;">
+    <div style="font-weight: 600; margin-bottom: 8px;">Recently Played</div>
+    {% for m in stats.recently_played %}
+    <div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:14px;">
+        <img src="https://i.ytimg.com/vi/{{ m.video_id }}/default.jpg" style="width:48px;border-radius:4px;">
+        <div>
+            <strong>{{ m.title }}</strong>
+            <div style="color:var(--text-muted);font-size:12px;">
+                {{ m.genre }} · Played {{ m.play_count }}x · Last: {{ m.last_played_at[:16] if m.last_played_at else 'never' }}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Most Played -->
+{% if stats.most_played %}
+<div class="card" style="padding: 12px; margin-bottom: 16px;">
+    <div style="font-weight: 600; margin-bottom: 8px;">Most Played</div>
+    {% for m in stats.most_played %}
+    <div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:14px;">
+        <img src="https://i.ytimg.com/vi/{{ m.video_id }}/default.jpg" style="width:48px;border-radius:4px;">
+        <div>
+            <strong>{{ m.title }}</strong>
+            <span style="color:var(--primary);font-weight:600;">{{ m.play_count }}x</span>
+            <span style="color:var(--text-muted);">· {{ m.genre }}</span>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endif %}
+
+<!-- Genre filter -->
+<div style="margin-bottom: 16px; display: flex; gap: 8px; flex-wrap: wrap;">
+    <a href="/admin/free-movies" class="btn btn-sm {% if not selected_genre %}btn-primary{% endif %}">All ({{ total }})</a>
+    {% for g in genres %}
+    <a href="/admin/free-movies?genre={{ g }}" class="btn btn-sm {% if selected_genre == g %}btn-primary{% endif %}">{{ g }}</a>
+    {% endfor %}
+</div>
+
+{% if movies %}
+<div class="card">
+    <div class="table-wrap">
+        <table>
+            <tr><th>Movie</th><th>Genre</th><th>Duration</th><th>Plays</th><th>Last Played</th><th>Actions</th></tr>
+            {% for m in movies %}
+            <tr{% if not m.enabled %} style="opacity: 0.5;"{% endif %}>
+                <td>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <img src="https://i.ytimg.com/vi/{{ m.video_id }}/default.jpg" style="width:60px;border-radius:4px;">
+                        <div>
+                            <strong>{{ m.title }}</strong>
+                            {% if not m.enabled %}<span style="color:#e94560;font-size:12px;"> (disabled)</span>{% endif %}
+                            <div style="color:var(--text-muted);font-size:12px;">{{ m.video_id }}</div>
+                        </div>
+                    </div>
+                </td>
+                <td>{{ m.genre }}</td>
+                <td>{{ m.duration_minutes or '?' }} min</td>
+                <td>{{ m.play_count or 0 }}</td>
+                <td style="font-size:12px;color:var(--text-muted);">{{ m.last_played_at[:16] if m.last_played_at else 'never' }}</td>
+                <td>
+                    <div class="btn-group">
+                        <a href="https://www.youtube.com/watch?v={{ m.video_id }}" target="_blank" class="btn btn-sm" title="Preview on YouTube">▶</a>
+                        <a href="/admin/free-movies/{{ m.id }}/edit" class="btn btn-sm btn-primary">Edit</a>
+                        {% if m.enabled %}
+                        <form method="POST" action="/admin/free-movies/{{ m.id }}/toggle" style="display:inline">
+                            <button type="submit" class="btn btn-sm" title="Disable">🚫</button>
+                        </form>
+                        {% else %}
+                        <form method="POST" action="/admin/free-movies/{{ m.id }}/toggle" style="display:inline">
+                            <button type="submit" class="btn btn-sm" title="Enable">✅</button>
+                        </form>
+                        {% endif %}
+                        <form method="POST" action="/admin/free-movies/{{ m.id }}/delete" style="display:inline"
+                              onsubmit="return confirm('Delete {{ m.title }}?')">
+                            <button type="submit" class="btn btn-sm btn-danger">✕</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="card">
+    <p class="empty">No free movies yet. Click "Add Movie" or "Discover Movies" to get started.</p>
+</div>
+{% endif %}
+
+<!-- Quick Add -->
+<div class="card" style="margin-top: 20px;">
+    <h3>Quick Add from YouTube URL</h3>
+    <p style="color: var(--text-muted); font-size: 14px;">Paste a YouTube movie URL and we'll fetch the details automatically.</p>
+    <form method="POST" action="/admin/free-movies/quick-add" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;">
+        <div>
+            <label>YouTube URL or Video ID</label>
+            <input type="text" name="url" placeholder="https://youtube.com/watch?v=... or video ID" style="width:400px;" required>
+        </div>
+        <div>
+            <label>Genre</label>
+            <select name="genre">
+                <option>Comedy</option>
+                <option>Drama</option>
+                <option>Family</option>
+                <option>Western</option>
+                <option>Action</option>
+                <option>Thriller</option>
+                <option>Romance</option>
+                <option>Documentary</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary">Add Movie</button>
+    </form>
+</div>
+{% endblock %}

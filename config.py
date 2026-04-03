@@ -31,6 +31,16 @@ DEFAULTS = {
     "immich_api_key": "",
     # Admin password — generated on first boot by init_db() if not set
     "admin_password": "",
+    # Scheduled news blocks — 1 hour of live news, 3 times daily
+    # Times are 24h format, comma-separated. Empty = disabled.
+    "news_schedule": "07:00,12:00,18:00",
+    # Pluto TV news channels to rotate through (picked randomly per block)
+    "news_channels": "News + Opinion",
+    # Whether scheduled content (news, Jeopardy, classical) interrupts current playback
+    # "always" = always interrupt, "idle_only" = only if on home screen or screensaver
+    "auto_play_interrupt": "always",
+    # Minutes before YouTube/video player returns to home for content rotation (0 = never)
+    "content_rotation_minutes": "90",
     # Audio/accessibility — sensible universal defaults
     "tts_enabled": "1",
     "audio_processing": "0",

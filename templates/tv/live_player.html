@@ -235,6 +235,67 @@
                 }
             }, true);
 
+            // Dead stream detection — two methods:
+            // 1. Frozen frame: static test card (same hash 3x in a row)
+            // 2. Looping content: short repeating animation (same hash seen before in history)
+            //    The Pluto deprecation screen is a ~15-20s loop. We keep a rolling
+            //    history of frame hashes. If a hash repeats 3+ times over 2 minutes,
+            //    it's a loop — skip the channel.
+            var _deadCanvas = document.createElement('canvas');
+            _deadCanvas.width = 16; _deadCanvas.height = 16;
+            var _deadCtx = _deadCanvas.getContext('2d', {willReadFrequently: true});
+            var _lastPixelHash = '';
+            var _frozenCount = 0;
+            var _hashHistory = {};  // hash → count (rolling 2-min window)
+            var _hashQueue = [];    // ordered list for expiry
+
+            function _skipChannel(reason) {
+                if (hls) hls.destroy();
+                showCenterIcon('Switching channels...');
+                window.logActivity(reason, channelName, "live_tv", {item_id: channelId});
+                fetch("/api/next-channel")
+                    .then(function(r) { return r.ok ? r.json() : null; })
+                    .then(function(ch) {
+                        if (ch && ch.url) { window.quickNav(ch.url); }
+                        else { window.quickNav("/"); }
+                    })
+                    .catch(function() { window.quickNav("/"); });
+            }
+
+            setInterval(function() {
+                if (video.paused || video.readyState < 2) return;
+                try {
+                    _deadCtx.drawImage(video, 0, 0, 16, 16);
+                    var px = _deadCtx.getImageData(0, 0, 16, 16).data;
+                    var hash = '';
+                    for (var i = 0; i < px.length; i += 64) hash += px[i].toString(16);
+
+                    // Method 1: Frozen frame (same hash consecutively)
+                    if (hash === _lastPixelHash && hash !== '') {
+                        _frozenCount++;
+                        if (_frozenCount >= 3) return _skipChannel("frozen_stream");
+                    } else {
+                        _lastPixelHash = hash;
+                        _frozenCount = 0;
+                    }
+
+                    // Method 2: Looping content detection
+                    // Track hash occurrences over a 2-minute window (12 samples at 10s)
+                    _hashQueue.push(hash);
+                    _hashHistory[hash] = (_hashHistory[hash] || 0) + 1;
+                    // Expire old entries (keep last 12 = 2 minutes)
+                    while (_hashQueue.length > 12) {
+                        var old = _hashQueue.shift();
+                        _hashHistory[old]--;
+                        if (_hashHistory[old] <= 0) delete _hashHistory[old];
+                    }
+                    // If any hash appears 4+ times in 2 minutes, it's a loop
+                    if (_hashQueue.length >= 8 && _hashHistory[hash] >= 4) {
+                        return _skipChannel("dead_stream");
+                    }
+                } catch(e) {}
+            }, 10000);
+
             showOverlay();
         })();
     </script>

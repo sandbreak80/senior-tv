@@ -11,6 +11,43 @@ if [ -z "$XAUTHORITY" ]; then
     [ -n "$XAUTH" ] && export XAUTHORITY="$XAUTH"
 fi
 
+# Set display to 1080p — no 4K content, saves GPU/memory, correct font sizes
+# Uses Mutter DBus API (works under Wayland), handles either HDMI port
+python3 - << 'PYEOF'
+import subprocess, re, sys
+try:
+    r = subprocess.run([
+        'gdbus', 'call', '--session',
+        '--dest', 'org.gnome.Mutter.DisplayConfig',
+        '--object-path', '/org/gnome/Mutter/DisplayConfig',
+        '--method', 'org.gnome.Mutter.DisplayConfig.GetCurrentState'
+    ], capture_output=True, text=True, env={
+        **__import__('os').environ,
+        'DBUS_SESSION_BUS_ADDRESS': f'unix:path=/run/user/1000/bus'
+    })
+    serial = int(re.search(r'\(uint32 (\d+),', r.stdout).group(1))
+    # Find connected HDMI output
+    connector = re.search(r"'(HDMI-\d+)'", r.stdout).group(1)
+    # Check if already 1080p
+    if '1920x1080' in r.stdout.split('is-current')[0].split(connector)[-1:][0] if 'is-current' in r.stdout else '':
+        pass  # already set
+    subprocess.run([
+        'gdbus', 'call', '--session',
+        '--dest', 'org.gnome.Mutter.DisplayConfig',
+        '--object-path', '/org/gnome/Mutter/DisplayConfig',
+        '--method', 'org.gnome.Mutter.DisplayConfig.ApplyMonitorsConfig',
+        str(serial), '1',  # method 1 = temporary (no confirmation popup); monitors.xml handles persistence
+        f'[(0, 0, 1.0, 0, true, [("{connector}", "1920x1080@60.000", {{}})])]',
+        '{}'
+    ], capture_output=True, text=True, env={
+        **__import__('os').environ,
+        'DBUS_SESSION_BUS_ADDRESS': f'unix:path=/run/user/1000/bus'
+    })
+    print(f"Display: {connector} set to 1920x1080@60Hz")
+except Exception as e:
+    print(f"Display config skipped: {e}", file=sys.stderr)
+PYEOF
+
 # Fix audio routing on startup
 bash fix_audio.sh 2>/dev/null
 
@@ -64,13 +101,13 @@ start_chrome() {
     done
 
     google-chrome \
-        --kiosk \
         --noerrdialogs \
         --disable-infobars \
         --disable-session-crashed-bubble \
         --disable-translate \
         --no-first-run \
         --start-fullscreen \
+        --load-extension=$HOME/.config/senior-tv-chrome/ublock-origin \
         --autoplay-policy=no-user-gesture-required \
         --password-store=basic \
         --remote-debugging-port=9222 \

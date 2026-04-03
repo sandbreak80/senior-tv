@@ -82,7 +82,7 @@
                     {% elif wind_down_video %}
                     <div class="home-stream-label">🌙 {{ wind_down_video.name }}</div>
                     <div class="home-stream-frame" style="position: relative;">
-                        <iframe src="https://www.youtube.com/embed/{{ wind_down_video.video_id }}?autoplay=1&mute=0&controls=0&modestbranding=1&rel=0&loop=1&disablekb=1&iv_load_policy=3&fs=0"
+                        <iframe src="https://www.youtube.com/embed/{{ wind_down_video.video_id }}?autoplay=1&mute=0&controls=0&modestbranding=1&rel=0&loop=1&playlist={{ wind_down_video.video_id }}&disablekb=1&iv_load_policy=3&fs=0"
                             allow="autoplay; encrypted-media" sandbox="allow-scripts allow-same-origin allow-presentation"></iframe>
                         <div style="position:absolute;inset:0;z-index:2;"></div>
                     </div>
@@ -115,6 +115,26 @@
             </div>
 
             <!-- CONTENT ROWS -->
+
+            <!-- Free Movies from YouTube -->
+            {% if free_movies %}
+            <div class="home-content-section">
+                <div class="home-section-label">🍿 Free Movies</div>
+                <div class="home-poster-row">
+                    {% for movie in free_movies %}
+                    <a class="poster-card navigable" href="/tv/youtube/watch/{{ movie.video_id }}">
+                        <img class="poster-img" src="{{ movie.thumbnail_url or 'https://i.ytimg.com/vi/' + movie.video_id + '/hqdefault.jpg' }}" alt="{{ movie.title }}" loading="lazy" style="aspect-ratio:16/9;object-fit:cover;">
+                        <div class="poster-title">{{ movie.title }}</div>
+                        <div class="poster-subtitle">{{ movie.genre }} · {{ movie.duration_minutes }} min</div>
+                    </a>
+                    {% endfor %}
+                    <a class="poster-card navigable" href="/tv/free-movies">
+                        <div class="poster-img poster-placeholder">🎬</div>
+                        <div class="poster-title">Browse All</div>
+                    </a>
+                </div>
+            </div>
+            {% endif %}
 
             <!-- Movies from Jellyfin -->
             {% if jf_movies %}

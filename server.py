@@ -52,6 +52,10 @@ _exclusions_path = os.path.join(config.BASE_DIR, "content_exclusions.json")
 if os.path.exists(_exclusions_path):
     with open(_exclusions_path) as _f:
         _excluded_ids = set(json.load(_f).get("excluded_ids", []))
+
+# Recently-played tracking — avoid repeating the same content in auto-play
+from collections import deque
+_recently_played = deque(maxlen=50)  # remember last 50 items
 app.config["SECRET_KEY"] = config.SECRET_KEY
 app.config["MAX_CONTENT_LENGTH"] = config.MAX_UPLOAD_SIZE
 app.config["SESSION_COOKIE_HTTPONLY"] = True
@@ -282,8 +286,10 @@ def tv_home():
             holidays_today = ev["title"].replace("🎉 ", "")
             break
 
+    free_movie_count = models.get_youtube_movie_count()
     menu_items = [
         {"label": "Live TV", "icon": "📺", "url": "/tv/live"},
+        {"label": f"Free Movies ({free_movie_count})", "icon": "🍿", "url": "/tv/free-movies"},
         {"label": "Movies & Shows", "icon": "🎬", "url": "/tv/plex"},
         {"label": "YouTube", "icon": "▶️", "url": "/tv/youtube"},
         {"label": msg_label, "icon": "💌", "url": "/tv/messages"},
@@ -355,6 +361,10 @@ def tv_home():
                             cache.set("wind_down_video", wind_down_video, ttl=3600)
             except Exception:
                 pass
+
+    # Random free YouTube movies for the home page
+    import random as _random_home
+    free_movies_home = models.get_random_youtube_movies(limit=12)
 
     # Suggested YouTube channels for this time period
     time_youtube = []
@@ -429,6 +439,7 @@ def tv_home():
         menu_items=menu_items,
         jf_movies=jf_movies[:15],
         jf_shows=jf_shows[:15],
+        free_movies=free_movies_home,
         la_news_video_id=la_news_video_id,
         wind_down_video=wind_down_video,
         next_event=next_event,
@@ -818,13 +829,8 @@ def tv_message_view(msg_id):
 
 @app.route("/tv/live")
 def tv_live():
-    """Live TV channel guide powered by Pluto TV."""
-    import pluto_tv
-    category = request.args.get("category")
-    channels, error = pluto_tv.get_channels(category_filter=category)
-    categories, _ = pluto_tv.get_categories()
-    return render_template("tv/live.html", channels=channels, categories=categories,
-                           selected_category=category, error=error)
+    """Live TV — redirects to YouTube channels (Pluto TV deprecated Feb 2026)."""
+    return redirect("/tv/youtube")
 
 
 @app.route("/tv/live/play/<channel_id>")
@@ -926,6 +932,59 @@ def pluto_proxy():
         return "", 502
 
 
+# --- YouTube Free Movies ---
+
+@app.route("/tv/free-movies")
+def tv_free_movies():
+    """Browse free movies on YouTube by genre."""
+    genre = request.args.get("genre")
+    genres = models.get_youtube_movie_genres()
+
+    if genre:
+        movies = models.get_youtube_movies(genre=genre)
+    else:
+        movies = models.get_youtube_movies()
+
+    # Add thumbnail URLs for any that don't have one
+    for m in movies:
+        if not m.get("thumbnail_url"):
+            m["thumbnail_url"] = f"https://i.ytimg.com/vi/{m['video_id']}/hqdefault.jpg"
+
+    return render_template("tv/free_movies.html", movies=movies, genres=genres,
+                           selected_genre=genre, total=len(movies))
+
+
+@app.route("/api/random-free-movie")
+def api_random_free_movie():
+    """Get a random free YouTube movie for auto-play."""
+    import random as _random
+    hour = datetime.now().hour
+    if hour < 14:
+        preferred = ["Comedy", "Family", "Western"]
+    elif hour < 17:
+        preferred = ["Western", "Comedy", "Drama", "Action"]
+    else:
+        preferred = ["Western", "Family", "Comedy", "Thriller"]
+
+    # Try preferred genre first
+    genre = _random.choice(preferred) if _random.random() < 0.6 else None
+    movies = models.get_random_youtube_movies(
+        genre=genre, limit=5, exclude_ids=set(str(v) for v in _recently_played))
+    if not movies and genre:
+        movies = models.get_random_youtube_movies(limit=5)
+    if movies:
+        m = movies[0]
+        _recently_played.append(m["video_id"])
+        return jsonify({
+            "id": m["video_id"],
+            "title": m["title"],
+            "type": "youtube_movie",
+            "genre": m.get("genre", ""),
+            "url": f"/tv/youtube/watch/{m['video_id']}",
+        })
+    return jsonify({"error": "no movies"}), 404
+
+
 # --- YouTube ---
 
 @app.route("/tv/youtube")
@@ -1005,12 +1064,85 @@ def tv_youtube_channel(channel_id):
                            channel_id=channel_id, videos=videos)
 
 
+def _get_youtube_duration(video_id):
+    """Get video duration in seconds by scraping YouTube's page metadata."""
+    try:
+        resp = requests.get(
+            f"https://www.youtube.com/watch?v={video_id}",
+            headers={"User-Agent": "Mozilla/5.0"}, timeout=8)
+        m = re.search(r'"lengthSeconds":"(\d+)"', resp.text)
+        if m:
+            return int(m.group(1))
+    except Exception:
+        pass
+    return 0
+
+
 @app.route("/tv/youtube/watch/<video_id>")
 def tv_youtube_watch(video_id):
-    """Watch a YouTube video."""
+    """Watch a YouTube video. Builds a playlist from the channel for continuous play."""
     if not re.match(r'^[a-zA-Z0-9_-]{11}$', video_id):
         return redirect("/tv/youtube")
-    return render_template("tv/youtube_player.html", video_id=video_id)
+
+    # If channel_id is provided, build a playlist of all channel videos
+    playlist_ids = []
+    channel_id = request.args.get("channel")
+    if channel_id and re.match(r'^UC[a-zA-Z0-9_-]{22}$', channel_id):
+        try:
+            feed_url = f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
+            feed = feedparser.parse(feed_url)
+            for entry in feed.entries[:20]:
+                vid = entry.get("yt_videoid", "")
+                if vid and re.match(r'^[a-zA-Z0-9_-]{11}$', vid):
+                    playlist_ids.append(vid)
+        except Exception:
+            pass
+
+    # Ensure the selected video is first, then the rest in order
+    if playlist_ids and video_id in playlist_ids:
+        idx = playlist_ids.index(video_id)
+        playlist_ids = playlist_ids[idx:] + playlist_ids[:idx]
+    elif playlist_ids:
+        playlist_ids.insert(0, video_id)
+
+    # Get duration so the player knows exactly when to move on.
+    # Only fetch the selected video's duration (fast — one request).
+    # For playlists, YouTube auto-advances; we just need to know when
+    # the whole thing should be done. Estimate: first_video_duration * count.
+    rotation = int(get_setting_or_default("content_rotation_minutes") or 90)
+    first_duration = _get_youtube_duration(video_id)
+
+    if first_duration >= 600:
+        # Good long-form video — set precise timer
+        if playlist_ids and len(playlist_ids) > 1:
+            avg_estimate = max(first_duration, 300)
+            move_on_seconds = avg_estimate * len(playlist_ids) + len(playlist_ids) * 10
+            move_on_seconds = min(move_on_seconds, rotation * 60)
+        else:
+            move_on_seconds = first_duration + 10
+    elif first_duration > 0:
+        # Short video (under 10 min) — play it but move on quickly
+        move_on_seconds = first_duration + 10
+    else:
+        # Duration unknown — use 10 min fallback (better to move on early than be stuck 90 min)
+        move_on_seconds = 600
+
+    # Check if this is a free movie from our catalog
+    yt_movie = models.get_youtube_movie_by_video_id(video_id)
+    if yt_movie:
+        models.record_youtube_movie_play(video_id)
+        models.log_activity(
+            activity_type="playback_start",
+            item_id=video_id,
+            item_title=yt_movie["title"],
+            item_type="youtube_movie",
+        )
+
+    return render_template("tv/youtube_player.html", video_id=video_id,
+                           playlist_ids=playlist_ids,
+                           move_on_seconds=move_on_seconds,
+                           rotation_minutes=rotation,
+                           yt_movie=yt_movie)
 
 
 # --- YouTube Admin ---
@@ -1060,6 +1192,163 @@ def admin_youtube_edit(ch_id):
 def admin_youtube_delete(ch_id):
     models.delete_youtube_channel(ch_id)
     return redirect("/admin/youtube")
+
+
+# --- Free Movies Admin ---
+
+@app.route("/admin/free-movies")
+def admin_free_movies():
+    genre = request.args.get("genre")
+    movies = models.get_youtube_movies(genre=genre)
+    genres = models.get_youtube_movie_genres()
+    total = models.get_youtube_movie_count()
+    stats = models.get_youtube_movie_stats()
+    return render_template("admin/free_movies.html", movies=movies, genres=genres,
+                           selected_genre=genre, total=total, stats=stats)
+
+
+@app.route("/admin/free-movies/new", methods=["GET", "POST"])
+def admin_free_movies_new():
+    if request.method == "POST":
+        data = {
+            "video_id": request.form["video_id"].strip(),
+            "title": request.form["title"].strip(),
+            "genre": request.form.get("genre", "Drama"),
+            "duration_minutes": _safe_int(request.form.get("duration_minutes"), None),
+            "year": _safe_int(request.form.get("year"), None),
+        }
+        data["added_by"] = "admin"
+        models.create_youtube_movie(data)
+        return redirect("/admin/free-movies")
+    return render_template("admin/free_movie_form.html", movie=None)
+
+
+@app.route("/admin/free-movies/<int:movie_id>/edit", methods=["GET", "POST"])
+def admin_free_movies_edit(movie_id):
+    movie = models.get_youtube_movie(movie_id)
+    if not movie:
+        return redirect("/admin/free-movies")
+    if request.method == "POST":
+        data = {
+            "video_id": request.form["video_id"].strip(),
+            "title": request.form["title"].strip(),
+            "genre": request.form.get("genre", "Drama"),
+            "duration_minutes": _safe_int(request.form.get("duration_minutes"), None),
+            "year": _safe_int(request.form.get("year"), None),
+        }
+        models.update_youtube_movie(movie_id, data)
+        return redirect("/admin/free-movies")
+    return render_template("admin/free_movie_form.html", movie=movie)
+
+
+@app.route("/admin/free-movies/<int:movie_id>/toggle", methods=["POST"])
+def admin_free_movies_toggle(movie_id):
+    movie = models.get_youtube_movie(movie_id)
+    if movie:
+        models.update_youtube_movie(movie_id, {"enabled": 0 if movie["enabled"] else 1})
+    return redirect("/admin/free-movies")
+
+
+@app.route("/admin/free-movies/discover")
+def admin_free_movies_discover():
+    """Search YouTube for free full-length movies."""
+    query = request.args.get("q", "").strip()
+    genre = request.args.get("genre", "Drama")
+    results = []
+
+    if query:
+        try:
+            search_q = f"free full movie {query}"
+            # sp=EgIYAg%3D%3D filters for 20+ minute videos
+            search_url = f"https://www.youtube.com/results?search_query={requests.utils.quote(search_q)}&sp=EgIYAg%253D%253D"
+            resp = requests.get(search_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+            video_ids = []
+            seen = set()
+            for vid in re.findall(r'"videoId":"([A-Za-z0-9_-]{11})"', resp.text):
+                if vid not in seen:
+                    seen.add(vid)
+                    video_ids.append(vid)
+                if len(video_ids) >= 15:
+                    break
+
+            # Get metadata for each
+            existing_ids = {m["video_id"] for m in models.get_youtube_movies()}
+            for vid_id in video_ids:
+                try:
+                    vresp = requests.get(
+                        f"https://www.youtube.com/watch?v={vid_id}",
+                        headers={"User-Agent": "Mozilla/5.0"}, timeout=6)
+                    title_m = re.search(r'<title>(.*?)</title>', vresp.text)
+                    dur_m = re.search(r'"lengthSeconds":"(\d+)"', vresp.text)
+                    title = title_m.group(1).replace(" - YouTube", "").strip() if title_m else vid_id
+                    duration_sec = int(dur_m.group(1)) if dur_m else 0
+                    duration_min = duration_sec // 60
+                    # Only show 60+ minute videos (full-length)
+                    if duration_min >= 60:
+                        results.append({
+                            "video_id": vid_id,
+                            "title": title,
+                            "duration_minutes": duration_min,
+                            "already_added": vid_id in existing_ids,
+                        })
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+    return render_template("admin/free_movies_discover.html",
+                           results=results, query=query, genre=genre)
+
+
+@app.route("/admin/free-movies/quick-add", methods=["POST"])
+def admin_free_movies_quick_add():
+    """Quick add a movie from a YouTube URL — auto-fetches title and duration."""
+    url_or_id = request.form.get("url", "").strip()
+    genre = request.form.get("genre", "Drama")
+
+    # Extract video ID from URL or use as-is
+    video_id = url_or_id
+    vid_match = re.search(r'[?&]v=([a-zA-Z0-9_-]{11})', url_or_id)
+    if vid_match:
+        video_id = vid_match.group(1)
+    elif re.search(r'youtu\.be/([a-zA-Z0-9_-]{11})', url_or_id):
+        video_id = re.search(r'youtu\.be/([a-zA-Z0-9_-]{11})', url_or_id).group(1)
+
+    if not re.match(r'^[a-zA-Z0-9_-]{11}$', video_id):
+        return redirect("/admin/free-movies")
+
+    # Fetch metadata from YouTube
+    title = video_id
+    duration_minutes = None
+    try:
+        resp = requests.get(f"https://www.youtube.com/watch?v={video_id}",
+                            headers={"User-Agent": "Mozilla/5.0"}, timeout=8)
+        t_match = re.search(r'<title>(.*?)</title>', resp.text)
+        if t_match:
+            title = t_match.group(1).replace(" - YouTube", "").strip()
+            # Clean up common suffixes
+            for suffix in [" | Full Movie", " | FULL MOVIE", " Full Movie",
+                           " | English Full Movie", " | Free Full Movie"]:
+                title = title.replace(suffix, "")
+        d_match = re.search(r'"lengthSeconds":"(\d+)"', resp.text)
+        if d_match:
+            duration_minutes = int(d_match.group(1)) // 60
+    except Exception:
+        pass
+
+    models.create_youtube_movie({
+        "video_id": video_id,
+        "title": title,
+        "genre": genre,
+        "duration_minutes": duration_minutes,
+    })
+    return redirect("/admin/free-movies")
+
+
+@app.route("/admin/free-movies/<int:movie_id>/delete", methods=["POST"])
+def admin_free_movies_delete(movie_id):
+    models.delete_youtube_movie(movie_id)
+    return redirect("/admin/free-movies")
 
 
 # --- SSE endpoint for pill reminders ---
@@ -1288,11 +1577,13 @@ def admin_activity():
 def admin_cameras():
     """Live camera view with snapshots from Frigate."""
     cameras = []
+    frigate_base = get_setting_or_default("frigate_url") or ""
+    from smart_home import _frigate_cookies
     try:
-        resp = requests.get("http://localhost:5001/api/stats", timeout=5)
+        resp = requests.get(f"{frigate_base}/api/stats", cookies=_frigate_cookies, verify=False, timeout=5)
         if resp.ok:
             stats = resp.json()
-            config_resp = requests.get("http://localhost:5001/api/config", timeout=5)
+            config_resp = requests.get(f"{frigate_base}/api/config", cookies=_frigate_cookies, verify=False, timeout=5)
             cam_config = config_resp.json().get("cameras", {}) if config_resp.ok else {}
             for name, info in sorted(stats.get("cameras", {}).items()):
                 detect = cam_config.get(name, {}).get("detect", {})
@@ -1347,10 +1638,14 @@ def admin_camera_snapshot(camera_name):
     """Proxy camera snapshot from Frigate."""
     if not re.match(r'^[a-z_]+$', camera_name):
         return "", 400
+    frigate_base = get_setting_or_default("frigate_url") or ""
+    from smart_home import _frigate_cookies
     try:
         resp = requests.get(
-            f"http://localhost:5001/api/{camera_name}/latest.jpg",
+            f"{frigate_base}/api/{camera_name}/latest.jpg",
             params={"h": 480},
+            cookies=_frigate_cookies,
+            verify=False,
             timeout=5,
         )
         if resp.ok:
@@ -1786,6 +2081,7 @@ def admin_settings():
                      "immich_url", "immich_api_key", "immich_album_id",
                      "admin_password",
                      "classical_music_enabled", "classical_music_hour",
+                     "news_schedule", "news_channels", "auto_play_interrupt",
                      "tts_enabled", "audio_processing", "voice_boost", "audio_target"]:
             val = request.form.get(key)
             if val is not None:
@@ -1797,6 +2093,7 @@ def admin_settings():
     # Also get non-default settings
     for key in ["ha_tv_entity", "immich_album_id", "admin_password",
                  "classical_music_enabled", "classical_music_hour",
+                 "news_schedule", "news_channels", "auto_play_interrupt",
                  "tts_enabled", "audio_processing", "voice_boost", "audio_target"]:
         settings[key] = models.get_setting(key) or ""
 
@@ -2120,53 +2417,100 @@ def api_next_video():
                 for item in items:
                     if item["id"] in _excluded_ids:
                         continue
+                    if item["id"] in _recently_played:
+                        continue
                     result = _validate_and_return(item, genre)
                     if result:
+                        _recently_played.append(item["id"])
                         return jsonify(result)
     except Exception:
         pass
+
+    # Fallback: try a free YouTube movie
+    try:
+        yt_movies = models.get_random_youtube_movies(
+            genre=_random.choice(preferred) if _random.random() < 0.5 else None,
+            limit=5, exclude_ids=set(str(v) for v in _recently_played))
+        if not yt_movies:
+            yt_movies = models.get_random_youtube_movies(limit=5)
+        if yt_movies:
+            m = yt_movies[0]
+            _recently_played.append(m["video_id"])
+            return jsonify({
+                "id": m["video_id"],
+                "title": m["title"],
+                "type": "youtube_movie",
+                "genre": m.get("genre", ""),
+                "url": f"/tv/youtube/watch/{m['video_id']}",
+            })
+    except Exception:
+        pass
+
     return jsonify({"error": "no content"}), 404
 
 
 @app.route("/api/next-channel")
 def api_next_channel():
-    """Get a random time-appropriate Pluto TV channel for auto-play fallback."""
+    """Get a random time-appropriate YouTube video for auto-play fallback.
+
+    Picks a channel, fetches its RSS feed, and returns a DIRECT video watch URL
+    (not a browse page). Filters out videos under 10 minutes to avoid Shorts
+    and short-form content that creates rapid cycling.
+    """
     import random as _random
     hour = datetime.now().hour
     if hour < 14:
-        preferred = ["Daytime + Game Shows", "Classic TV", "News + Opinion"]
+        preferred = ["Game Shows", "Morning Shows", "Local News", "Classic TV"]
     elif hour < 17:
-        preferred = ["Westerns", "Classic TV", "Comedy", "Drama"]
+        preferred = ["Westerns", "Classic TV", "Comedy", "Crime & Drama"]
     else:
-        preferred = ["Comedy", "Classic TV", "Westerns", "Drama"]
+        preferred = ["Wind Down", "Comedy", "Classic TV", "Westerns"]
 
     try:
-        import pluto_tv
-        channels, _ = pluto_tv.get_channels()
-        if not channels:
+        yt_channels = models.get_youtube_channels()
+        if not yt_channels:
             return jsonify({"error": "no channels"}), 404
 
-        # Find channels in preferred categories
+        # Build ordered candidate list: preferred categories first, then the rest
+        candidates = []
         for cat in preferred:
-            matching = [ch for ch in channels if ch["category"] == cat]
-            if matching:
-                ch = _random.choice(matching)
-                return jsonify({
-                    "id": ch["id"],
-                    "name": ch["name"],
-                    "category": ch["category"],
-                    "url": f"/tv/live/play/{ch['id']}",
-                })
+            matching = [ch for ch in yt_channels if ch["category"] == cat]
+            _random.shuffle(matching)
+            candidates.extend(matching)
+        remaining = [ch for ch in yt_channels if ch not in candidates]
+        _random.shuffle(remaining)
+        candidates.extend(remaining)
 
-        # Fall back to any channel
-        ch = _random.choice(channels)
-        return jsonify({
-            "id": ch["id"],
-            "name": ch["name"],
-            "url": f"/tv/live/play/{ch['id']}",
-        })
+        # Try channels until we find one with a long-enough video
+        for ch in candidates[:8]:  # limit attempts
+            try:
+                feed = feedparser.parse(
+                    f"https://www.youtube.com/feeds/videos.xml?channel_id={ch['channel_id']}")
+                vids = []
+                for entry in feed.entries[:15]:
+                    vid_id = entry.get("yt_videoid", "")
+                    if vid_id and re.match(r'^[a-zA-Z0-9_-]{11}$', vid_id):
+                        vids.append(vid_id)
+                if not vids:
+                    continue
+
+                # Check duration of first video — skip channels with short content
+                duration = _get_youtube_duration(vids[0])
+                if 0 < duration < 600:  # under 10 minutes
+                    continue
+
+                return jsonify({
+                    "id": ch["channel_id"],
+                    "name": ch["name"],
+                    "category": ch.get("category", ""),
+                    "url": f"/tv/youtube/watch/{vids[0]}?channel={ch['channel_id']}",
+                })
+            except Exception:
+                continue
+
+        return jsonify({"error": "no suitable channels"}), 404
     except Exception:
-        return jsonify({"error": "pluto unavailable"}), 500
+        return jsonify({"error": "no channels available"}), 500
 
 
 @app.route("/api/immich-slideshow")
@@ -2457,7 +2801,7 @@ def _start_smart_home():
     frigate_user = get_setting_or_default("frigate_user")
     frigate_pass = get_setting_or_default("frigate_pass")
 
-    if frigate_url and frigate_user and frigate_pass:
+    if frigate_url:
         from smart_home import SmartHomeMonitor
         ha_url = get_setting_or_default("ha_url")
         ha_token = get_setting_or_default("ha_token")
@@ -2465,7 +2809,7 @@ def _start_smart_home():
         cameras = [c.strip() for c in cameras_str.split(",")]
 
         _smart_home_monitor = SmartHomeMonitor(
-            frigate_url, frigate_user, frigate_pass,
+            frigate_url, frigate_user or "", frigate_pass or "",
             ha_url, ha_token, reminder_queue, cameras,
         )
         _smart_home_monitor.start()

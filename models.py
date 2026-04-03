@@ -139,6 +139,21 @@ def init_db():
             sonos_volume REAL,
             logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+
+        CREATE TABLE IF NOT EXISTS youtube_movies (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            video_id TEXT NOT NULL UNIQUE,
+            title TEXT NOT NULL,
+            year INTEGER,
+            genre TEXT DEFAULT 'Drama',
+            duration_minutes INTEGER,
+            thumbnail_url TEXT,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            play_count INTEGER NOT NULL DEFAULT 0,
+            last_played_at TIMESTAMP,
+            added_by TEXT DEFAULT 'seed',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
     """)
     db.commit()
 
@@ -711,3 +726,145 @@ def delete_favorite(fav_id):
     with get_db_safe() as db:
         db.execute("DELETE FROM favorites WHERE id = ?", (fav_id,))
         db.commit()
+
+
+# --- YouTube free movies helpers ---
+
+def get_youtube_movies(genre=None, limit=100):
+    with get_db_safe() as db:
+        if genre:
+            rows = db.execute(
+                "SELECT * FROM youtube_movies WHERE enabled = 1 AND genre = ? ORDER BY title LIMIT ?",
+                (genre, limit),
+            ).fetchall()
+        else:
+            rows = db.execute(
+                "SELECT * FROM youtube_movies WHERE enabled = 1 ORDER BY genre, title LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_youtube_movie_genres():
+    with get_db_safe() as db:
+        rows = db.execute(
+            "SELECT DISTINCT genre FROM youtube_movies WHERE enabled = 1 ORDER BY genre"
+        ).fetchall()
+        return [r["genre"] for r in rows]
+
+
+def get_random_youtube_movies(genre=None, limit=10, exclude_ids=None):
+    with get_db_safe() as db:
+        if genre:
+            rows = db.execute(
+                "SELECT * FROM youtube_movies WHERE enabled = 1 AND genre = ? ORDER BY RANDOM() LIMIT ?",
+                (genre, limit),
+            ).fetchall()
+        else:
+            rows = db.execute(
+                "SELECT * FROM youtube_movies WHERE enabled = 1 ORDER BY RANDOM() LIMIT ?",
+                (limit,),
+            ).fetchall()
+        results = [dict(r) for r in rows]
+        if exclude_ids:
+            results = [m for m in results if m["video_id"] not in exclude_ids]
+        return results
+
+
+def create_youtube_movie(data):
+    with get_db_safe() as db:
+        cursor = db.execute(
+            """INSERT OR IGNORE INTO youtube_movies
+               (video_id, title, year, genre, duration_minutes, thumbnail_url, added_by)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (data["video_id"], data["title"], data.get("year"),
+             data.get("genre", "Drama"), data.get("duration_minutes"),
+             data.get("thumbnail_url", f"https://i.ytimg.com/vi/{data['video_id']}/hqdefault.jpg"),
+             data.get("added_by", "manual")),
+        )
+        db.commit()
+        return cursor.lastrowid
+
+
+def delete_youtube_movie(movie_id):
+    with get_db_safe() as db:
+        db.execute("DELETE FROM youtube_movies WHERE id = ?", (movie_id,))
+        db.commit()
+
+
+def get_youtube_movie_count():
+    with get_db_safe() as db:
+        row = db.execute("SELECT COUNT(*) as c FROM youtube_movies WHERE enabled = 1").fetchone()
+        return row["c"] if row else 0
+
+
+def get_youtube_movie(movie_id):
+    with get_db_safe() as db:
+        row = db.execute("SELECT * FROM youtube_movies WHERE id = ?", (movie_id,)).fetchone()
+        return dict(row) if row else None
+
+
+def get_youtube_movie_by_video_id(video_id):
+    with get_db_safe() as db:
+        row = db.execute("SELECT * FROM youtube_movies WHERE video_id = ?", (video_id,)).fetchone()
+        return dict(row) if row else None
+
+
+def update_youtube_movie(movie_id, data):
+    with get_db_safe() as db:
+        fields = []
+        values = []
+        for key in ["title", "video_id", "year", "genre", "duration_minutes",
+                     "thumbnail_url", "enabled"]:
+            if key in data:
+                fields.append(f"{key} = ?")
+                values.append(data[key])
+        if fields:
+            values.append(movie_id)
+            db.execute(f"UPDATE youtube_movies SET {', '.join(fields)} WHERE id = ?", values)
+            db.commit()
+
+
+def record_youtube_movie_play(video_id):
+    """Increment play count and set last_played timestamp."""
+    with get_db_safe() as db:
+        db.execute(
+            """UPDATE youtube_movies SET play_count = play_count + 1,
+               last_played_at = CURRENT_TIMESTAMP WHERE video_id = ?""",
+            (video_id,),
+        )
+        db.commit()
+
+
+def get_youtube_movie_stats():
+    """Get aggregate stats for the free movies catalog."""
+    with get_db_safe() as db:
+        total = db.execute("SELECT COUNT(*) as c FROM youtube_movies").fetchone()["c"]
+        enabled = db.execute("SELECT COUNT(*) as c FROM youtube_movies WHERE enabled = 1").fetchone()["c"]
+        total_plays = db.execute("SELECT COALESCE(SUM(play_count), 0) as c FROM youtube_movies").fetchone()["c"]
+        total_minutes = db.execute(
+            "SELECT COALESCE(SUM(duration_minutes), 0) as c FROM youtube_movies WHERE enabled = 1"
+        ).fetchone()["c"]
+        genre_counts = db.execute(
+            "SELECT genre, COUNT(*) as c FROM youtube_movies WHERE enabled = 1 GROUP BY genre ORDER BY c DESC"
+        ).fetchall()
+        most_played = db.execute(
+            "SELECT * FROM youtube_movies WHERE play_count > 0 ORDER BY play_count DESC LIMIT 5"
+        ).fetchall()
+        recently_played = db.execute(
+            "SELECT * FROM youtube_movies WHERE last_played_at IS NOT NULL ORDER BY last_played_at DESC LIMIT 5"
+        ).fetchall()
+        never_played = db.execute(
+            "SELECT COUNT(*) as c FROM youtube_movies WHERE play_count = 0 AND enabled = 1"
+        ).fetchone()["c"]
+        return {
+            "total": total,
+            "enabled": enabled,
+            "disabled": total - enabled,
+            "total_plays": total_plays,
+            "total_hours": round(total_minutes / 60, 1),
+            "genre_counts": [dict(r) for r in genre_counts],
+            "most_played": [dict(r) for r in most_played],
+            "recently_played": [dict(r) for r in recently_played],
+            "never_played": never_played,
+        }

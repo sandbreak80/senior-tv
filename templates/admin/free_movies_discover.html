@@ -1,0 +1,82 @@
+{% extends "admin/base.html" %}
+{% block title %}Discover Free Movies{% endblock %}
+{% block content %}
+<div style="display: flex; align-items: center; justify-content: space-between; margin: 20px 0;">
+    <h1>🔍 Discover Free Movies</h1>
+    <a href="/admin/free-movies" class="btn">← Back to Library</a>
+</div>
+
+<p style="color: var(--text-muted); margin-bottom: 20px; font-size: 14px;">
+    Search YouTube for free full-length movies. Results are filtered to 60+ minute videos.
+    Click "Add" to add a movie to your library.
+</p>
+
+<!-- Search form -->
+<div class="card" style="margin-bottom: 20px;">
+    <form method="GET" action="/admin/free-movies/discover" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;">
+        <div>
+            <label>Search</label>
+            <input type="text" name="q" value="{{ query or '' }}" placeholder="e.g. comedy movie, western, family film" style="width:350px;">
+        </div>
+        <div>
+            <label>Genre to assign</label>
+            <select name="genre">
+                {% for g in ['Comedy', 'Drama', 'Family', 'Western', 'Action', 'Thriller', 'Romance', 'Documentary'] %}
+                <option {% if genre == g %}selected{% endif %}>{{ g }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary">Search</button>
+    </form>
+</div>
+
+{% if results %}
+<div class="card">
+    <div class="table-wrap">
+        <table>
+            <tr><th>Movie</th><th>Duration</th><th>Actions</th></tr>
+            {% for r in results %}
+            <tr{% if r.already_added %} style="opacity: 0.5;"{% endif %}>
+                <td>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <img src="https://i.ytimg.com/vi/{{ r.video_id }}/default.jpg" style="width:80px;border-radius:4px;">
+                        <div>
+                            <strong>{{ r.title }}</strong>
+                            <div style="color:var(--text-muted);font-size:12px;">{{ r.video_id }}</div>
+                        </div>
+                    </div>
+                </td>
+                <td>{{ r.duration_minutes }} min</td>
+                <td>
+                    {% if r.already_added %}
+                    <span style="color:var(--text-muted);font-size:13px;">Already added</span>
+                    {% else %}
+                    <form method="POST" action="/admin/free-movies/quick-add" style="display:inline">
+                        <input type="hidden" name="url" value="{{ r.video_id }}">
+                        <input type="hidden" name="genre" value="{{ genre or 'Drama' }}">
+                        <button type="submit" class="btn btn-sm btn-primary">+ Add</button>
+                    </form>
+                    {% endif %}
+                    <a href="https://www.youtube.com/watch?v={{ r.video_id }}" target="_blank" class="btn btn-sm">Preview</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+</div>
+{% elif query %}
+<div class="card">
+    <p class="empty">No results found for "{{ query }}". Try different search terms.</p>
+</div>
+{% else %}
+<div class="card">
+    <p style="color: var(--text-muted); padding: 16px;">
+        <strong>Tips for finding free movies:</strong><br>
+        • Search for genres: "free comedy movie", "western full movie", "family movie"<br>
+        • Search for actors: "John Wayne movie", "Tim Allen comedy"<br>
+        • Search for themes: "feel good movie", "romantic comedy", "adventure movie"<br>
+        • Only results over 60 minutes are shown (full-length films)
+    </p>
+</div>
+{% endif %}
+{% endblock %}
