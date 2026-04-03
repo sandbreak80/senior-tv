@@ -55,34 +55,39 @@ Built for a 65" Samsung TV connected to a mini PC running Ubuntu. Designed for t
 │         │            │           │                │
 │    Jellyfin     Pluto TV     Immich              │
 │   (movies)    (live TV)    (photos)              │
-│  192.168.50.20  public    192.168.50.165         │
+│  localhost:8096  public   localhost:2283          │
 │         │                                        │
 │    Frigate ──── Home Assistant                   │
 │  (doorbell)     (TV control)                     │
-│  .50.114         .50.76                          │
+│  (remote)        (remote)                        │
+│                                                  │
+│  Cloudflare Tunnel ── Remote admin access        │
+│  Tailscale ────────── Remote SSH                 │
 └──────────────────────────────────────────────────┘
 ```
 
 ## Quick Start
 
 ```bash
-# Clone and setup
-git clone https://github.com/sandbreak80/senior-tv.git
+# Full automated install (recommended)
+git clone http://<gitea-host>:3000/bstoner/senior-tv.git
 cd senior-tv
-python3 -m venv venv
+cp .env.example .env          # Edit: add CLOUDFLARE_TUNNEL_TOKEN, adjust credentials
+sudo ./install.sh             # Installs everything, configures all services
+sudo reboot                   # Boots into kiosk mode
+
+# What install.sh does:
+# - Installs system packages, Chrome, Docker, Python venv
+# - Starts Jellyfin, Immich, Bazarr in Docker
+# - Creates Jellyfin user + libraries (Movies, Shows, Music)
+# - Creates Immich admin + API key, disables ML
+# - Registers Cloudflare tunnel (if token provided)
+# - Sets up systemd service, watchdog, cron jobs
+# - Initializes database with pills, birthdays, holidays
+
+# Development (manual)
 source venv/bin/activate
-pip install -r requirements.txt
-
-# Configure (edit settings via admin panel after first launch)
-python3 server.py    # http://localhost:5000
-
-# Production (systemd)
-sudo cp senior-tv.service /etc/systemd/system/
-sudo systemctl enable senior-tv
-sudo systemctl start senior-tv
-
-# Full kiosk
-google-chrome --kiosk http://localhost:5000
+python3 server.py             # http://localhost:5000
 ```
 
 ## Admin Panel
@@ -146,7 +151,8 @@ All services are optional — the system degrades gracefully. With no services c
 - **Backend:** Python 3.12, Flask, SQLite, APScheduler
 - **Frontend:** Vanilla JS, CSS (no frameworks), Jinja2 templates
 - **Streaming:** HLS.js for live TV, HTML5 video for Jellyfin
-- **Hardware:** Any x86 mini PC + HDMI TV. Tested on GMKtec NucBox K11 (AMD Ryzen 5, 28GB RAM)
+- **Containers:** Docker (Jellyfin, Immich, Bazarr)
+- **Hardware:** Any x86 mini PC + HDMI TV. Tested on GMKtec NucBox K11 (Intel N95, 8GB RAM)
 - **OS:** Ubuntu 24.04 with GNOME Wayland + Xwayland
 
 ## License

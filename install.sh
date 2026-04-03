@@ -96,6 +96,7 @@ apt-get install -y -qq \
     v4l-utils \
     git \
     sqlite3 \
+    vainfo intel-media-va-driver-non-free \
     > /dev/null 2>&1
 
 ok "System packages installed"
@@ -182,17 +183,32 @@ else
     ok "Docker installed"
 fi
 
-# Generate secrets
-IMMICH_DB_PASS=$(python3 -c "import secrets; print(secrets.token_hex(16))")
-FLASK_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+# Generate secrets (preserve existing .env values if present)
+if [ -f "$APP_DIR/.env" ]; then
+    set -a; source "$APP_DIR/.env"; set +a
+fi
+IMMICH_DB_PASS="${IMMICH_DB_PASSWORD:-$(python3 -c "import secrets; print(secrets.token_hex(16))")}"
+FLASK_SECRET="${SENIOR_TV_SECRET:-$(python3 -c "import secrets; print(secrets.token_hex(32))")}"
 SYSTEM_TZ=$(cat /etc/timezone 2>/dev/null || echo "America/New_York")
 INSTALL_UID=$(id -u "$INSTALL_USER")
 INSTALL_GID=$(id -g "$INSTALL_USER")
+
+# Standardized credentials (override via .env or env vars)
+JELLYFIN_USER="${JELLYFIN_USER:-seniortv}"
+JELLYFIN_PASS="${JELLYFIN_PASS:-seniortv}"
+IMMICH_ADMIN_EMAIL="${IMMICH_ADMIN_EMAIL:-bstoner@gmail.com}"
+IMMICH_ADMIN_PASS="${IMMICH_ADMIN_PASS:-seniortv}"
+CF_TUNNEL_TOKEN="${CLOUDFLARE_TUNNEL_TOKEN:-}"
 
 # Write .env for secrets (not checked into git)
 cat > "$APP_DIR/.env" << ENVFILE
 SENIOR_TV_SECRET=$FLASK_SECRET
 IMMICH_DB_PASSWORD=$IMMICH_DB_PASS
+JELLYFIN_USER=$JELLYFIN_USER
+JELLYFIN_PASS=$JELLYFIN_PASS
+IMMICH_ADMIN_EMAIL=$IMMICH_ADMIN_EMAIL
+IMMICH_ADMIN_PASS=$IMMICH_ADMIN_PASS
+CLOUDFLARE_TUNNEL_TOKEN=$CF_TUNNEL_TOKEN
 ENVFILE
 chown "$INSTALL_USER:$INSTALL_USER" "$APP_DIR/.env"
 chmod 600 "$APP_DIR/.env"
@@ -286,7 +302,9 @@ ok "Docker compose configured (Jellyfin + Immich + Bazarr)"
 
 # Pull images in background (large downloads)
 echo "  Pulling Docker images (this may take a few minutes)..."
-sudo -u "$INSTALL_USER" docker compose -f "$APP_DIR/docker-compose.yml" pull --quiet 2>/dev/null || true
+# Use sg to pick up the docker group immediately (usermod -aG doesn't apply until re-login)
+sudo -u "$INSTALL_USER" sg docker -c "docker compose -f $APP_DIR/docker-compose.yml pull --quiet" 2>/dev/null || \
+    docker compose -f "$APP_DIR/docker-compose.yml" pull --quiet 2>/dev/null || true
 ok "Docker images pulled"
 
 # -----------------------------------------------------------
@@ -371,8 +389,9 @@ systemctl enable senior-tv.service
 systemctl enable senior-tv-watchdog.timer
 
 # Cron jobs (screenshots + health check agent)
-CRON_TMP=$(mktemp)
-sudo -u "$INSTALL_USER" crontab -l 2>/dev/null | grep -v "senior_tv" > "$CRON_TMP" || true
+CRON_TMP=$(mktemp /tmp/senior-tv-cron.XXXXXX)
+chmod 644 "$CRON_TMP"
+sudo -u "$INSTALL_USER" crontab -l 2>/dev/null | grep -v "senior_tv\|take_screenshot\|health_check_agent" > "$CRON_TMP" || true
 echo "*/15 * * * * $APP_DIR/take_screenshot.sh" >> "$CRON_TMP"
 echo "7 * * * * $APP_DIR/health_check_agent.sh" >> "$CRON_TMP"
 sudo -u "$INSTALL_USER" crontab "$CRON_TMP"
@@ -408,16 +427,28 @@ step 11 "Installing Cloudflare Tunnel..."
 if command -v cloudflared &> /dev/null; then
     ok "cloudflared already installed"
 else
-    curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | tee /usr/share/keyrings/cloudflare-main.gpg > /dev/null
-    echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared $(lsb_release -cs) main" \
+    mkdir -p --mode=0755 /usr/share/keyrings
+    curl -fsSL https://pkg.cloudflare.com/cloudflare-public-v2.gpg \
+        | tee /usr/share/keyrings/cloudflare-public-v2.gpg > /dev/null
+    echo "deb [signed-by=/usr/share/keyrings/cloudflare-public-v2.gpg] https://pkg.cloudflare.com/cloudflared any main" \
         > /etc/apt/sources.list.d/cloudflared.list
     apt-get update -qq && apt-get install -y -qq cloudflared > /dev/null 2>&1
     ok "cloudflared installed"
 fi
-warn "Run 'cloudflared tunnel login' after install to configure"
+
+# Auto-register tunnel service if token provided
+if [ -n "$CF_TUNNEL_TOKEN" ]; then
+    if systemctl is-active --quiet cloudflared 2>/dev/null; then
+        ok "Cloudflare tunnel already running"
+    else
+        cloudflared service install "$CF_TUNNEL_TOKEN" 2>/dev/null && ok "Cloudflare tunnel registered and started" || warn "Cloudflare tunnel registration failed (check token)"
+    fi
+else
+    warn "No CLOUDFLARE_TUNNEL_TOKEN in .env — set it and run: sudo cloudflared service install <token>"
+fi
 
 # -----------------------------------------------------------
-# Step 12: Initialize database + start services
+# Step 12: Initialize database + start services + configure
 # -----------------------------------------------------------
 step 12 "Initializing..."
 
@@ -429,25 +460,270 @@ fi
 
 # Initialize the database
 sudo -u "$INSTALL_USER" SENIOR_TV_SECRET="$FLASK_SECRET" venv/bin/python3 -c "from models import init_db; init_db()"
-ok "Database initialized (admin PIN printed above)"
+ok "Database initialized"
 
-# Start Docker services
-sudo -u "$INSTALL_USER" docker compose -f "$APP_DIR/docker-compose.yml" up -d 2>/dev/null || warn "Docker services failed to start (can retry later)"
+# Start Docker services (sg docker to pick up group without re-login)
+sudo -u "$INSTALL_USER" sg docker -c "docker compose -f $APP_DIR/docker-compose.yml up -d" 2>/dev/null || \
+    docker compose -f "$APP_DIR/docker-compose.yml" up -d 2>/dev/null || warn "Docker services failed to start (can retry later)"
 
 # Wait for Docker services to be healthy
 echo "  Waiting for services to start..."
-for i in $(seq 1 30); do
-    READY=0
-    curl -sf http://localhost:8096 > /dev/null 2>&1 && READY=$((READY+1))
-    curl -sf http://localhost:2283 > /dev/null 2>&1 && READY=$((READY+1))
-    [ "$READY" -ge 1 ] && break
+for i in $(seq 1 60); do
+    JELLY=0; IMMICH=0
+    curl -sf http://localhost:8096 > /dev/null 2>&1 && JELLY=1
+    curl -sf http://localhost:2283 > /dev/null 2>&1 && IMMICH=1
+    [ "$JELLY" -eq 1 ] && [ "$IMMICH" -eq 1 ] && break
     sleep 2
 done
-ok "Docker services running"
+[ "$JELLY" -eq 1 ] && ok "Jellyfin is up" || warn "Jellyfin not ready yet"
+[ "$IMMICH" -eq 1 ] && ok "Immich is up" || warn "Immich not ready yet"
 
 # Make scripts executable
 chmod +x "$APP_DIR/start.sh" "$APP_DIR/watchdog.sh" "$APP_DIR/fix_audio.sh"
 chmod +x "$APP_DIR/health_check_agent.sh" 2>/dev/null || true
+
+# -----------------------------------------------------------
+# Step 12a: Auto-configure Jellyfin
+# -----------------------------------------------------------
+echo "  Configuring Jellyfin..."
+
+if [ "$JELLY" -eq 1 ]; then
+    # Check if Jellyfin needs first-time setup
+    JELLY_STARTUP=$(curl -sf http://localhost:8096/Startup/Configuration 2>/dev/null)
+    if [ $? -eq 0 ]; then
+        # First-time setup — run wizard via API
+        # Set initial config
+        curl -sf -X POST http://localhost:8096/Startup/Configuration \
+            -H "Content-Type: application/json" \
+            -d '{"UICulture":"en-US","MetadataCountryCode":"US","PreferredMetadataLanguage":"en"}' > /dev/null 2>&1
+
+        # Create admin user
+        curl -sf -X POST http://localhost:8096/Startup/User \
+            -H "Content-Type: application/json" \
+            -d "{\"Name\":\"$JELLYFIN_USER\",\"Password\":\"$JELLYFIN_PASS\"}" > /dev/null 2>&1
+
+        # Set remote access
+        curl -sf -X POST http://localhost:8096/Startup/RemoteAccess \
+            -H "Content-Type: application/json" \
+            -d '{"EnableRemoteAccess":true,"EnableAutomaticPortMapping":false}' > /dev/null 2>&1
+
+        # Complete wizard
+        curl -sf -X POST http://localhost:8096/Startup/Complete > /dev/null 2>&1
+        ok "Jellyfin first-time setup completed (user: $JELLYFIN_USER)"
+    else
+        ok "Jellyfin already configured"
+    fi
+
+    # Authenticate and get token
+    JELLY_AUTH=$(curl -sf -X POST http://localhost:8096/Users/AuthenticateByName \
+        -H "Content-Type: application/json" \
+        -H "X-Emby-Authorization: MediaBrowser Client=\"SeniorTV\", Device=\"Installer\", DeviceId=\"install-script\", Version=\"1.0\"" \
+        -d "{\"Username\":\"$JELLYFIN_USER\",\"Pw\":\"$JELLYFIN_PASS\"}" 2>/dev/null)
+
+    if [ -n "$JELLY_AUTH" ]; then
+        JELLY_TOKEN=$(echo "$JELLY_AUTH" | python3 -c "import sys,json; print(json.load(sys.stdin)['AccessToken'])" 2>/dev/null)
+        JELLY_USER_ID=$(echo "$JELLY_AUTH" | python3 -c "import sys,json; print(json.load(sys.stdin)['User']['Id'])" 2>/dev/null)
+
+        if [ -n "$JELLY_TOKEN" ]; then
+            # Create libraries if they don't exist
+            EXISTING_LIBS=$(curl -sf "http://localhost:8096/Library/VirtualFolders" \
+                -H "X-Emby-Token: $JELLY_TOKEN" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null)
+
+            if [ "${EXISTING_LIBS:-0}" -eq 0 ]; then
+                curl -sf -X POST "http://localhost:8096/Library/VirtualFolders?name=Movies&collectionType=movies&refreshLibrary=false" \
+                    -H "X-Emby-Token: $JELLY_TOKEN" \
+                    -H "Content-Type: application/json" \
+                    -d '{"LibraryOptions":{"Enabled":true,"EnableRealtimeMonitor":true,"PathInfos":[{"Path":"/media/movies"}]}}' > /dev/null 2>&1
+                curl -sf -X POST "http://localhost:8096/Library/VirtualFolders?name=Shows&collectionType=tvshows&refreshLibrary=false" \
+                    -H "X-Emby-Token: $JELLY_TOKEN" \
+                    -H "Content-Type: application/json" \
+                    -d '{"LibraryOptions":{"Enabled":true,"EnableRealtimeMonitor":true,"PathInfos":[{"Path":"/media/shows"}]}}' > /dev/null 2>&1
+                curl -sf -X POST "http://localhost:8096/Library/VirtualFolders?name=Music&collectionType=music&refreshLibrary=false" \
+                    -H "X-Emby-Token: $JELLY_TOKEN" \
+                    -H "Content-Type: application/json" \
+                    -d '{"LibraryOptions":{"Enabled":true,"EnableRealtimeMonitor":true,"PathInfos":[{"Path":"/media/music"}]}}' > /dev/null 2>&1
+                ok "Jellyfin libraries created (Movies, Shows, Music)"
+            else
+                ok "Jellyfin libraries already exist ($EXISTING_LIBS)"
+            fi
+
+            # Create permanent API key
+            curl -sf -X POST "http://localhost:8096/Auth/Keys?app=SeniorTV" \
+                -H "X-Emby-Token: $JELLY_TOKEN" > /dev/null 2>&1
+            JELLY_API_KEY=$(curl -sf "http://localhost:8096/Auth/Keys" \
+                -H "X-Emby-Token: $JELLY_TOKEN" \
+                | python3 -c "import sys,json; keys=json.load(sys.stdin)['Items']; print(next(k['AccessToken'] for k in keys if k['AppName']=='SeniorTV'))" 2>/dev/null)
+
+            if [ -n "$JELLY_API_KEY" ]; then
+                # Store in Senior TV database
+                sudo -u "$INSTALL_USER" venv/bin/python3 -c "
+from models import get_db_safe
+with get_db_safe() as db:
+    for k,v in [('jellyfin_url','http://localhost:8096'),('jellyfin_api_key','$JELLY_API_KEY'),('jellyfin_user_id','$JELLY_USER_ID'),('jellyfin_username','$JELLYFIN_USER'),('jellyfin_password','$JELLYFIN_PASS')]:
+        db.execute('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', (k, v))
+    db.commit()
+"
+                ok "Jellyfin API key stored in Senior TV settings"
+
+                # Configure hardware transcoding (Intel VA-API)
+                if [ -e /dev/dri/renderD128 ]; then
+                    curl -sf -X POST "http://localhost:8096/System/Configuration/encoding" \
+                        -H "X-Emby-Token: $JELLY_TOKEN" \
+                        -H "Content-Type: application/json" \
+                        -d '{
+                            "EncodingThreadCount": -1,
+                            "EnableAudioVbr": true,
+                            "DownMixAudioBoost": 2,
+                            "MaxMuxingQueueSize": 2048,
+                            "EnableThrottling": true,
+                            "ThrottleDelaySeconds": 180,
+                            "HardwareAccelerationType": "vaapi",
+                            "VaapiDevice": "/dev/dri/renderD128",
+                            "EnableTonemapping": true,
+                            "EnableVppTonemapping": true,
+                            "H264Crf": 23,
+                            "H265Crf": 28,
+                            "EnableDecodingColorDepth10Hevc": true,
+                            "EnableDecodingColorDepth10Vp9": true,
+                            "PreferSystemNativeHwDecoder": true,
+                            "EnableIntelLowPowerH264HwEncoder": true,
+                            "EnableIntelLowPowerHevcHwEncoder": true,
+                            "EnableHardwareEncoding": true,
+                            "AllowHevcEncoding": true,
+                            "AllowAv1Encoding": false,
+                            "EnableSubtitleExtraction": true,
+                            "HardwareDecodingCodecs": ["h264","hevc","mpeg2video","vc1","vp8","vp9","av1"]
+                        }' > /dev/null 2>&1
+                    ok "Jellyfin VA-API hardware transcoding enabled"
+                else
+                    warn "No /dev/dri/renderD128 — Jellyfin will use software transcoding"
+                fi
+            fi
+        fi
+    else
+        warn "Jellyfin authentication failed — configure manually at http://localhost:8096"
+    fi
+else
+    warn "Jellyfin not ready — configure manually after services start"
+fi
+
+# -----------------------------------------------------------
+# Step 12b: Auto-configure Immich
+# -----------------------------------------------------------
+echo "  Configuring Immich..."
+
+if [ "$IMMICH" -eq 1 ]; then
+    # Try to sign up admin (only works on first run)
+    IMMICH_SIGNUP=$(curl -sf -X POST http://localhost:2283/api/auth/admin-sign-up \
+        -H "Content-Type: application/json" \
+        -d "{\"email\":\"$IMMICH_ADMIN_EMAIL\",\"password\":\"$IMMICH_ADMIN_PASS\",\"name\":\"seniortv\"}" 2>/dev/null)
+
+    if [ -n "$IMMICH_SIGNUP" ]; then
+        ok "Immich admin account created ($IMMICH_ADMIN_EMAIL)"
+    else
+        ok "Immich admin already exists"
+    fi
+
+    # Authenticate
+    IMMICH_AUTH=$(curl -sf -X POST http://localhost:2283/api/auth/login \
+        -H "Content-Type: application/json" \
+        -d "{\"email\":\"$IMMICH_ADMIN_EMAIL\",\"password\":\"$IMMICH_ADMIN_PASS\"}" 2>/dev/null)
+
+    if [ -n "$IMMICH_AUTH" ]; then
+        IMMICH_TOKEN=$(echo "$IMMICH_AUTH" | python3 -c "import sys,json; print(json.load(sys.stdin)['accessToken'])" 2>/dev/null)
+        IMMICH_USER_ID=$(echo "$IMMICH_AUTH" | python3 -c "import sys,json; print(json.load(sys.stdin)['userId'])" 2>/dev/null)
+
+        if [ -n "$IMMICH_TOKEN" ]; then
+            # Create permanent API key
+            IMMICH_API_KEY=$(curl -sf -X POST http://localhost:2283/api/api-keys \
+                -H "Content-Type: application/json" \
+                -H "Authorization: Bearer $IMMICH_TOKEN" \
+                -d '{"name":"SeniorTV","permissions":["all"]}' \
+                | python3 -c "import sys,json; print(json.load(sys.stdin)['secret'])" 2>/dev/null)
+
+            if [ -n "$IMMICH_API_KEY" ]; then
+                # Disable ML (no ML container, saves ~400MB RAM)
+                IMMICH_CONFIG=$(curl -sf http://localhost:2283/api/system-config \
+                    -H "x-api-key: $IMMICH_API_KEY")
+                echo "$IMMICH_CONFIG" | python3 -c "
+import sys, json
+c = json.load(sys.stdin)
+c['machineLearning']['enabled'] = False
+c['map']['enabled'] = False
+# Reduce job concurrency for 8GB RAM systems
+c['job']['thumbnailGeneration']['concurrency'] = 2
+c['job']['metadataExtraction']['concurrency'] = 2
+c['job']['videoConversion']['concurrency'] = 1
+c['job']['smartSearch']['concurrency'] = 1
+c['job']['backgroundTask']['concurrency'] = 1
+c['job']['migration']['concurrency'] = 1
+# Enable VA-API hardware video transcoding if available
+import os
+if os.path.exists('/dev/dri/renderD128'):
+    c['ffmpeg']['accel'] = 'vaapi'
+    c['ffmpeg']['accelDecode'] = True
+json.dump(c, sys.stdout)
+" | curl -sf -X PUT http://localhost:2283/api/system-config \
+                    -H "x-api-key: $IMMICH_API_KEY" \
+                    -H "Content-Type: application/json" \
+                    -d @- > /dev/null 2>&1
+                ok "Immich ML disabled, jobs tuned for low-RAM, VA-API enabled"
+
+                # Create library
+                curl -sf -X POST http://localhost:2283/api/libraries \
+                    -H "x-api-key: $IMMICH_API_KEY" \
+                    -H "Content-Type: application/json" \
+                    -d "{\"name\":\"Family Photos\",\"ownerId\":\"$IMMICH_USER_ID\",\"importPaths\":[\"/usr/src/app/upload\"],\"exclusionPatterns\":[\"**/thumbs/**\",\"**/encoded-video/**\"]}" > /dev/null 2>&1
+
+                # Store in Senior TV database
+                sudo -u "$INSTALL_USER" venv/bin/python3 -c "
+from models import get_db_safe
+with get_db_safe() as db:
+    for k,v in [('immich_url','http://localhost:2283'),('immich_api_key','$IMMICH_API_KEY')]:
+        db.execute('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', (k, v))
+    db.commit()
+"
+                ok "Immich API key stored in Senior TV settings"
+            fi
+        fi
+    else
+        warn "Immich authentication failed — configure manually at http://localhost:2283"
+    fi
+else
+    warn "Immich not ready — configure manually after services start"
+fi
+
+# -----------------------------------------------------------
+# Step 12c: Apply environment settings to database
+# -----------------------------------------------------------
+echo "  Applying settings from environment..."
+
+sudo -u "$INSTALL_USER" venv/bin/python3 -c "
+import os
+from models import get_db_safe
+
+env_to_setting = {
+    'GREETING_NAMES': 'greeting_names',
+    'WEATHER_LAT': 'weather_lat',
+    'WEATHER_LON': 'weather_lon',
+    'ADMIN_PASSWORD': 'admin_password',
+    'HA_URL': 'ha_url',
+    'HA_TOKEN': 'ha_token',
+    'HA_TV_ENTITY': 'ha_tv_entity',
+    'FRIGATE_URL': 'frigate_url',
+    'FRIGATE_CAMERAS': 'frigate_cameras',
+}
+
+with get_db_safe() as db:
+    applied = 0
+    for env_key, setting_key in env_to_setting.items():
+        val = os.environ.get(env_key, '')
+        if val:
+            db.execute('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', (setting_key, val))
+            applied += 1
+    db.commit()
+    print(f'Applied {applied} settings from environment')
+"
 
 echo ""
 echo "============================================"
