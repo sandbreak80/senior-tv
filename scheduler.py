@@ -204,53 +204,75 @@ def check_birthdays():
 
 
 def check_favorite_shows():
-    """Called every 10 minutes. Check if a favorite show is on Pluto TV."""
-    from models import get_favorite_shows
+    """Called every 10 minutes. Check if a favorite show has new content on YouTube.
+
+    Previously used Pluto TV EPG (deprecated Feb 2026). Now checks YouTube RSS feeds
+    for channels matching favorite show names.
+    """
+    import feedparser
+    from models import get_favorite_shows, get_youtube_channels
 
     shows = get_favorite_shows(enabled_only=True)
     if not shows:
         return
 
-    try:
-        import pluto_tv
-        channels, _ = pluto_tv.get_channels()
-    except Exception as e:
-        print(f"Scheduler: failed to load Pluto TV channels: {e}", file=sys.stderr)
+    yt_channels = get_youtube_channels()
+    if not yt_channels:
         return
 
     now = datetime.now()
 
     for show in shows:
         search = show["search_term"].lower()
-        for ch in channels:
-            ch_name_lower = ch["name"].lower()
-            prog = ch.get("current_program")
-            prog_title = (prog["title"].lower() if prog else "")
 
-            if search in ch_name_lower or search in prog_title:
-                reminder_id = f"show_{show['id']}_{now.strftime('%Y-%m-%d_%H')}"
+        # Find a matching YouTube channel
+        matching_yt = None
+        for yt in yt_channels:
+            if search in yt["name"].lower():
+                matching_yt = yt
+                break
+
+        if not matching_yt:
+            continue
+
+        # Check RSS feed for recent uploads (within last 2 hours)
+        try:
+            feed = feedparser.parse(
+                f"https://www.youtube.com/feeds/videos.xml?channel_id={matching_yt['channel_id']}"
+            )
+            for entry in feed.entries[:3]:
+                vid_id = entry.get("yt_videoid", "")
+                if not vid_id:
+                    continue
+
+                reminder_id = f"show_{show['id']}_{vid_id}"
                 with _lock:
                     if reminder_id in active_reminders:
                         continue
-                    active_reminders[reminder_id] = {"triggered_at": datetime.now().isoformat()}
+                    active_reminders[reminder_id] = {"triggered_at": now.isoformat()}
 
-                # Auto-tune: skip the popup and navigate directly
                 auto_tune = "jeopardy" in search
+
+                from models import get_setting
+                interrupt = get_setting("auto_play_interrupt") or "always"
 
                 event_data = {
                     "type": "auto_play" if auto_tune else "show_alert",
                     "reminder_id": reminder_id,
                     "show_name": show["name"],
-                    "channel_name": ch["name"],
-                    "channel_id": ch["id"],
-                    "url": f"/tv/live/play/{ch['id']}",
-                    "message": f"📺 {show['name']} is on now!\nChannel: {ch['name']}",
+                    "channel_name": matching_yt["name"],
+                    "channel_id": matching_yt["channel_id"],
+                    "url": f"/tv/youtube/watch/{vid_id}",
+                    "message": f"📺 {show['name']} — new episode!",
+                    "interrupt": interrupt,
                 }
                 try:
                     reminder_queue.put_nowait(event_data)
                 except queue.Full:
                     pass
                 break  # Only alert once per show
+        except Exception:
+            continue
 
 
 def _cache_cleanup():
@@ -339,8 +361,27 @@ def trigger_exercise():
     try:
         feed = feedparser.parse(f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}")
         if feed.entries:
-            entry = _random.choice(feed.entries[:15])
-            vid_id = entry.get("yt_videoid", "")
+            # Pick a random video that's at least 10 minutes (skip Shorts)
+            candidates = list(feed.entries[:15])
+            _random.shuffle(candidates)
+            vid_id = ""
+            for entry in candidates:
+                vid_id = entry.get("yt_videoid", "")
+                if not vid_id:
+                    continue
+                try:
+                    import urllib.request
+                    req = urllib.request.Request(
+                        f"https://www.youtube.com/watch?v={vid_id}",
+                        headers={"User-Agent": "Mozilla/5.0"})
+                    html = urllib.request.urlopen(req, timeout=8).read().decode("utf-8", errors="ignore")
+                    m = re.search(r'"lengthSeconds":"(\d+)"', html)
+                    if m and int(m.group(1)) < 600:
+                        vid_id = ""
+                        continue
+                except Exception:
+                    pass
+                break
             if vid_id:
                 event_data = {
                     "type": "auto_play",
@@ -355,6 +396,103 @@ def trigger_exercise():
                     pass
     except Exception as e:
         print(f"Scheduler: exercise error: {e}", file=sys.stderr)
+
+
+def trigger_news_block():
+    """Scheduled news blocks — auto-play a live news channel at configured times.
+
+    Checks every 10 minutes if current time matches a news schedule slot.
+    Picks a random Pluto TV news channel and pushes an auto_play event.
+    """
+    import random as _random
+    from models import get_setting
+
+    schedule_str = get_setting("news_schedule") or ""
+    if not schedule_str.strip():
+        return
+
+    now = datetime.now()
+    current_hhmm = now.strftime("%H:%M")
+
+    # Check if current time matches any scheduled slot (within 10-min window)
+    matched = False
+    for slot in schedule_str.split(","):
+        slot = slot.strip()
+        if not slot:
+            continue
+        try:
+            slot_h, slot_m = int(slot.split(":")[0]), int(slot.split(":")[1])
+            if now.hour == slot_h and now.minute >= slot_m and now.minute < slot_m + 10:
+                matched = True
+                break
+        except (ValueError, IndexError):
+            continue
+
+    if not matched:
+        return
+
+    # Deduplicate: only fire once per slot per day
+    dedup_key = f"news_{now.strftime('%Y-%m-%d_%H:%M')}"
+    with _lock:
+        if dedup_key in active_reminders:
+            return
+        active_reminders[dedup_key] = {"triggered_at": now.isoformat()}
+
+    # Pick a random YouTube news channel
+    # These are 24/7 live streams that work without Pluto TV
+    _NEWS_YOUTUBE_CHANNELS = [
+        ("UCBi2mrWuNuyYy4gbM6fU18Q", "ABC News"),
+        ("UC8p1vwvWtl6T73JiExfWs1g", "CBS News"),
+        ("UCeY0bbntWzzVIaj2z3QigXg", "NBC News"),
+        ("UCVxBA3Cbu3pm8w8gEIoMEog", "ABC7 Los Angeles"),
+        ("UCkH1uDkyuO9sVjSqdqBygOg", "CBS LA"),
+        ("UCHfF8wFnipMeDpJf8OmMxDg", "FOX 11 Los Angeles"),
+        ("UCinjnmQEwCddOudyCC1v7qA", "KTLA 5"),
+        ("UCSWoppsVL0TLxFQ2qP_DLqQ", "NBCLA"),
+    ]
+    try:
+        channel_id, channel_name = _random.choice(_NEWS_YOUTUBE_CHANNELS)
+        interrupt = get_setting("auto_play_interrupt") or "always"
+
+        # Get the first video from the channel to play directly (not browse page)
+        vid_id = ""
+        try:
+            feed = feedparser.parse(
+                f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}")
+            for entry in feed.entries[:5]:
+                vid_id = entry.get("yt_videoid", "")
+                if vid_id:
+                    break
+        except Exception:
+            pass
+
+        play_url = (f"/tv/youtube/watch/{vid_id}?channel={channel_id}"
+                    if vid_id else f"/tv/youtube/channel/{channel_id}")
+
+        event_data = {
+            "type": "auto_play",
+            "url": play_url,
+            "title": f"News Time — {channel_name}",
+            "message": "Time for the news!",
+            "icon": "📰",
+            "interrupt": interrupt,
+        }
+        try:
+            reminder_queue.put_nowait(event_data)
+        except queue.Full:
+            pass
+        print(f"Scheduler: news block started — {channel_name}")
+    except Exception as e:
+        print(f"Scheduler: news block error: {e}", file=sys.stderr)
+
+
+def _validate_pluto_channels():
+    """Periodically scan Pluto TV channels for dead/placeholder streams."""
+    try:
+        from pluto_tv import validate_channels
+        validate_channels()
+    except Exception as e:
+        print(f"Scheduler: Pluto validation error: {e}", file=sys.stderr)
 
 
 def _daily_maintenance():
@@ -372,6 +510,7 @@ scheduler.add_job(check_birthdays, "interval", hours=1, id="birthday_checker")
 scheduler.add_job(check_favorite_shows, "interval", minutes=10, id="show_checker")
 scheduler.add_job(_cache_cleanup, "interval", minutes=30, id="cache_cleanup")
 scheduler.add_job(trigger_classical_music, "interval", hours=1, id="classical_music")
+scheduler.add_job(trigger_news_block, "interval", minutes=10, id="news_block")
 scheduler.add_job(trigger_exercise, "interval", hours=1, id="exercise")
 scheduler.add_job(_daily_maintenance, "cron", hour=3, minute=15, id="daily_maintenance")
 

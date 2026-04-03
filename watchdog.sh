@@ -37,9 +37,9 @@ fi
 
 # --- 3. HDMI Audio ---
 AUDIO_OK=false
-INSTALL_UID=$(id -u media)
+INSTALL_UID=$(id -u seniortv 2>/dev/null || echo 1000)
 DEFAULT_SINK=$(XDG_RUNTIME_DIR=/run/user/$INSTALL_UID wpctl status 2>/dev/null | grep -E '^\s*│?\s*\*' | head -1)
-if echo "$DEFAULT_SINK" | grep -qi "hdmi\|radeon\|rembrandt\|samsung"; then
+if echo "$DEFAULT_SINK" | grep -qi "hdmi"; then
     AUDIO_OK=true
 fi
 if [ "$AUDIO_OK" = "false" ]; then

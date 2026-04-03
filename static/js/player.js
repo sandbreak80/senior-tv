@@ -305,6 +305,13 @@
     var _lastCheckTime = 0;
     var _stallCount = 0;
     var _safetyInterval = setInterval(function() {
+        // Don't stall-check during reminder overlays (video is paused intentionally)
+        var reminderEl = document.getElementById("reminder-overlay");
+        if (reminderEl && reminderEl.classList.contains("active")) {
+            _lastCheckTime = video.currentTime;
+            _stallCount = 0;
+            return;
+        }
         // Video is progressing — reset stall counter
         if (video.currentTime > _lastCheckTime + 1) {
             _lastCheckTime = video.currentTime;

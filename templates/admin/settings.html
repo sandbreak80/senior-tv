@@ -111,6 +111,25 @@
     </div>
 
     <div class="card">
+        <h2>📰 Scheduled News</h2>
+        <div class="form-group">
+            <label for="news_schedule">News Times (24h, comma-separated)</label>
+            <input type="text" id="news_schedule" name="news_schedule"
+                   value="{{ settings.news_schedule or '07:00,12:00,18:00' }}"
+                   placeholder="07:00,12:00,18:00">
+            <div class="hint">TV auto-plays a live news channel at these times (1 hour each). Leave empty to disable.</div>
+        </div>
+        <div class="form-group">
+            <label for="auto_play_interrupt">Scheduled Content Interrupts</label>
+            <select id="auto_play_interrupt" name="auto_play_interrupt">
+                <option value="always" {% if settings.auto_play_interrupt != 'idle_only' %}selected{% endif %}>Always interrupt (news, Jeopardy switch immediately)</option>
+                <option value="idle_only" {% if settings.auto_play_interrupt == 'idle_only' %}selected{% endif %}>Only when idle (don't interrupt if watching something)</option>
+            </select>
+            <div class="hint">Controls whether news, Jeopardy, and classical music interrupt what's currently playing</div>
+        </div>
+    </div>
+
+    <div class="card">
         <h2>🎵 Classical Music (Doctor's Orders)</h2>
         <div class="form-group">
             <label for="classical_music_enabled">Enable Daily Classical Music</label>

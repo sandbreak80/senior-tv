@@ -16,17 +16,28 @@ INTERVAL = 10  # every 10 seconds
 
 
 def _detect_mic_device():
-    """Auto-detect the first USB microphone ALSA device."""
+    """Auto-detect the best USB microphone ALSA device.
+
+    Prefers webcam mics (C920, etc.) over generic USB audio adapters,
+    since webcams pick up room audio while USB HID devices may be silent.
+    """
     try:
         result = subprocess.run(["arecord", "-l"], capture_output=True, text=True, timeout=5)
+        usb_cards = []
         for line in result.stdout.splitlines():
-            if "card" in line and "USB" in line.upper():
-                # Extract card number: "card 1: ..."
-                card = line.split(":")[0].replace("card", "").strip()
-                return f"plughw:{card},0"
+            if "card" not in line:
+                continue
+            card = line.split(":")[0].replace("card", "").strip()
+            name = line.upper()
+            if "WEBCAM" in name or "C920" in name or "C930" in name or "C922" in name:
+                return f"plughw:{card},0"  # prefer webcam mic
+            if "USB" in name:
+                usb_cards.append(card)
+        if usb_cards:
+            return f"plughw:{usb_cards[-1]},0"  # last USB card (usually the webcam)
     except Exception:
         pass
-    return "plughw:0,0"  # fallback to first device
+    return "plughw:0,0"
 
 
 def measure_volume(device):

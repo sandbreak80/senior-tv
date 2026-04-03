@@ -1,0 +1,68 @@
+{% extends "admin/base.html" %}
+{% block title %}{{ 'Edit' if movie else 'Add' }} Free Movie{% endblock %}
+{% block content %}
+<h1 style="margin: 20px 0;">{{ 'Edit' if movie else 'Add' }} Free Movie</h1>
+
+<div class="card">
+    <form method="POST">
+        <div class="form-group">
+            <label for="video_id">YouTube Video ID *</label>
+            <input type="text" id="video_id" name="video_id" required
+                   value="{{ movie.video_id if movie else '' }}"
+                   placeholder="e.g. R4TZ6r_af8A (11-character ID)"
+                   pattern="[a-zA-Z0-9_-]{11}" title="Must be exactly 11 characters">
+            <div class="hint">The 11-character ID from the YouTube URL (after ?v=)</div>
+        </div>
+
+        <div class="form-group">
+            <label for="title">Movie Title *</label>
+            <input type="text" id="title" name="title" required
+                   value="{{ movie.title if movie else '' }}"
+                   placeholder="e.g. Family Heist">
+        </div>
+
+        <div class="form-group">
+            <label for="genre">Genre</label>
+            <select id="genre" name="genre">
+                {% for g in ['Comedy', 'Drama', 'Family', 'Western', 'Action', 'Thriller', 'Romance', 'Documentary', 'Sci-Fi', 'Horror'] %}
+                <option {% if movie and movie.genre == g %}selected{% endif %}>{{ g }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="duration_minutes">Duration (minutes)</label>
+            <input type="number" id="duration_minutes" name="duration_minutes"
+                   value="{{ movie.duration_minutes if movie and movie.duration_minutes else '' }}"
+                   placeholder="e.g. 90">
+        </div>
+
+        <div class="form-group">
+            <label for="year">Year</label>
+            <input type="number" id="year" name="year"
+                   value="{{ movie.year if movie and movie.year else '' }}"
+                   placeholder="e.g. 2022">
+        </div>
+
+        {% if movie %}
+        <div style="margin: 16px 0;">
+            <img src="https://i.ytimg.com/vi/{{ movie.video_id }}/hqdefault.jpg"
+                 style="width:320px;border-radius:8px;">
+            <div style="margin-top:8px;font-size:13px;color:var(--text-muted);">
+                Plays: {{ movie.play_count or 0 }} ·
+                Last played: {{ movie.last_played_at[:16] if movie.last_played_at else 'never' }} ·
+                Added: {{ movie.created_at[:10] if movie.created_at else '?' }}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="btn-group">
+            <button type="submit" class="btn btn-primary">{{ 'Save Changes' if movie else 'Add Movie' }}</button>
+            <a href="/admin/free-movies" class="btn" style="color: var(--text-muted);">Cancel</a>
+            {% if movie %}
+            <a href="https://www.youtube.com/watch?v={{ movie.video_id }}" target="_blank" class="btn">Preview on YouTube</a>
+            {% endif %}
+        </div>
+    </form>
+</div>
+{% endblock %}

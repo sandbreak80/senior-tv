@@ -268,8 +268,9 @@ class SmartHomeMonitor:
 
     def _poll_loop(self):
         """Poll Frigate every 5 seconds for new person events."""
-        # Login first
-        frigate_login(self.frigate_url, self.frigate_user, self.frigate_pass)
+        # Login if credentials are configured (Frigate auth is optional)
+        if self.frigate_user and self.frigate_pass:
+            frigate_login(self.frigate_url, self.frigate_user, self.frigate_pass)
 
         while self.running:
             try:
@@ -290,8 +291,9 @@ class SmartHomeMonitor:
             )
 
             if events is None:
-                # Re-login needed
-                frigate_login(self.frigate_url, self.frigate_user, self.frigate_pass)
+                # Re-login needed (only if credentials configured)
+                if self.frigate_user and self.frigate_pass:
+                    frigate_login(self.frigate_url, self.frigate_user, self.frigate_pass)
                 continue
 
             for event in events:
@@ -307,7 +309,7 @@ class SmartHomeMonitor:
                     continue
 
                 camera_name = event.get("camera", camera)
-                score = event.get("top_score", 0)
+                score = event.get("top_score") or event.get("data", {}).get("score", 0) or 0
 
                 # Build snapshot URL
                 snapshot_url = frigate_get_snapshot_url(self.frigate_url, event_id)

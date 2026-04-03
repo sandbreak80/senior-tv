@@ -129,6 +129,31 @@ cat > /etc/opt/chrome/policies/managed/senior_tv.json << 'POLICY'
 POLICY
 ok "uBlock Origin policy configured"
 
+# Download uBlock Origin for sideloading (--kiosk mode blocks policy-based installs)
+UBLOCK_DIR="$INSTALL_HOME/.config/senior-tv-chrome/ublock-origin"
+if [ ! -f "$UBLOCK_DIR/manifest.json" ]; then
+    sudo -u "$INSTALL_USER" mkdir -p "$UBLOCK_DIR"
+    UBLOCK_CRX="/tmp/ublock.crx"
+    curl -sL "https://clients2.google.com/service/update2/crx?response=redirect&os=linux&arch=x64&prodversion=146.0&acceptformat=crx2,crx3&x=id%3Dcjpalhdlnbpafiamejdnhcphjbkeiagm%26uc" -o "$UBLOCK_CRX" 2>/dev/null
+    if [ -s "$UBLOCK_CRX" ]; then
+        sudo -u "$INSTALL_USER" python3 -c "
+import zipfile, io
+with open('$UBLOCK_CRX', 'rb') as f:
+    data = f.read()
+idx = data.find(b'PK\x03\x04')
+if idx >= 0:
+    with zipfile.ZipFile(io.BytesIO(data[idx:])) as z:
+        z.extractall('$UBLOCK_DIR')
+"
+        rm -f "$UBLOCK_CRX"
+        ok "uBlock Origin downloaded for sideloading"
+    else
+        warn "uBlock Origin download failed (will retry on next install)"
+    fi
+else
+    ok "uBlock Origin already installed"
+fi
+
 # -----------------------------------------------------------
 # Step 3: Python virtual environment + dependencies
 # -----------------------------------------------------------
@@ -278,6 +303,22 @@ services:
       - POSTGRES_DB=immich
       - POSTGRES_INITDB_ARGS=--data-checksums
 
+  # Nginx reverse proxy — single port 80 for Cloudflare tunnel
+  # Routes: / → Flask (5000), /jellyfin/ → 8096, /immich/ → 2283
+  nginx:
+    image: nginx:alpine
+    container_name: nginx-proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - jellyfin
+      - immich
+
   bazarr:
     image: lscr.io/linuxserver/bazarr:latest
     container_name: bazarr
@@ -320,8 +361,62 @@ ok "User $INSTALL_USER added to video, audio, docker groups"
 # -----------------------------------------------------------
 # Step 8: HDMI audio routing
 # -----------------------------------------------------------
-step 8 "Configuring HDMI audio..."
+step 8 "Configuring display and HDMI audio..."
 
+# --- Display: Set 1080p for HDMI (no 4K content, saves GPU/memory, correct font sizes) ---
+# Write monitors.xml for both HDMI ports so GNOME applies 1080p on login regardless of which port is used.
+# The start.sh script also enforces this via Mutter DBus API as a backup.
+sudo -u "$INSTALL_USER" mkdir -p "$INSTALL_HOME/.config"
+cat > "$INSTALL_HOME/.config/monitors.xml" << 'MONITORS'
+<monitors version="2">
+  <configuration>
+    <logicalmonitor>
+      <x>0</x>
+      <y>0</y>
+      <scale>1</scale>
+      <primary>yes</primary>
+      <monitor>
+        <monitorspec>
+          <connector>HDMI-1</connector>
+          <vendor>SAM</vendor>
+          <product>SAMSUNG</product>
+          <serial>0x01000e00</serial>
+        </monitorspec>
+        <mode>
+          <width>1920</width>
+          <height>1080</height>
+          <rate>60.000</rate>
+        </mode>
+      </monitor>
+    </logicalmonitor>
+  </configuration>
+  <configuration>
+    <logicalmonitor>
+      <x>0</x>
+      <y>0</y>
+      <scale>1</scale>
+      <primary>yes</primary>
+      <monitor>
+        <monitorspec>
+          <connector>HDMI-2</connector>
+          <vendor>SAM</vendor>
+          <product>SAMSUNG</product>
+          <serial>0x01000e00</serial>
+        </monitorspec>
+        <mode>
+          <width>1920</width>
+          <height>1080</height>
+          <rate>60.000</rate>
+        </mode>
+      </monitor>
+    </logicalmonitor>
+  </configuration>
+</monitors>
+MONITORS
+chown "$INSTALL_USER:$INSTALL_USER" "$INSTALL_HOME/.config/monitors.xml"
+ok "Display set to 1080p (monitors.xml for HDMI-1 and HDMI-2)"
+
+# --- HDMI Audio ---
 chmod +x "$APP_DIR/fix_audio.sh"
 # Test audio routing
 sudo -u "$INSTALL_USER" bash "$APP_DIR/fix_audio.sh" 2>/dev/null && ok "HDMI audio configured" || warn "HDMI audio not detected (will retry on boot)"
@@ -724,6 +819,12 @@ with get_db_safe() as db:
     db.commit()
     print(f'Applied {applied} settings from environment')
 "
+
+# -----------------------------------------------------------
+# Step 12d: Seed sample content (photos for screensaver)
+# -----------------------------------------------------------
+echo "  Seeding sample content..."
+sudo -u "$INSTALL_USER" bash "$APP_DIR/seed_content.sh" 2>/dev/null && ok "Sample photos seeded" || warn "Sample content skipped (can run later: bash seed_content.sh)"
 
 echo ""
 echo "============================================"
