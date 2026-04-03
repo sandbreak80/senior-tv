@@ -15,9 +15,9 @@ Senior TV is a full-screen kiosk-style entertainment, communication, and care sy
 - **SQLite** (`senior_tv.db`) — pills, calendar, birthdays, messages, favorites, settings; WAL mode for concurrent reads
 - **APScheduler** (`scheduler.py`) — pill reminders (1 min), birthday checks (1 hr), show alerts (10 min)
 - **SSE** (`/events`) — pushes pill reminders, doorbell alerts, show notifications, family messages to TV
-- **Jellyfin API** (`jellyfin_api.py`) — media library: 5,112 movies + 108 shows at `192.168.50.20:8096`
+- **Jellyfin API** (`jellyfin_api.py`) — media library at `localhost:8096` (local Docker)
 - **Pluto TV** (`pluto_tv.py`) — 421 free live TV channels via HLS, logos via `path` key (not `url`)
-- **Immich API** (`immich_api.py`) — 143K family photos from Immich server at `192.168.50.165:2283`; photos proxied through `/api/immich-photo/<id>` to hide API key
+- **Immich API** (`immich_api.py`) — family photos from Immich at `localhost:2283` (local Docker, ML disabled); photos proxied through `/api/immich-photo/<id>` to hide API key
 - **Smart Home** (`smart_home.py`) — Frigate person detection on front_door camera, HA integration, room presence tracking
 - **Process supervision** (`start.sh`) — monitors Flask + Chrome + CEC bridge every 10s, restarts any that die
 - **systemd** (`senior-tv.service`) — auto-start on boot, `Restart=always`
@@ -94,18 +94,24 @@ SSE reconnects with exponential backoff (5s → 60s max). Alert sounds use Web A
 
 ## Connected Services
 
-| Service | URL | Auth |
-|---------|-----|------|
-| Jellyfin | `http://192.168.50.20:8096` | API key in settings |
-| Frigate | `https://192.168.50.114:8971` | Session cookie login |
-| Home Assistant | `http://192.168.50.76:8123` | Long-lived token |
-| Immich | `http://192.168.50.165:2283` | API key in settings |
-| Pluto TV | Public API | No auth |
-| Open-Meteo | Public API | No auth (Sun City, CA: 33.7083, -117.1972) |
+| Service | Location | URL | Auth |
+|---------|----------|-----|------|
+| Jellyfin | Local (Docker) | `http://localhost:8096` | API key (auto-configured by install.sh) |
+| Immich | Local (Docker) | `http://localhost:2283` | API key (auto-configured by install.sh) |
+| Bazarr | Local (Docker) | `http://localhost:6767` | Web UI |
+| Frigate | Remote | `http://192.168.50.114:5000` | Session cookie login |
+| Home Assistant | Remote | `http://192.168.50.76:8123` | Long-lived token |
+| Pluto TV | External | Public API | No auth |
+| Open-Meteo | External | Public API | No auth (Sun City, CA: 33.7083, -117.1972) |
+
+**Important:** Local services (Jellyfin, Immich, Bazarr) always use `localhost`, never internal IPs. Only remote services on separate machines use IPs.
 
 ## Deployment & Remote Access
 
-- **SSH** via Tailscale: `ssh media@media-nucbox-k11` (key-only auth, no passwords)
+- **Fully automated install**: `git clone <repo> && cd senior-tv && sudo ./install.sh` — configures everything including Jellyfin, Immich, and Cloudflare tunnel
+- **Standardized credentials**: Jellyfin user `seniortv`/`seniortv`, Immich admin `bstoner@gmail.com`/`seniortv` (configurable via `.env`)
+- **Cloudflare Tunnel** for remote admin access (set `CLOUDFLARE_TUNNEL_TOKEN` in `.env`)
+- **SSH** via Tailscale: `ssh seniortv@<hostname>` (key-only auth)
 - **Tailscale** mesh VPN with SSH enabled (`tailscale up --ssh`)
 - **Health endpoint**: `GET /api/health` returns JSON status of all subsystems
 - **BIOS**: Set "Restore on AC Power Loss = Power On" for power failure recovery
@@ -113,6 +119,11 @@ SSE reconnects with exponential backoff (5s → 60s max). Alert sounds use Web A
 ## Commands
 
 ```bash
+# Fresh install (fully automated)
+git clone <repo> && cd senior-tv
+cp .env.example .env                 # Edit with your tokens
+sudo ./install.sh                    # Installs everything, configures services
+
 # Development
 source venv/bin/activate
 python3 server.py                    # http://localhost:5000
@@ -167,7 +178,7 @@ XDG_RUNTIME_DIR=/run/user/1000 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000
 
 ## Admin Panel Routes (`/admin`)
 
-Accessible from any device on LAN at `http://192.168.50.159:5000/admin`
+Accessible from any device on LAN at `http://<host-ip>:5000/admin`
 
 - `/admin` — Dashboard (pill status, upcoming events)
 - `/admin/messages` — Send text, photos, videos to the TV
