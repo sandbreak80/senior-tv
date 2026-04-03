@@ -337,6 +337,8 @@ cat > /etc/systemd/system/senior-tv.service << EOF
 Description=Senior TV Entertainment System
 After=network.target graphical.target
 Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -350,8 +352,6 @@ ExecStartPre=/bin/sleep 5
 ExecStart=$APP_DIR/start.sh
 Restart=always
 RestartSec=10
-StartLimitIntervalSec=300
-StartLimitBurst=5
 
 [Install]
 WantedBy=graphical.target
