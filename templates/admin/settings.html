@@ -226,6 +226,19 @@
     </div>
 
     <div class="card">
+        <h2>📊 Activity Logging</h2>
+        <div class="form-group">
+            <label for="log_level">Log Level</label>
+            <select id="log_level" name="log_level">
+                <option value="minimal" {% if settings.log_level == 'minimal' %}selected{% endif %}>Minimal — playback start/stop only</option>
+                <option value="normal" {% if settings.log_level == 'normal' %}selected{% endif %}>Normal — playback + pages + alerts</option>
+                <option value="verbose" {% if settings.log_level == 'verbose' or not settings.log_level %}selected{% endif %}>Verbose — everything (for analysis)</option>
+            </select>
+            <div class="hint">Verbose logs all TV activity for performance analysis. Minimal reduces database writes for long-term use.</div>
+        </div>
+    </div>
+
+    <div class="card">
         <h2>🔐 Security</h2>
         <div class="form-group">
             <label for="admin_password">Remote Access Password</label>

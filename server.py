@@ -157,6 +157,12 @@ border-radius:10px;cursor:pointer;font-weight:700;}
 
 # --- Helpers ---
 
+@app.context_processor
+def inject_log_level():
+    """Make log_level available in all templates."""
+    return {"log_level": get_setting_or_default("log_level")}
+
+
 def get_setting_or_default(key):
     val = models.get_setting(key)
     if val is None:
@@ -1376,10 +1382,16 @@ def api_acknowledge():
     return jsonify({"status": "not_found"}), 404
 
 
+@app.route("/api/log-level")
+def api_log_level():
+    """Return current log level for TV client."""
+    return jsonify({"level": get_setting_or_default("log_level")})
+
+
 @app.route("/api/log-activity", methods=["POST"])
 def api_log_activity():
     """Log playback/navigation activity from the TV client."""
-    data = request.get_json() or {}
+    data = request.get_json(force=True, silent=True) or {}
     models.log_activity(
         activity_type=data.get("type", "unknown"),
         item_id=data.get("item_id"),
@@ -1393,7 +1405,7 @@ def api_log_activity():
 @app.route("/api/log-activity-stop", methods=["POST"])
 def api_log_activity_stop():
     """Log playback stop with duration."""
-    data = request.get_json() or {}
+    data = request.get_json(force=True, silent=True) or {}
     models.log_activity_stop(
         item_id=data.get("item_id"),
         duration_seconds=data.get("duration"),
@@ -1570,7 +1582,8 @@ def admin_dashboard():
 def admin_activity():
     """View activity and remote button logs."""
     logs = models.get_activity_logs(days=7)
-    return render_template("admin/activity.html", logs=logs)
+    now_playing = models.get_now_playing()
+    return render_template("admin/activity.html", logs=logs, now_playing=now_playing)
 
 
 @app.route("/admin/cameras")
@@ -2082,7 +2095,8 @@ def admin_settings():
                      "admin_password",
                      "classical_music_enabled", "classical_music_hour",
                      "news_schedule", "news_channels", "auto_play_interrupt",
-                     "tts_enabled", "audio_processing", "voice_boost", "audio_target"]:
+                     "tts_enabled", "audio_processing", "voice_boost", "audio_target",
+                     "log_level"]:
             val = request.form.get(key)
             if val is not None:
                 models.set_setting(key, val)
@@ -2094,7 +2108,8 @@ def admin_settings():
     for key in ["ha_tv_entity", "immich_album_id", "admin_password",
                  "classical_music_enabled", "classical_music_hour",
                  "news_schedule", "news_channels", "auto_play_interrupt",
-                 "tts_enabled", "audio_processing", "voice_boost", "audio_target"]:
+                 "tts_enabled", "audio_processing", "voice_boost", "audio_target",
+                 "log_level"]:
         settings[key] = models.get_setting(key) or ""
 
     # Immich status and albums

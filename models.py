@@ -248,6 +248,19 @@ def get_activity_logs(days=7, limit=200):
         return [dict(r) for r in rows]
 
 
+def get_now_playing():
+    """Get the most recent playback_start or auto_play that hasn't been stopped."""
+    with get_db_safe() as db:
+        row = db.execute(
+            """SELECT * FROM activity_logs
+               WHERE activity_type IN ('playback_start', 'auto_play')
+                 AND stopped_at IS NULL
+                 AND started_at >= datetime('now', '-4 hours')
+               ORDER BY started_at DESC LIMIT 1"""
+        ).fetchone()
+        return dict(row) if row else None
+
+
 def get_last_activity_time():
     with get_db_safe() as db:
         row = db.execute(

@@ -117,6 +117,16 @@
 
         showBar();
 
+        // Log YouTube video start
+        window.logActivity("playback_start", document.title.replace(" - Senior TV", ""), "youtube", {item_id: "{{ video_id }}"});
+        window.addEventListener("beforeunload", function() {
+            var dur = Math.floor((Date.now() - window._pageLoadTime) / 1000);
+            navigator.sendBeacon("/api/log-activity", new Blob([JSON.stringify({
+                type: "playback_stop", title: document.title.replace(" - Senior TV", ""),
+                item_type: "youtube", item_id: "{{ video_id }}", duration: dur
+            })], {type: "application/json"}));
+        });
+
         // --- Duration-based move-on timer ---
         // Server fetched the actual video/playlist duration from YouTube.
         // Timer fires when playback should be done. No repeat, ever.

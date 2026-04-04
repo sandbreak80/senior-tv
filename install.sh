@@ -78,6 +78,15 @@ if [ -f /etc/os-release ]; then
     ok "OS: $PRETTY_NAME"
 fi
 
+# Passwordless sudo for the install user (needed by watchdog, health agent, Claude Code)
+if [ -f "/etc/sudoers.d/$INSTALL_USER" ] && grep -q "NOPASSWD" "/etc/sudoers.d/$INSTALL_USER" 2>/dev/null; then
+    ok "Passwordless sudo already configured"
+else
+    echo "$INSTALL_USER ALL=(ALL) NOPASSWD: ALL" > "/etc/sudoers.d/$INSTALL_USER"
+    chmod 440 "/etc/sudoers.d/$INSTALL_USER"
+    ok "Passwordless sudo configured for $INSTALL_USER"
+fi
+
 # -----------------------------------------------------------
 # Step 1: System packages
 # -----------------------------------------------------------

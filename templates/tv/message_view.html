@@ -92,5 +92,6 @@
     </div>
 
     <script src="/static/js/tv.js?v=6"></script>
+    <script>window.logActivity("message_read", "{{ message.sender_name }}: {{ message.text[:60] if message.text else 'media' }}", "message", {item_id: "{{ message.id }}"});</script>
 </body>
 </html>

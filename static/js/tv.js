@@ -9,8 +9,22 @@
 */
 
 // Global activity logger — fire and forget
+// Log levels: "minimal" (playback only), "normal" (+ pages/alerts), "verbose" (everything)
 window._pageLoadTime = Date.now();
+window._logLevel = "verbose"; // default until loaded
+fetch("/api/log-level").then(function(r){return r.json()}).then(function(d){window._logLevel=d.level||"verbose"}).catch(function(){});
+
+// Events that each level includes
+var _LOG_MINIMAL = ["playback_start","playback_stop","auto_play","dead_stream","frozen_stream"];
+var _LOG_NORMAL = _LOG_MINIMAL.concat(["page_visit","page_leave","screensaver_start","screensaver_end",
+    "alert_pill","alert_doorbell","alert_birthday","alert_show","alert_message",
+    "alert_dismiss","music_play"]);
+// verbose = log everything
+
 window.logActivity = function(type, title, itemType, extra) {
+    var level = window._logLevel;
+    if (level === "minimal" && _LOG_MINIMAL.indexOf(type) === -1) return;
+    if (level === "normal" && _LOG_NORMAL.indexOf(type) === -1) return;
     var payload = {type: type, title: title, item_type: itemType};
     if (extra) { for (var k in extra) payload[k] = extra[k]; }
     fetch("/api/log-activity", {
@@ -27,10 +41,10 @@ window.logActivity("page_visit", document.title, window.location.pathname);
 window.addEventListener("beforeunload", function() {
     var duration = Math.floor((Date.now() - window._pageLoadTime) / 1000);
     if (duration > 0) {
-        navigator.sendBeacon("/api/log-activity", JSON.stringify({
+        navigator.sendBeacon("/api/log-activity", new Blob([JSON.stringify({
             type: "page_leave", title: document.title,
             item_type: window.location.pathname, duration: duration
-        }));
+        })], {type: "application/json"}));
     }
 });
 
@@ -371,6 +385,7 @@ window.quickNav = function(url) {
                             }
                             // Wake from screensaver — go to home (which will auto-play content)
                             if (window.location.search.indexOf("screensaver") > -1) {
+                                window.logActivity("screensaver_end", "Person detected — waking", window.location.pathname);
                                 window.quickNav("/");
                             }
                         }
@@ -434,6 +449,7 @@ window.quickNav = function(url) {
 
         overlay.classList.add("active");
         reminderActive = true;
+        window.logActivity("alert_pill", data.name || "Pill Reminder", data.icon === "🚿" ? "shower" : data.icon === "🧘" ? "stretch" : "pill", {item_id: data.reminder_id});
 
         // Pause any playing video
         const mainVideo = document.getElementById("video-player");
@@ -484,6 +500,7 @@ window.quickNav = function(url) {
         if (window.speechSynthesis) window.speechSynthesis.cancel();
         const overlay = document.getElementById("reminder-overlay");
         if (!overlay) return;
+        window.logActivity("alert_dismiss", currentReminderId || "dismissed", "alert");
 
         if (blockCountdownInterval) {
             clearInterval(blockCountdownInterval);
@@ -635,6 +652,7 @@ window.quickNav = function(url) {
 
         overlay.classList.add("active");
         reminderActive = true;
+        window.logActivity("alert_doorbell", data.title || "Doorbell", "doorbell");
 
         // Pause any playing video
         const mainVideo = document.getElementById("video-player");
@@ -696,6 +714,7 @@ window.quickNav = function(url) {
 
         overlay.classList.add("active");
         reminderActive = true;
+        window.logActivity("alert_birthday", data.name || "Birthday", "birthday", {item_id: data.reminder_id});
 
         // Play happy tune
         try {
@@ -750,6 +769,7 @@ window.quickNav = function(url) {
 
         overlay.classList.add("active");
         reminderActive = true;
+        window.logActivity("alert_show", data.show_name || "Show Alert", "show", {item_id: data.channel_id});
         playChime();
         setTimeout(function() { speakAlert("show_alert", data); }, 1000);
 
@@ -784,6 +804,7 @@ window.quickNav = function(url) {
 
         overlay.classList.add("active");
         reminderActive = true;
+        window.logActivity("alert_message", data.sender || "Family Message", "message", {item_id: data.msg_id});
 
         // Play gentle notification
         playChime();
