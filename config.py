@@ -46,4 +46,7 @@ DEFAULTS = {
     "audio_processing": "0",
     "voice_boost": "mild",
     "audio_target": "-14",
+    # Activity log level: "minimal" (playback only), "normal" (+ pages, alerts),
+    # "verbose" (everything — for performance analysis)
+    "log_level": "verbose",
 }

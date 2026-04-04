@@ -101,6 +101,16 @@
         }, true);
 
         showBar();
+
+        // Log news playback
+        window.logActivity("playback_start", document.title.replace(" - Senior TV", ""), "news", {item_id: "{{ video_id }}"});
+        window.addEventListener("beforeunload", function() {
+            var dur = Math.floor((Date.now() - window._pageLoadTime) / 1000);
+            navigator.sendBeacon("/api/log-activity", new Blob([JSON.stringify({
+                type: "playback_stop", title: document.title.replace(" - Senior TV", ""),
+                item_type: "news", item_id: "{{ video_id }}", duration: dur
+            })], {type: "application/json"}));
+        });
     </script>
 </body>
 </html>

@@ -143,6 +143,8 @@
             {% endif %}
 
             var idx = 0;
+            var isScreensaver = window.location.search.indexOf("screensaver") > -1;
+            window.logActivity("slideshow_start", isScreensaver ? "Screensaver" : "Photo Slideshow", "photos");
 
             function showNext() {
                 if (queue.length === 0) return;

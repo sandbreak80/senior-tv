@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install ruff
+      - name: Syntax check
+        run: |
+          python -m py_compile server.py
+          python -m py_compile models.py
+          python -m py_compile config.py
+          python -m py_compile scheduler.py
+          python -m py_compile smart_home.py
+          python -m py_compile jellyfin_api.py
+          python -m py_compile pluto_tv.py
+          python -m py_compile immich_api.py
+      - name: Lint
+        run: ruff check *.py --select E,F,W
+      - name: Template syntax
+        run: |
+          python -c "
+          from jinja2 import Environment, FileSystemLoader
+          env = Environment(loader=FileSystemLoader('templates'))
+          errors = []
+          import glob
+          for f in glob.glob('templates/**/*.html', recursive=True):
+              try:
+                  env.get_template(f.replace('templates/', ''))
+              except Exception as e:
+                  errors.append(f'{f}: {e}')
+          if errors:
+              print('\n'.join(errors))
+              exit(1)
+          print(f'All {len(glob.glob(\"templates/**/*.html\", recursive=True))} templates OK')
+          "

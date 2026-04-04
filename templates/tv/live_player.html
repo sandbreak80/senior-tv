@@ -185,10 +185,10 @@
             }, {once: true});
             window.addEventListener('beforeunload', function() {
                 var dur = Math.floor(video.currentTime || 0);
-                navigator.sendBeacon("/api/log-activity", JSON.stringify({
+                navigator.sendBeacon("/api/log-activity", new Blob([JSON.stringify({
                     type: "playback_stop", title: channelName,
                     item_type: "live_tv", item_id: channelId, duration: dur
-                }));
+                })], {type: "application/json"}));
             });
             video.addEventListener('waiting', () => showCenterIcon('Buffering...'));
 

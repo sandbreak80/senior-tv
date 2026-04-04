@@ -3,6 +3,24 @@
 {% block content %}
 <h1 style="margin: 20px 0;">Activity Log <span style="font-size: 16px; color: var(--text-muted);">Past 7 Days</span></h1>
 
+{% if now_playing %}
+<div class="card" style="padding: 16px; margin-bottom: 16px; border-left: 4px solid #4caf50;">
+    <div style="display: flex; align-items: center; gap: 12px;">
+        <span style="font-size: 24px;">📺</span>
+        <div>
+            <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #4caf50; font-weight: 700;">Now Playing</div>
+            <div style="font-size: 18px; font-weight: 600;">{{ now_playing.item_title or 'Unknown' }}</div>
+            <div style="font-size: 13px; color: var(--text-muted);">
+                Since {{ now_playing.started_at[11:16] if now_playing.started_at else '' }}
+                {% if now_playing.item_type %}
+                    &middot; {{ now_playing.item_type | replace('_', ' ') | title }}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 {% if logs %}
 <div class="card" style="padding: 12px;">
     {% for log in logs %}
