@@ -264,6 +264,93 @@ Accessible from any device on LAN at `http://<host-ip>:5000/admin`
 - `GET /api/has-photos` — Check if any photos available (for screensaver guard)
 - `POST /api/acknowledge` — Dismiss pill/shower reminder
 
+## Nginx Reverse Proxy & Immich Subpath Fix
+
+Nginx (`nginx.conf`) runs in Docker on port 80, fronting all services for the Cloudflare tunnel. The Cloudflare tunnel points to `localhost:80` and Nginx routes:
+
+- `/` → Flask (port 5000) — Senior TV app
+- `/jellyfin/` → Jellyfin (port 8096) — works natively, Jellyfin supports base URL config
+- `/immich/` → Immich (port 2283) — **requires extensive workarounds** (see below)
+
+### Why Immich on a subpath is hard
+
+Immich does not support running under a subpath. It's a SvelteKit SPA that assumes it's served from `/`. Unlike Jellyfin (which has a `BaseUrl` config), Immich has no `IMMICH_BASE_PATH` environment variable. Running it under `/immich/` requires Nginx `sub_filter` rewriting of HTML, CSS, and JavaScript responses.
+
+### The three problems and their fixes
+
+**Problem 1: SvelteKit client-side routing**
+
+Immich's HTML contains a SvelteKit bootstrap block:
+```javascript
+__sveltekit_5ubkur = { base: "", env: null };
+```
+With `base: ""`, the SPA router navigates to `/auth/login`, `/photos`, etc. — all without the `/immich/` prefix, which hit Flask and 404.
+
+**Fix:** `sub_filter 'base: "",' 'base: "/immich",';` rewrites the SvelteKit base path so all client-side navigation goes to `/immich/auth/login`, `/immich/photos`, etc.
+
+**Problem 2: API SDK base URL uses backtick template literals**
+
+Immich's OpenAPI SDK has: `` baseUrl:`/api` `` (backtick string, not quotes). The sub_filter rules for `"/api/` and `'/api/` didn't match because JavaScript template literals use backticks.
+
+Also: Immich serves JavaScript as `Content-Type: text/javascript`, not `application/javascript`. Nginx's `sub_filter_types` must include both.
+
+**Fix:** Two changes:
+- `sub_filter '`/api`' '`/immich/api`';` — catches backtick template literals
+- `sub_filter_types text/html text/css application/javascript text/javascript;` — processes both JS MIME types
+
+**Problem 3: Dynamically-loaded CSS/JS uses relative paths**
+
+Immich's app.js loads CSS like `"_app/immutable/assets/0.DKfpaXlb.css"` (relative path, no leading `/`). When the browser is at `/immich/auth/login`, the relative path resolves to `/immich/auth/_app/...` — wrong. It should be `/immich/_app/...` or `/_app/...`.
+
+**Fix:** A separate Nginx location block proxies `/_app/*` directly to Immich:
+```nginx
+location /_app/ {
+    proxy_pass http://host.docker.internal:2283/_app/;
+}
+```
+This catches any `_app/` request that resolved relative to a deep SPA route.
+
+**Bonus fix: SPA route redirects**
+
+Even with the SvelteKit base set, some navigation still hits bare paths (`/auth/login` instead of `/immich/auth/login`). A regex location block catches all known Immich routes and redirects:
+```nginx
+location ~ ^/(auth|photos|albums|people|explore|sharing|user-settings|search|partners|trash|map|memory)(.*) {
+    return 302 /immich/$1$2$is_args$args;
+}
+```
+Note: `/admin` is intentionally excluded — that's the Senior TV admin panel.
+
+### Full list of sub_filter rules (order matters)
+
+| Rule | What it catches |
+|------|----------------|
+| `base: "",` → `base: "/immich",` | SvelteKit bootstrap config |
+| `href="/` → `href="/immich/` | HTML link tags (favicons, preloads) |
+| `src="/` → `src="/immich/` | HTML script/image tags |
+| `action="/` → `action="/immich/` | HTML form actions |
+| `url(/` → `url(/immich/` | CSS url() references |
+| `"/api/` → `"/immich/api/` | JS API calls with double quotes |
+| `'/api/` → `'/immich/api/` | JS API calls with single quotes |
+| `` `/api` `` → `` `/immich/api` `` | JS API calls with backtick template literals |
+| `fetch("/` → `fetch("/immich/` | JS fetch() calls |
+| `import("/_app/` → `import("/immich/_app/` | SvelteKit dynamic imports |
+
+### Key requirement: disable response compression
+
+`proxy_set_header Accept-Encoding "";` is critical — without it, Immich returns gzip/brotli compressed responses that `sub_filter` cannot parse. This header tells upstream to send uncompressed responses.
+
+### Contrast with Jellyfin
+
+Jellyfin supports this natively: set `BaseUrl` to `/jellyfin` in Jellyfin's Network config (or via the `JELLYFIN_PublishedServerUrl` env var). No sub_filter needed. The Nginx `location /jellyfin` block is a simple pass-through proxy.
+
+### If Immich updates break this
+
+Immich updates may change SvelteKit chunk hashes, variable names, or the bootstrap format. If `/immich/` breaks after an Immich update:
+1. Check `curl -sf http://localhost:2283/ | grep sveltekit` — look for the `base:` format
+2. Check JS MIME type: `curl -sI http://localhost:80/immich/_app/immutable/chunks/<any>.js | grep content-type`
+3. Check SDK baseUrl: `curl -sf http://localhost:2283/_app/immutable/chunks/<sdk-chunk>.js | tr ',' '\n' | grep baseUrl`
+4. Verify sub_filter is processing: compare `curl localhost:2283/` vs `curl localhost:80/immich/` — all paths should have `/immich/` prefix in the proxied version
+
 ## File Layout
 
 - `server.py` — Flask app, all routes, health endpoint
