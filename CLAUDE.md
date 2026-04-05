@@ -117,7 +117,7 @@ SSE reconnects with exponential backoff (5s → 60s max). Alert sounds use Web A
 | Pluto TV | External | Public API | No auth |
 | Open-Meteo | External | Public API | No auth (Sun City, CA: 33.7083, -117.1972) |
 
-**Important:** Jellyfin and Immich run on dedicated network servers, not locally. Only nginx runs in Docker on this box (host networking, port 80 for Cloudflare tunnel). Flask runs directly on the host.
+**Important:** All services run on dedicated network servers. Nothing runs in Docker on this box — no nginx, no Jellyfin, no Immich. Flask runs directly on the host. Cloudflare tunnel points directly at `localhost:5000`.
 
 ## Deployment & Remote Access
 
@@ -386,8 +386,8 @@ Immich updates may change SvelteKit chunk hashes, variable names, or the bootstr
 - `fix_audio.sh` — HDMI audio routing fix (wpctl)
 - `health_check_agent.sh` — Hourly Claude CLI health check (cron)
 - `install.sh` — Fully automated installer (system packages, Chrome, Docker, Jellyfin, Immich, Cloudflare, systemd, cron)
-- `docker-compose.yml` — Jellyfin + Immich stack + Bazarr + Nginx reverse proxy
-- `nginx.conf` — Routes: `/` → Flask (5000), `/jellyfin/` → 8096, `/immich/` → 2283
+- `docker-compose.yml` — Not used in this deployment (Jellyfin/Immich on network servers)
+- `nginx.conf` — Not used in this deployment (Cloudflare tunnel points directly at Flask)
 - `seed_content.sh` — Downloads sample photos for screensaver on first install
 - `scripts/load_jellyfin_content.py` — Archive.org content downloader (movies, shows, music, ambient)
 - `scripts/load_jellyfin.sh` — Legacy bash-based content loader
