@@ -29,11 +29,13 @@ def get_random_photos(count=20):
     Otherwise pulls from the entire library.
     """
     from models import get_setting
-    # Support both single album (immich_album_id) and multi-album (immich_album_ids)
+    # Support albums, folders, or all photos
     album_ids_str = get_setting("immich_album_ids") or get_setting("immich_album_id") or ""
     album_ids = [a.strip() for a in album_ids_str.split(",") if a.strip()]
+    folder_paths_str = get_setting("immich_folder_paths") or ""
+    folder_paths = [f.strip() for f in folder_paths_str.split(",") if f.strip()]
 
-    cache_key = f"immich_random_{count}_{album_ids_str}"
+    cache_key = f"immich_random_{count}_{album_ids_str}_{folder_paths_str}"
     cached = cache.get(cache_key)
     if cached is not None:
         return cached
@@ -43,10 +45,10 @@ def get_random_photos(count=20):
         return []
 
     try:
-        if album_ids:
-            # Fetch from selected albums
-            import random
+        import random
+        if album_ids or folder_paths:
             assets = []
+            # Fetch from selected albums
             for album_id in album_ids:
                 try:
                     resp = requests.get(
@@ -56,6 +58,20 @@ def get_random_photos(count=20):
                     )
                     resp.raise_for_status()
                     assets.extend(resp.json().get("assets", []))
+                except Exception:
+                    continue
+            # Fetch from selected folders
+            for folder in folder_paths:
+                try:
+                    resp = requests.post(
+                        f"{url}/api/search/metadata",
+                        headers=_headers(api_key),
+                        json={"originalPath": folder, "type": "IMAGE",
+                              "size": 250, "page": random.randint(1, 10)},
+                        timeout=15,
+                    )
+                    resp.raise_for_status()
+                    assets.extend(resp.json().get("assets", {}).get("items", []))
                 except Exception:
                     continue
             random.shuffle(assets)
@@ -133,6 +149,81 @@ def get_photo_count():
     except Exception as e:
         print(f"Immich: get_photo_count error: {e}", file=sys.stderr)
         return 0
+
+
+def get_folder_photos(folder_path, count=20):
+    """Fetch random photos from a specific folder path in Immich."""
+    url, api_key = _get_config()
+    if not url or not api_key:
+        return []
+    try:
+        import random as _random
+        resp = requests.post(
+            f"{url}/api/search/metadata",
+            headers=_headers(api_key),
+            json={"originalPath": folder_path, "type": "IMAGE", "size": min(count * 3, 250), "page": _random.randint(1, 5)},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        items = resp.json().get("assets", {}).get("items", [])
+        _random.shuffle(items)
+        photos = []
+        for asset in items[:count]:
+            photos.append({
+                "id": asset["id"],
+                "url": f"/api/immich-photo/{asset['id']}",
+                "thumb": f"/api/immich-photo/{asset['id']}?size=thumbnail",
+                "name": asset.get("originalFileName", ""),
+                "date": asset.get("localDateTime", ""),
+                "source": "immich",
+            })
+        return photos
+    except Exception as e:
+        print(f"Immich: get_folder_photos error: {e}", file=sys.stderr)
+        return []
+
+
+def search_folders(sample_size=500):
+    """Discover top-level folder structure from Immich photo paths."""
+    url, api_key = _get_config()
+    if not url or not api_key:
+        return []
+    try:
+        resp = requests.get(
+            f"{url}/api/assets/random",
+            params={"count": sample_size},
+            headers=_headers(api_key),
+            timeout=15,
+        )
+        resp.raise_for_status()
+        folders = {}
+        base_prefix = None
+        for asset in resp.json():
+            path = asset.get("originalPath", "")
+            parts = path.split("/")
+            # Find common base (e.g., /mypool/photos/)
+            if base_prefix is None and len(parts) > 2:
+                # Heuristic: base is everything before the varying part
+                for i, part in enumerate(parts):
+                    if part.isdigit() and len(part) == 4:  # year folder
+                        base_prefix = "/".join(parts[:i]) + "/"
+                        break
+                if base_prefix is None and len(parts) > 3:
+                    base_prefix = "/".join(parts[:3]) + "/"
+            if base_prefix and path.startswith(base_prefix):
+                top = path[len(base_prefix):].split("/")[0]
+            elif len(parts) > 3:
+                top = parts[3] if len(parts) > 3 else parts[-2]
+            else:
+                continue
+            folders[top] = folders.get(top, 0) + 1
+        # Sort by count, return as list
+        result = [{"name": k, "estimated_count": v} for k, v in folders.items()]
+        result.sort(key=lambda x: -x["estimated_count"])
+        return result
+    except Exception as e:
+        print(f"Immich: search_folders error: {e}", file=sys.stderr)
+        return []
 
 
 def is_configured():

@@ -2280,10 +2280,14 @@ def tv_photos():
 @app.route("/admin/photos", methods=["GET", "POST"])
 def admin_photos():
     if request.method == "POST":
-        # Handle album selection save
+        # Handle album + folder selection save
         if "save_albums" in request.form:
-            selected = request.form.getlist("albums")
-            models.set_setting("immich_album_ids", ",".join(selected))
+            selected_albums = request.form.getlist("albums")
+            selected_folders = request.form.getlist("folders")
+            models.set_setting("immich_album_ids", ",".join(selected_albums))
+            models.set_setting("immich_folder_paths", ",".join(selected_folders))
+            # Clear cache so slideshow picks up changes immediately
+            cache.set(f"immich_random_20_", None, ttl=0)
             return redirect("/admin/photos")
         # Handle file upload
         files = request.files.getlist("photos")
@@ -2301,6 +2305,8 @@ def admin_photos():
     immich_preview = []
     selected_album_ids = set((models.get_setting("immich_album_ids") or "").split(","))
     selected_album_ids.discard("")
+    selected_folders = set((models.get_setting("immich_folder_paths") or "").split(","))
+    selected_folders.discard("")
 
     if immich_api.is_configured():
         ok, msg = immich_api.test_connection()
@@ -2324,7 +2330,12 @@ def admin_photos():
         except Exception:
             pass
 
-        # Preview: get sample photos from selected albums or random
+        # Discover folder structure
+        immich_folders = immich_api.search_folders(sample_size=500)
+        for f in immich_folders:
+            f["selected"] = f["name"] in selected_folders
+
+        # Preview: get sample photos from selected albums/folders or random
         cache.set("immich_preview", None, ttl=0)
         if selected_album_ids:
             for aid in list(selected_album_ids)[:3]:
@@ -2342,6 +2353,11 @@ def admin_photos():
                                 })
                 except Exception:
                     pass
+        if selected_folders:
+            for folder in list(selected_folders)[:3]:
+                folder_photos = immich_api.get_folder_photos(folder, count=6)
+                for p in folder_photos:
+                    immich_preview.append({"id": p["id"], "url": p["thumb"], "name": p["name"]})
         if not immich_preview:
             # Show random sample
             sample = immich_api.get_random_photos(count=12)
@@ -2357,9 +2373,11 @@ def admin_photos():
 
     return render_template("admin/photos.html",
                            immich_ok=immich_ok, immich_albums=immich_albums,
+                           immich_folders=immich_folders if immich_ok else [],
                            immich_photo_count=immich_photo_count,
                            immich_preview=immich_preview,
                            selected_album_ids=selected_album_ids,
+                           selected_folders=selected_folders,
                            uploaded=uploaded)
 
 

@@ -37,15 +37,36 @@
         <div style="margin-top: 16px; display: flex; align-items: center; gap: 16px;">
             <button type="submit" class="btn btn-primary">Save Album Selection</button>
             <span style="font-size: 13px; color: #888;">
-                {% if selected_album_ids %}{{ selected_album_ids | length }} album{{ 's' if selected_album_ids | length != 1 }} selected{% else %}All photos (no filter){% endif %}
+                {% set total_selected = (selected_album_ids | length) + (selected_folders | length) %}
+                {% if total_selected > 0 %}
+                    {{ total_selected }} source{{ 's' if total_selected != 1 }} selected
+                    ({{ selected_album_ids | length }} album{{ 's' if selected_album_ids | length != 1 }}, {{ selected_folders | length }} folder{{ 's' if selected_folders | length != 1 }})
+                {% else %}
+                    All photos (no filter)
+                {% endif %}
             </span>
         </div>
     </form>
-    {% else %}
+    {% endif %}
+
+    {% if immich_folders %}
+    <h3 style="margin: 24px 0 12px; font-size: 16px;">Browse by folder:</h3>
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px;">
+        {% for folder in immich_folders %}
+        <label style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: {{ '#e8f5e9' if folder.selected else '#f8f9fa' }}; border: 2px solid {{ '#4caf50' if folder.selected else '#e0e0e0' }}; border-radius: 8px; cursor: pointer; transition: all 0.15s;">
+            <input type="checkbox" name="folders" value="{{ folder.name }}" {{ 'checked' if folder.selected }} style="width: 18px; height: 18px; accent-color: #4caf50;">
+            <span style="font-size: 18px;">📁</span>
+            <div style="flex: 1; min-width: 0;">
+                <div style="font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ folder.name }}</div>
+            </div>
+        </label>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if not immich_albums and not immich_folders %}
     <div style="padding: 20px; text-align: center; color: #888;">
-        <p style="font-size: 18px;">No albums found in Immich.</p>
-        <p>Create albums at <a href="{{ immich_url or 'http://192.168.50.165:2283' }}" target="_blank" style="color: #e94560;">your Immich server</a> and they'll appear here.</p>
-        <p style="margin-top: 8px;">Meanwhile, the slideshow pulls random photos from your full library of {{ "{:,}".format(immich_photo_count) }} photos.</p>
+        <p>The slideshow pulls random photos from your full library of {{ "{:,}".format(immich_photo_count) }} photos.</p>
     </div>
     {% endif %}
 
