@@ -29,10 +29,12 @@ screenshots/
 .DS_Store
 Thumbs.db
 
-# Database backups
+# Database backups and exports
 *.db.backup.*
 *.db.export_*
 *.db.pre_test_backup
+*.db.full_backup
+*.sql
 
 # Camera snapshots
 static/camera_snaps/
@@ -44,6 +46,9 @@ static/camera_snaps/
 # Generated at install time (deployment-specific)
 docker-compose.yml
 data/
+
+# Deployment secrets (tokens, credentials)
+deployment/cloudflared_cmd.txt
 
 # Claude Code local state
 .claude/
