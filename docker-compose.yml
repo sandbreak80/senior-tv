@@ -1,0 +1,17 @@
+version: "3.8"
+
+# Senior TV — Docker Services
+# Nginx reverse proxy only. Jellyfin and Immich run on network servers:
+#   Jellyfin: 192.168.50.20:8096
+#   Immich:   192.168.50.165:2283
+
+services:
+  # Nginx reverse proxy — single port 80 for Cloudflare tunnel
+  # Routes: / → Flask (5000), /jellyfin/ → Jellyfin server, /immich/ → Immich server
+  nginx:
+    image: nginx:alpine
+    container_name: nginx-proxy
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro

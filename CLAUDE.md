@@ -110,15 +110,14 @@ SSE reconnects with exponential backoff (5s → 60s max). Alert sounds use Web A
 
 | Service | Location | URL | Auth |
 |---------|----------|-----|------|
-| Jellyfin | Local (Docker) | `http://localhost:8096` | API key (auto-configured by install.sh) |
-| Immich | Local (Docker) | `http://localhost:2283` | API key (auto-configured by install.sh) |
-| Bazarr | Local (Docker) | `http://localhost:6767` | Web UI |
-| Frigate | Remote | `http://192.168.50.114:5000` | Session cookie login |
-| Home Assistant | Remote | `http://192.168.50.76:8123` | Long-lived token |
+| Jellyfin | Network server | `http://192.168.50.20:8096` | API key in settings DB |
+| Immich | Network server | `http://192.168.50.165:2283` | API key in settings DB |
+| Frigate | Network | `http://192.168.50.114:5000` | Session cookie login |
+| Home Assistant | Network | `http://192.168.50.76:8123` | Long-lived token |
 | Pluto TV | External | Public API | No auth |
 | Open-Meteo | External | Public API | No auth (Sun City, CA: 33.7083, -117.1972) |
 
-**Important:** Local services (Jellyfin, Immich, Bazarr) always use `localhost`, never internal IPs. Only remote services on separate machines use IPs.
+**Important:** Jellyfin and Immich run on dedicated network servers, not locally. Only nginx runs in Docker on this box (host networking, port 80 for Cloudflare tunnel). Flask runs directly on the host.
 
 ## Deployment & Remote Access
 
