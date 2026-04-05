@@ -1,6 +1,7 @@
 import sqlite3
 import json
 from contextlib import contextmanager
+from datetime import datetime
 from config import DATABASE
 
 
@@ -154,17 +155,25 @@ def init_db():
             added_by TEXT DEFAULT 'seed',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+        -- Performance indexes for frequently-queried timestamp columns
+        CREATE INDEX IF NOT EXISTS idx_activity_started ON activity_logs(started_at);
+        CREATE INDEX IF NOT EXISTS idx_activity_type ON activity_logs(activity_type, started_at);
+        CREATE INDEX IF NOT EXISTS idx_remote_logged ON remote_logs(logged_at);
+        CREATE INDEX IF NOT EXISTS idx_volume_logged ON volume_logs(logged_at);
+        CREATE INDEX IF NOT EXISTS idx_pill_logs_pill_date ON pill_logs(pill_id, created_at);
     """)
     db.commit()
 
     # Generate random admin password on first boot if not set
+    # Passwords are stored as werkzeug hashes
     row = db.execute("SELECT value FROM settings WHERE key = 'admin_password'").fetchone()
     if not row or not row[0]:
         import secrets as _secrets
+        from werkzeug.security import generate_password_hash
         pin = f"{_secrets.randbelow(1000000):06d}"
         db.execute(
             "INSERT OR REPLACE INTO settings (key, value) VALUES ('admin_password', ?)",
-            (pin,),
+            (generate_password_hash(pin),),
         )
         db.commit()
         print(f"*** First boot: admin password set to {pin} ***")
@@ -252,6 +261,46 @@ def get_setting(key, default=None):
     with get_db_safe() as db:
         row = db.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
         return row["value"] if row else default
+
+
+def is_quiet_hours():
+    """Check if current time falls within configured quiet hours.
+    Canonical implementation — used by both server.py and scheduler.py."""
+    start = get_setting("quiet_hours_start", "22:00")
+    end = get_setting("quiet_hours_end", "07:00")
+    if not start or not end:
+        return False
+    try:
+        now = datetime.now()
+        now_min = now.hour * 60 + now.minute
+        sh, sm = int(start.split(":")[0]), int(start.split(":")[1])
+        eh, em = int(end.split(":")[0]), int(end.split(":")[1])
+        start_min = sh * 60 + sm
+        end_min = eh * 60 + em
+        if start_min <= end_min:
+            return start_min <= now_min < end_min
+        else:  # Wraps midnight (e.g., 22:00 - 07:00)
+            return now_min >= start_min or now_min < end_min
+    except (ValueError, IndexError):
+        return False
+
+
+def get_setting_or_default(key):
+    """Get setting from DB, falling back to config.py DEFAULTS.
+    Cached for 60 seconds to reduce DB reads."""
+    import cache
+    cached = cache.get(f"setting_{key}")
+    if cached is not None:
+        return cached
+    val = get_setting(key)
+    if val is None:
+        from config import DEFAULTS
+        default = DEFAULTS.get(key)
+        result = str(default) if default is not None else ""
+    else:
+        result = val
+    cache.set(f"setting_{key}", result, ttl=60)
+    return result
 
 
 def set_setting(key, value):

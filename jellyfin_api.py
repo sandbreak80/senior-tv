@@ -8,6 +8,8 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+import cache as _cache
+
 AUTH_HEADER = 'MediaBrowser Client="SeniorTV", Device="MiniPC", DeviceId="senior-tv", Version="1.0"'
 
 # Shared session with connection pooling and automatic retry on transient errors
@@ -30,10 +32,17 @@ class JellyfinAPI:
         return h
 
     def _get(self, path, params=None):
+        if _cache.is_circuit_open("jellyfin"):
+            raise ConnectionError("Jellyfin circuit breaker open — skipping request")
         url = f"{self.base_url}{path}"
-        resp = _session.get(url, headers=self._headers(), params=params, timeout=10)
-        resp.raise_for_status()
-        return resp.json()
+        try:
+            resp = _session.get(url, headers=self._headers(), params=params, timeout=10)
+            resp.raise_for_status()
+            _cache.record_success("jellyfin")
+            return resp.json()
+        except Exception:
+            _cache.record_failure("jellyfin")
+            raise
 
     def authenticate(self, username, password):
         """Authenticate and get an access token + user ID."""

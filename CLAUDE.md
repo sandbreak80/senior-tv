@@ -15,9 +15,9 @@ Senior TV is a full-screen kiosk-style entertainment, communication, and care sy
 - **SQLite** (`senior_tv.db`) — pills, calendar, birthdays, messages, favorites, settings; WAL mode for concurrent reads
 - **APScheduler** (`scheduler.py`) — pill reminders (1 min), birthday checks (1 hr), show alerts (10 min)
 - **SSE** (`/events`) — pushes pill reminders, doorbell alerts, show notifications, family messages to TV
-- **Jellyfin API** (`jellyfin_api.py`) — media library at `localhost:8096` (local Docker)
+- **Jellyfin API** (`jellyfin_api.py`) — media library at `192.168.50.20:8096` (network server)
 - **Pluto TV** (`pluto_tv.py`) — 421 free live TV channels via HLS, logos via `path` key (not `url`)
-- **Immich API** (`immich_api.py`) — family photos from Immich at `localhost:2283` (local Docker, ML disabled); photos proxied through `/api/immich-photo/<id>` to hide API key
+- **Immich API** (`immich_api.py`) — family photos from Immich at `192.168.50.165:2283` (network server); photos proxied through `/api/immich-photo/<id>` to hide API key
 - **Smart Home** (`smart_home.py`) — Frigate person detection on front_door camera, HA integration, room presence tracking
 - **Display** — forced to 1920x1080 (no 4K content); `monitors.xml` covers both HDMI ports, `start.sh` enforces via Mutter DBus API
 - **HDMI audio** (`fix_audio.sh`) — finds any HDMI sink via PipeWire `object.path`, works with either HDMI port; called by `start.sh` and `watchdog.sh`
@@ -32,6 +32,14 @@ Senior TV is a full-screen kiosk-style entertainment, communication, and care sy
 - **JavaScript:** Vanilla JS only. No frameworks, no build step, no npm. ES5-compatible where possible.
 - **CSS:** Vanilla CSS only. No preprocessors. TV styles in `tv.css`, admin in `admin.css`.
 - **Templates:** Jinja2. TV templates are standalone HTML. Admin templates extend `admin/base.html`.
+
+## Skills
+
+Custom skills in `.claude/skills/` are automatically loaded by Claude Code when relevant:
+- **frontend-design** — UI design guidance adapted for Senior TV (dark theme, 36px min, 6-button nav, elderly accessibility)
+- **webapp-testing** — Full QA workflow: ruff lint, Playwright tests, API checks, visual QA via Frigate dining room camera
+- **simplify** — Code reduction: delete dead code, inline one-use helpers, no speculative abstractions
+- **skill-creator** — Meta-skill for creating new project-specific skills
 
 ## Key Design Constraints
 

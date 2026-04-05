@@ -44,6 +44,9 @@ def get_random_photos(count=20):
     if not url or not api_key:
         return []
 
+    if cache.is_circuit_open("immich"):
+        return []
+
     try:
         import random
         if album_ids or folder_paths:
@@ -100,8 +103,10 @@ def get_random_photos(count=20):
                 "source": "immich",
             })
         cache.set(cache_key, photos, ttl=600)  # 10 min
+        cache.record_success("immich")
         return photos
     except Exception as e:
+        cache.record_failure("immich")
         print(f"Immich: get_random_photos error: {e}", file=sys.stderr)
         return []
 
@@ -110,6 +115,9 @@ def get_photo_data(asset_id, size="preview"):
     """Fetch actual photo bytes from Immich. Returns (bytes, content_type) or (None, None)."""
     url, api_key = _get_config()
     if not url or not api_key:
+        return None, None
+
+    if cache.is_circuit_open("immich"):
         return None, None
 
     try:
@@ -180,6 +188,38 @@ def get_folder_photos(folder_path, count=20):
         return photos
     except Exception as e:
         print(f"Immich: get_folder_photos error: {e}", file=sys.stderr)
+        return []
+
+
+def get_albums():
+    """Fetch all Immich albums.
+    Returns list of dicts with id, name, count keys."""
+    url, api_key = _get_config()
+    if not url or not api_key:
+        return []
+
+    cached = cache.get("immich_albums")
+    if cached is not None:
+        return cached
+
+    try:
+        resp = requests.get(
+            f"{url}/api/albums",
+            headers=_headers(api_key),
+            timeout=5,
+        )
+        resp.raise_for_status()
+        albums = []
+        for a in resp.json():
+            albums.append({
+                "id": a["id"],
+                "name": a["albumName"],
+                "count": a.get("assetCount", 0),
+            })
+        cache.set("immich_albums", albums, ttl=300)
+        return albums
+    except Exception as e:
+        print(f"Immich: get_albums error: {e}", file=sys.stderr)
         return []
 
 

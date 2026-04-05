@@ -7,8 +7,54 @@ from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 from models import get_pills, log_pill_acknowledgment
 
-# Global event queue for SSE — bounded to prevent memory growth
-reminder_queue = queue.Queue(maxsize=50)
+
+class SSEBroadcaster:
+    """Pub/sub broadcaster for SSE events. Each connected client gets its own
+    queue so every client receives every event (broadcast, not consume)."""
+
+    def __init__(self):
+        self._subscribers = []
+        self._lock = threading.Lock()
+
+    def subscribe(self):
+        """Create a new subscriber queue. Returns the queue."""
+        q = queue.Queue(maxsize=50)
+        with self._lock:
+            self._subscribers.append(q)
+        return q
+
+    def unsubscribe(self, q):
+        """Remove a subscriber queue (call when SSE client disconnects)."""
+        with self._lock:
+            try:
+                self._subscribers.remove(q)
+            except ValueError:
+                pass
+
+    def put_nowait(self, event):
+        """Broadcast an event to all connected clients."""
+        with self._lock:
+            dead = []
+            for q in self._subscribers:
+                try:
+                    q.put_nowait(event)
+                except queue.Full:
+                    dead.append(q)
+            # Remove clients whose queues are full (stale connections)
+            for q in dead:
+                try:
+                    self._subscribers.remove(q)
+                except ValueError:
+                    pass
+
+    @property
+    def subscriber_count(self):
+        with self._lock:
+            return len(self._subscribers)
+
+
+# Global SSE broadcaster — replaces the old single queue
+reminder_queue = SSEBroadcaster()
 
 # Track active (unacknowledged) reminders
 active_reminders = {}
@@ -22,24 +68,8 @@ DAY_MAP = {"mon": 0, "tue": 1, "wed": 2, "thu": 3, "fri": 4, "sat": 5, "sun": 6}
 
 def _is_quiet_hours():
     """Check if current time falls within configured quiet hours."""
-    from models import get_setting
-    start = get_setting("quiet_hours_start", "22:00")
-    end = get_setting("quiet_hours_end", "07:00")
-    if not start or not end:
-        return False
-    try:
-        now = datetime.now()
-        now_min = now.hour * 60 + now.minute
-        sh, sm = int(start.split(":")[0]), int(start.split(":")[1])
-        eh, em = int(end.split(":")[0]), int(end.split(":")[1])
-        start_min = sh * 60 + sm
-        end_min = eh * 60 + em
-        if start_min <= end_min:
-            return start_min <= now_min < end_min
-        else:  # Wraps midnight (e.g., 22:00 - 07:00)
-            return now_min >= start_min or now_min < end_min
-    except (ValueError, IndexError):
-        return False
+    from models import is_quiet_hours
+    return is_quiet_hours()
 
 
 def check_pills():
@@ -272,22 +302,10 @@ def check_favorite_shows():
                     continue
 
                 # Skip Shorts and short clips — 90-year-olds need long-form content
-                try:
-                    import urllib.request
-                    req = urllib.request.Request(
-                        f"https://www.youtube.com/watch?v={vid_id}",
-                        headers={"User-Agent": "Mozilla/5.0"})
-                    html = urllib.request.urlopen(req, timeout=8).read().decode("utf-8", errors="ignore")
-                    m = re.search(r'"lengthSeconds":"(\d+)"', html)
-                    if m:
-                        duration = int(m.group(1))
-                        if duration < 600:
-                            continue  # Skip Shorts
-                    # duration unknown — skip to be safe
-                    elif not m:
-                        continue
-                except Exception:
-                    continue  # Can't verify duration — skip
+                from youtube_utils import get_youtube_duration
+                duration = get_youtube_duration(vid_id)
+                if duration < 600:
+                    continue  # Skip Shorts or unknown duration
 
                 reminder_id = f"show_{show['id']}_{vid_id}"
                 with _lock:
@@ -355,21 +373,12 @@ def trigger_classical_music():
                 if not vid_id:
                     continue
                 # Check duration — skip short videos
-                try:
-                    import urllib.request
-                    import re
-                    req = urllib.request.Request(
-                        f"https://www.youtube.com/watch?v={vid_id}",
-                        headers={"User-Agent": "Mozilla/5.0"},
-                    )
-                    html = urllib.request.urlopen(req, timeout=10).read().decode("utf-8", errors="ignore")
-                    m = re.search(r'"lengthSeconds":"(\d+)"', html)
-                    if m and int(m.group(1)) < 900:  # 15 minutes
-                        print(f"Scheduler: skipping short video {vid_id} ({int(m.group(1))}s)", file=sys.stderr)
-                        vid_id = ""
-                        continue
-                except Exception:
-                    pass  # If we can't check duration, allow it
+                from youtube_utils import get_youtube_duration
+                dur = get_youtube_duration(vid_id)
+                if dur and dur < 900:  # 15 minutes
+                    print(f"Scheduler: skipping short video {vid_id} ({dur}s)", file=sys.stderr)
+                    vid_id = ""
+                    continue
                 break
             if vid_id:
                 event_data = {
@@ -419,18 +428,11 @@ def trigger_exercise():
                 vid_id = entry.get("yt_videoid", "")
                 if not vid_id:
                     continue
-                try:
-                    import urllib.request
-                    req = urllib.request.Request(
-                        f"https://www.youtube.com/watch?v={vid_id}",
-                        headers={"User-Agent": "Mozilla/5.0"})
-                    html = urllib.request.urlopen(req, timeout=8).read().decode("utf-8", errors="ignore")
-                    m = re.search(r'"lengthSeconds":"(\d+)"', html)
-                    if m and int(m.group(1)) < 600:
-                        vid_id = ""
-                        continue
-                except Exception:
-                    pass
+                from youtube_utils import get_youtube_duration
+                dur = get_youtube_duration(vid_id)
+                if dur and dur < 600:
+                    vid_id = ""
+                    continue
                 break
             if vid_id:
                 event_data = {

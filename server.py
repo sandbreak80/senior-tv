@@ -1,5 +1,6 @@
 import json
 import os
+import queue
 import re
 import secrets
 import shutil
@@ -107,23 +108,7 @@ def timeago_filter(timestamp_str):
 
 def is_quiet_hours():
     """Check if current time falls within configured quiet hours."""
-    start = get_setting_or_default("quiet_hours_start")
-    end = get_setting_or_default("quiet_hours_end")
-    if not start or not end:
-        return False
-    try:
-        _now = datetime.now()
-        now = _now.hour * 60 + _now.minute
-        sh, sm = int(start.split(":")[0]), int(start.split(":")[1])
-        eh, em = int(end.split(":")[0]), int(end.split(":")[1])
-        start_min = sh * 60 + sm
-        end_min = eh * 60 + em
-        if start_min <= end_min:
-            return start_min <= now < end_min
-        else:  # Wraps midnight (e.g., 22:00 - 07:00)
-            return now >= start_min or now < end_min
-    except (ValueError, IndexError):
-        return False
+    return models.is_quiet_hours()
 
 
 def _safe_int(value, default=0):
@@ -174,9 +159,19 @@ def check_remote_auth():
 def admin_login():
     """Simple password login for remote admin access."""
     if request.method == "POST":
+        from werkzeug.security import check_password_hash, generate_password_hash
         password = request.form.get("password", "")
-        stored = models.get_setting("admin_password") or "family2026"
-        if secrets.compare_digest(password, stored):
+        stored = models.get_setting("admin_password") or ""
+        # Support both hashed and legacy plaintext passwords
+        if stored.startswith(("pbkdf2:", "scrypt:")):
+            valid = check_password_hash(stored, password)
+        else:
+            valid = secrets.compare_digest(password, stored) if stored else False
+            # Migrate plaintext to hashed on successful login
+            if valid:
+                models.set_setting("admin_password", generate_password_hash(password))
+                cache.clear("setting_admin_password")
+        if valid:
             session["remote_auth"] = True
             return redirect("/admin")
         return render_template_string(LOGIN_TEMPLATE, error="Wrong password")
@@ -216,12 +211,8 @@ def inject_log_level():
     return {"log_level": get_setting_or_default("log_level")}
 
 
-def get_setting_or_default(key):
-    val = models.get_setting(key)
-    if val is None:
-        default = config.DEFAULTS.get(key)
-        return str(default) if default is not None else ""
-    return val
+# Re-export from models — canonical version lives there now
+get_setting_or_default = models.get_setting_or_default
 
 
 def get_greeting():
@@ -236,69 +227,10 @@ def get_greeting():
     return f"{period}, {names}!"
 
 
-def get_weather_summary():
-    cached = cache.get("weather_summary")
-    if cached:
-        return cached
-    try:
-        lat = get_setting_or_default("weather_lat")
-        lon = get_setting_or_default("weather_lon")
-        if not lat or not lon:
-            return {"temp": "--", "condition": "Not configured", "code": 0}
-        unit = get_setting_or_default("weather_unit")
-        temp_unit = "fahrenheit" if unit == "fahrenheit" else "celsius"
-        resp = requests.get(
-            "https://api.open-meteo.com/v1/forecast",
-            params={
-                "latitude": lat,
-                "longitude": lon,
-                "current": "temperature_2m,weather_code",
-                "temperature_unit": temp_unit,
-            },
-            timeout=5,
-        )
-        data = resp.json()
-        current = data["current"]
-        temp = round(current["temperature_2m"])
-        symbol = "°F" if unit == "fahrenheit" else "°C"
-        code = current["weather_code"]
-        condition = weather_code_to_text(code)
-        result = {"temp": f"{temp}{symbol}", "condition": condition, "code": code}
-        cache.set("weather_summary", result, ttl=600)  # 10 min
-        return result
-    except Exception:
-        return {"temp": "--", "condition": "Unavailable", "code": -1}
-
-
-def weather_code_to_text(code):
-    mapping = {
-        0: "Clear", 1: "Mostly Clear", 2: "Partly Cloudy", 3: "Overcast",
-        45: "Foggy", 48: "Foggy", 51: "Light Drizzle", 53: "Drizzle",
-        55: "Heavy Drizzle", 61: "Light Rain", 63: "Rain", 65: "Heavy Rain",
-        71: "Light Snow", 73: "Snow", 75: "Heavy Snow", 80: "Rain Showers",
-        81: "Rain Showers", 82: "Heavy Showers", 95: "Thunderstorm",
-    }
-    return mapping.get(code, "Unknown")
-
-
-def weather_code_to_icon(code):
-    if code <= 1:
-        return "☀️"
-    elif code <= 3:
-        return "⛅"
-    elif code <= 48:
-        return "🌫️"
-    elif code <= 55:
-        return "🌦️"
-    elif code <= 65:
-        return "🌧️"
-    elif code <= 75:
-        return "❄️"
-    elif code <= 82:
-        return "🌧️"
-    elif code >= 95:
-        return "⛈️"
-    return "🌡️"
+# Weather functions — delegated to services/weather.py
+from services.weather import get_summary as get_weather_summary  # noqa: E402
+from services.weather import code_to_text as weather_code_to_text  # noqa: E402
+from services.weather import code_to_icon as weather_code_to_icon  # noqa: E402
 
 
 # ========================================
@@ -316,110 +248,37 @@ def tv_home():
     time_str = now.strftime("%I:%M %p").lstrip("0")
 
     # Time-of-day content categories (care plan)
+    from services.content import get_time_period
     hour = now.hour
-    if hour < 14:  # Morning: wake to 2 PM
-        time_period = "morning"
-        suggested_categories = ["Game Shows", "Morning Shows", "Classic TV"]
-        suggested_pluto = ["News + Opinion", "Daytime + Game Shows", "Classic TV"]
-    elif hour < 17:  # Afternoon: 2–5 PM
-        time_period = "afternoon"
-        suggested_categories = ["Westerns", "Classic TV", "Comedy", "Crime & Drama", "Music & Variety"]
-        suggested_pluto = ["Westerns", "Classic TV", "Comedy", "Drama", "True Crime"]
-    else:  # Evening: 5 PM+
-        time_period = "evening"
-        suggested_categories = ["Comedy", "Crime & Drama", "Wind Down", "Westerns", "Music & Variety", "Nature"]
-        suggested_pluto = ["Comedy", "Classic TV", "Drama", "True Crime", "Westerns"]
+    tp = get_time_period(hour)
+    time_period = tp["period"]
+    suggested_categories = tp["youtube_categories"]
+    suggested_pluto = tp["pluto_categories"]
 
+    from services.home import (
+        get_jellyfin_recommendations, get_day_info, build_menu_items, get_home_photo,
+    )
     unread_msgs = models.get_unread_count()
-    msg_label = f"Messages ({unread_msgs} new)" if unread_msgs > 0 else "Messages"
-
-    # Day info for the left panel
-    day_num = now.timetuple().tm_yday
-    day_of_year = f"Day {day_num} of {365 + (1 if now.year % 4 == 0 else 0)}"
-    # Check if today is a holiday
-    today_date = now.strftime("%Y-%m-%d")
-    today_events = models.get_upcoming_events(days=1)
-    holidays_today = ""
-    for ev in today_events:
-        if ev["event_date"] == today_date and "🎉" in ev["title"]:
-            holidays_today = ev["title"].replace("🎉 ", "")
-            break
-
-    free_movie_count = models.get_youtube_movie_count()
-    menu_items = [
-        {"label": "Live TV", "icon": "📺", "url": "/tv/live"},
-        {"label": f"Free Movies ({free_movie_count})", "icon": "🍿", "url": "/tv/free-movies"},
-        {"label": "Movies & Shows", "icon": "🎬", "url": "/tv/plex"},
-        {"label": "YouTube", "icon": "▶️", "url": "/tv/youtube"},
-        {"label": msg_label, "icon": "💌", "url": "/tv/messages"},
-        {"label": "News", "icon": "📰", "url": "/tv/news"},
-        {"label": "Weather", "icon": "🌤️", "url": "/tv/weather"},
-        {"label": "Calendar", "icon": "📅", "url": "/tv/calendar"},
-        {"label": "Photo Frame", "icon": "📷", "url": "/tv/photos"},
-    ]
-
-    # Jellyfin recommendations — all genres welcome, the library was curated for them
-    jf_movies = []
-    jf_shows = []
-    jf = _get_jellyfin()
-    if jf:
-        try:
-            resume = jf.get_resume(limit=5)
-            libs = jf.get_libraries()
-            for lib in libs:
-                lib_type = lib.get("type", "")
-                try:
-                    # Pull extra to account for exclusion filtering
-                    items = jf.get_library_items(lib["id"], sort="Random",
-                                                 sort_order="Ascending", limit=30)
-                    items = [i for i in items if i["id"] not in _excluded_ids][:20]
-                    for item in items:
-                        if item.get("type") == "series" or lib_type == "tvshows":
-                            jf_shows.append(item)
-                        else:
-                            jf_movies.append(item)
-                except Exception:
-                    pass
-            # Prepend resume items to movies
-            jf_movies = resume + jf_movies
-        except Exception:
-            pass
+    day_info = get_day_info()
+    menu_items = build_menu_items(
+        unread_msgs, models.get_youtube_movie_count()
+    )
+    jf_movies, jf_shows = get_jellyfin_recommendations(
+        _get_jellyfin(), _excluded_ids
+    )
 
     # LA news live stream — only show before 3 PM (care plan: no news in evening)
+    from services.youtube import scrape_live_video_id, pick_random_wind_down_video
     la_news_video_id = None
     wind_down_video = None
     if hour < 15:
-        la_news_video_id = cache.get("la_news_video_id")
-        if la_news_video_id is None:
-            try:
-                r = requests.get("https://www.youtube.com/@abc7/live", timeout=4,
-                                 headers={"User-Agent": "Mozilla/5.0"})
-                match = re.search(r'"videoId":"([a-zA-Z0-9_-]{11})"', r.text)
-                if match and "isLive" in r.text:
-                    la_news_video_id = match.group(1)
-                    cache.set("la_news_video_id", la_news_video_id, ttl=1800)  # 30 min
-            except Exception:
-                pass
+        la_news_video_id = scrape_live_video_id(
+            "https://www.youtube.com/@abc7/live"
+        )
     else:
-        # After 3 PM: embed a calming Wind Down video instead
-        wind_down_video = cache.get("wind_down_video")
-        if wind_down_video is None:
-            try:
-                import random as _random
-                wd_channels = models.get_youtube_channels(category="Wind Down")
-                if wd_channels:
-                    ch = _random.choice(wd_channels)
-                    feed_url = f"https://www.youtube.com/feeds/videos.xml?channel_id={ch['channel_id']}"
-                    feed = feedparser.parse(feed_url)
-                    if feed.entries:
-                        entry = _random.choice(feed.entries[:10])
-                        vid_id = entry.get("yt_videoid", "")
-                        if vid_id:
-                            wind_down_video = {"video_id": vid_id, "name": ch["name"],
-                                               "title": entry.get("title", "")}
-                            cache.set("wind_down_video", wind_down_video, ttl=3600)
-            except Exception:
-                pass
+        wind_down_video = pick_random_wind_down_video(
+            lambda: models.get_youtube_channels(category="Wind Down")
+        )
 
     # Random free YouTube movies for the home page
     free_movies_home = models.get_random_youtube_movies(limit=12)
@@ -436,55 +295,14 @@ def tv_home():
                      + models.get_youtube_channels(category="Morning Shows"))
 
     # 5-day weather forecast
-    forecast = []
-    try:
-        lat = get_setting_or_default("weather_lat")
-        lon = get_setting_or_default("weather_lon")
-        unit = get_setting_or_default("weather_unit")
-        temp_unit = "fahrenheit" if unit == "fahrenheit" else "celsius"
-
-        forecast_cached = cache.get("forecast_5day")
-        if forecast_cached:
-            forecast = forecast_cached
-        else:
-            resp = requests.get(
-                "https://api.open-meteo.com/v1/forecast",
-                params={
-                    "latitude": lat, "longitude": lon,
-                    "daily": "weather_code,temperature_2m_max,temperature_2m_min",
-                    "temperature_unit": temp_unit, "timezone": "auto", "forecast_days": 5,
-                },
-                timeout=5,
-            )
-            data = resp.json()
-            for i in range(5):
-                day_name = datetime.strptime(data["daily"]["time"][i], "%Y-%m-%d").strftime("%a")
-                if i == 0:
-                    day_name = "Today"
-                forecast.append({
-                    "day": day_name,
-                    "high": round(data["daily"]["temperature_2m_max"][i]),
-                    "low": round(data["daily"]["temperature_2m_min"][i]),
-                    "icon": weather_code_to_icon(data["daily"]["weather_code"][i]),
-                })
-            cache.set("forecast_5day", forecast, ttl=1800)
-    except Exception:
-        pass
+    from services.weather import get_forecast
+    forecast = get_forecast()
 
     # Next calendar event
     upcoming = models.get_upcoming_events(days=7)
     next_event = upcoming[0] if upcoming else None
 
-    # Random family photo for home page widget
-    home_photo = None
-    try:
-        import immich_api
-        if immich_api.is_configured():
-            photos = immich_api.get_random_photos(count=5)
-            if photos:
-                home_photo = photos[0]
-    except Exception:
-        pass
+    home_photo = get_home_photo()
 
     return render_template(
         "tv/home.html",
@@ -508,8 +326,8 @@ def tv_home():
         local_youtube=local_youtube[:8],
         suggested_pluto=suggested_pluto,
         unread_msgs=unread_msgs,
-        day_of_year=day_of_year,
-        holidays_today=holidays_today,
+        day_of_year=day_info["day_of_year"],
+        holidays_today=day_info["holidays_today"],
         forecast=forecast,
         home_photo=home_photo,
         first_boot=not get_setting_or_default("greeting_names"),
@@ -518,79 +336,23 @@ def tv_home():
 
 @app.route("/tv/weather")
 def tv_weather():
-    try:
-        lat = get_setting_or_default("weather_lat")
-        lon = get_setting_or_default("weather_lon")
-        unit = get_setting_or_default("weather_unit")
-        temp_unit = "fahrenheit" if unit == "fahrenheit" else "celsius"
-        resp = requests.get(
-            "https://api.open-meteo.com/v1/forecast",
-            params={
-                "latitude": lat,
-                "longitude": lon,
-                "current": "temperature_2m,weather_code,relative_humidity_2m,wind_speed_10m",
-                "daily": "weather_code,temperature_2m_max,temperature_2m_min",
-                "temperature_unit": temp_unit,
-                "wind_speed_unit": "mph",
-                "timezone": "auto",
-                "forecast_days": 5,
-            },
-            timeout=10,
+    from services.weather import get_detailed
+    current, forecast = get_detailed()
+    if current is None:
+        return render_template(
+            "tv/weather.html",
+            current=None, forecast=[], error="Weather unavailable"
         )
-        data = resp.json()
-        symbol = "°F" if unit == "fahrenheit" else "°C"
-
-        current = {
-            "temp": round(data["current"]["temperature_2m"]),
-            "condition": weather_code_to_text(data["current"]["weather_code"]),
-            "icon": weather_code_to_icon(data["current"]["weather_code"]),
-            "humidity": data["current"]["relative_humidity_2m"],
-            "wind": round(data["current"]["wind_speed_10m"]),
-            "symbol": symbol,
-        }
-
-        forecast = []
-        for i in range(5):
-            day_name = datetime.strptime(data["daily"]["time"][i], "%Y-%m-%d").strftime("%A")
-            if i == 0:
-                day_name = "Today"
-            forecast.append({
-                "day": day_name,
-                "high": round(data["daily"]["temperature_2m_max"][i]),
-                "low": round(data["daily"]["temperature_2m_min"][i]),
-                "icon": weather_code_to_icon(data["daily"]["weather_code"][i]),
-                "condition": weather_code_to_text(data["daily"]["weather_code"][i]),
-                "symbol": symbol,
-            })
-
-        return render_template("tv/weather.html", current=current, forecast=forecast)
-    except Exception as e:
-        return render_template("tv/weather.html", current=None, forecast=[], error=str(e))
+    return render_template(
+        "tv/weather.html", current=current, forecast=forecast
+    )
 
 
 @app.route("/tv/news")
 def tv_news():
     """News page with live video streams and headlines."""
-    # YouTube live news streams — we scrape the current video ID from channel /live pages
-    live_streams = []
-    yt_channels = [
-        ("ABC News", "https://www.youtube.com/@ABCNews/live"),
-        ("NBC News NOW", "https://www.youtube.com/@NBCNews/live"),
-        ("CBS News", "https://www.youtube.com/@CBSNews/live"),
-        ("FOX 11 Los Angeles", "https://www.youtube.com/@FOX11LosAngeles/live"),
-    ]
-    for name, url in yt_channels:
-        try:
-            r = requests.get(url, timeout=5, headers={"User-Agent": "Mozilla/5.0"})
-            match = re.search(r'"videoId":"([a-zA-Z0-9_-]{11})"', r.text)
-            if match:
-                live_streams.append({
-                    "name": name,
-                    "video_id": match.group(1),
-                    "type": "youtube",
-                })
-        except Exception:
-            continue
+    from services.youtube import get_live_streams, NEWS_CHANNELS
+    live_streams = get_live_streams(NEWS_CHANNELS)
 
     # Also include Pluto TV news channels for quick access
     pluto_news = []
@@ -1016,13 +778,9 @@ def tv_free_movies():
 def api_random_free_movie():
     """Get a random free YouTube movie for auto-play."""
     import random as _random
-    hour = datetime.now().hour
-    if hour < 14:
-        preferred = ["Comedy", "Family", "Western"]
-    elif hour < 17:
-        preferred = ["Western", "Comedy", "Drama", "Action"]
-    else:
-        preferred = ["Western", "Family", "Comedy", "Thriller"]
+    from services.content import get_time_period, mark_played, was_recently_played
+    tp = get_time_period()
+    preferred = tp["jellyfin_genres"]
 
     # Try preferred genre first
     genre = _random.choice(preferred) if _random.random() < 0.6 else None
@@ -1066,22 +824,8 @@ def tv_youtube():
 
 def _get_local_live_streams():
     """Get current live YouTube streams for local LA/SD stations."""
-    streams = []
-    local_channels = [
-        ("ABC 7 Los Angeles", "https://www.youtube.com/@abc7/live"),
-        ("FOX 11 Los Angeles", "https://www.youtube.com/@FOX11LosAngeles/live"),
-        ("NBC Los Angeles", "https://www.youtube.com/@ABORABLE/live"),
-        ("CBS 8 San Diego", "https://www.youtube.com/@CBS8/live"),
-    ]
-    for name, url in local_channels:
-        try:
-            r = requests.get(url, timeout=4, headers={"User-Agent": "Mozilla/5.0"})
-            match = re.search(r'"videoId":"([a-zA-Z0-9_-]{11})"', r.text)
-            if match and "isLive" in r.text:
-                streams.append({"name": name, "video_id": match.group(1)})
-        except Exception:
-            continue
-    return streams
+    from services.youtube import get_live_streams, LOCAL_CHANNELS
+    return get_live_streams(LOCAL_CHANNELS, require_live=True)
 
 
 @app.route("/tv/youtube/channel/<channel_id>")
@@ -1097,43 +841,17 @@ def tv_youtube_channel(channel_id):
 
     channel_name = ch_record["name"] if ch_record else "YouTube"
 
-    # Fetch recent videos via RSS (no API key needed)
-    videos = []
-    try:
-        feed_url = f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
-        feed = feedparser.parse(feed_url)
-        for entry in feed.entries[:20]:
-            # Try yt:videoId tag first, then URL param
-            vid_id = entry.get("yt_videoid", "")
-            if not vid_id:
-                vid_match = re.search(r'[?&]v=([a-zA-Z0-9_-]{11})', entry.get("link", ""))
-                vid_id = vid_match.group(1) if vid_match else ""
-            thumb = f"https://i.ytimg.com/vi/{vid_id}/mqdefault.jpg" if vid_id else ""
-            videos.append({
-                "title": entry.get("title", ""),
-                "video_id": vid_id,
-                "thumbnail": thumb,
-                "published": entry.get("published", ""),
-            })
-    except Exception:
-        pass
+    from services.youtube import get_channel_videos
+    videos = get_channel_videos(channel_id, limit=20)
 
     return render_template("tv/youtube_channel.html", channel_name=channel_name,
                            channel_id=channel_id, videos=videos)
 
 
 def _get_youtube_duration(video_id):
-    """Get video duration in seconds by scraping YouTube's page metadata."""
-    try:
-        resp = requests.get(
-            f"https://www.youtube.com/watch?v={video_id}",
-            headers={"User-Agent": "Mozilla/5.0"}, timeout=8)
-        m = re.search(r'"lengthSeconds":"(\d+)"', resp.text)
-        if m:
-            return int(m.group(1))
-    except Exception:
-        pass
-    return 0
+    """Get video duration in seconds. Delegates to shared cached implementation."""
+    from youtube_utils import get_youtube_duration
+    return get_youtube_duration(video_id)
 
 
 @app.route("/tv/youtube/watch/<video_id>")
@@ -1143,18 +861,11 @@ def tv_youtube_watch(video_id):
         return redirect("/tv/youtube")
 
     # If channel_id is provided, build a playlist of all channel videos
+    from services.youtube import get_channel_video_ids
     playlist_ids = []
     channel_id = request.args.get("channel")
     if channel_id and re.match(r'^UC[a-zA-Z0-9_-]{22}$', channel_id):
-        try:
-            feed_url = f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
-            feed = feedparser.parse(feed_url)
-            for entry in feed.entries[:20]:
-                vid = entry.get("yt_videoid", "")
-                if vid and re.match(r'^[a-zA-Z0-9_-]{11}$', vid):
-                    playlist_ids.append(vid)
-        except Exception:
-            pass
+        playlist_ids = get_channel_video_ids(channel_id, limit=20)
 
     # Ensure the selected video is first, then the rest in order
     if playlist_ids and video_id in playlist_ids:
@@ -1413,13 +1124,20 @@ def admin_free_movies_delete(movie_id):
 
 @app.route("/events")
 def sse_events():
+    client_queue = reminder_queue.subscribe()
+
     def stream():
-        while True:
-            try:
-                event = reminder_queue.get(timeout=30)
-                yield f"data: {json.dumps(event)}\n\n"
-            except Exception:
-                yield ": keepalive\n\n"
+        try:
+            while True:
+                try:
+                    event = client_queue.get(timeout=30)
+                    yield f"data: {json.dumps(event)}\n\n"
+                except queue.Empty:
+                    yield ": keepalive\n\n"
+        except GeneratorExit:
+            pass
+        finally:
+            reminder_queue.unsubscribe(client_queue)
 
     return Response(stream(), mimetype="text/event-stream",
                     headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
@@ -1442,11 +1160,18 @@ def api_log_level():
 
 @app.route("/api/log-activity", methods=["POST"])
 def api_log_activity():
-    """Log playback/navigation activity from the TV client."""
+    """Log playback/navigation activity from the TV client.
+    Rate-limited: same (type, item_id) within 5 seconds is deduplicated."""
     data = request.get_json(force=True, silent=True) or {}
+    activity_type = data.get("type", "unknown")
+    item_id = data.get("item_id", "")
+    dedup_key = f"activity_{activity_type}_{item_id}"
+    if cache.get(dedup_key):
+        return jsonify({"status": "deduped"})
+    cache.set(dedup_key, True, ttl=5)
     models.log_activity(
-        activity_type=data.get("type", "unknown"),
-        item_id=data.get("item_id"),
+        activity_type=activity_type,
+        item_id=item_id,
         item_title=data.get("title"),
         item_type=data.get("item_type"),
         duration_seconds=data.get("duration"),
@@ -1978,6 +1703,7 @@ def admin_jellyfin_setup():
 
         if action == "save_url":
             models.set_setting("jellyfin_url", request.form.get("jellyfin_url", "").rstrip("/"))
+            cache.clear("setting_jellyfin_url")
             return redirect("/admin/plex-setup")
 
         elif action == "authenticate":
@@ -1991,6 +1717,8 @@ def admin_jellyfin_setup():
                     result = jf.authenticate(username, password)
                     models.set_setting("jellyfin_api_key", result["api_key"])
                     models.set_setting("jellyfin_user_id", result["user_id"])
+                    cache.clear("setting_jellyfin_api_key")
+                    cache.clear("setting_jellyfin_user_id")
                     message = f"Logged in as {result['user_name']}!"
                 except Exception as e:
                     message = f"Login failed: {e}"
@@ -2158,7 +1886,12 @@ def admin_settings():
                      "quiet_hours_start", "quiet_hours_end", "presence_enabled"]:
             val = request.form.get(key)
             if val is not None:
+                # Hash the admin password before storing
+                if key == "admin_password" and val:
+                    from werkzeug.security import generate_password_hash
+                    val = generate_password_hash(val)
                 models.set_setting(key, val)
+                cache.clear(f"setting_{key}")
         return redirect("/admin/settings")
     settings = {}
     for key in config.DEFAULTS:
@@ -2181,20 +1914,7 @@ def admin_settings():
         ok, msg = immich_api.test_connection()
         immich_status = {"ok": ok, "message": msg}
         immich_photo_count = immich_api.get_photo_count()
-        # Fetch albums
-        try:
-            im_url, im_key = immich_api._get_config()
-            resp = requests.get(f"{im_url}/api/albums",
-                                headers={"x-api-key": im_key}, timeout=5)
-            if resp.ok:
-                for a in resp.json():
-                    immich_albums.append({
-                        "id": a["id"],
-                        "name": a["albumName"],
-                        "count": a.get("assetCount", 0),
-                    })
-        except Exception:
-            pass
+        immich_albums = immich_api.get_albums()
 
     return render_template("admin/settings.html", settings=settings,
                            immich_status=immich_status, immich_albums=immich_albums,
@@ -2286,6 +2006,8 @@ def admin_photos():
             selected_folders = request.form.getlist("folders")
             models.set_setting("immich_album_ids", ",".join(selected_albums))
             models.set_setting("immich_folder_paths", ",".join(selected_folders))
+            cache.clear("setting_immich_album_ids")
+            cache.clear("setting_immich_folder_paths")
             # Clear all immich caches so slideshow picks up changes immediately
             for key in list(cache._cache.keys()):
                 if key.startswith("immich_"):
@@ -2315,23 +2037,12 @@ def admin_photos():
         ok, msg = immich_api.test_connection()
         immich_ok = ok
         immich_photo_count = immich_api.get_photo_count()
-        try:
-            im_url, im_key = immich_api._get_config()
-            resp = requests.get(f"{im_url}/api/albums",
-                                headers={"x-api-key": im_key}, timeout=5)
-            if resp.ok:
-                for a in resp.json():
-                    album = {
-                        "id": a["id"],
-                        "name": a["albumName"],
-                        "count": a.get("assetCount", 0),
-                        "selected": a["id"] in selected_album_ids,
-                        "thumb_id": a.get("albumThumbnailAssetId", ""),
-                    }
-                    immich_albums.append(album)
-                immich_albums.sort(key=lambda x: (-x["selected"], -x["count"], x["name"]))
-        except Exception:
-            pass
+        for album in immich_api.get_albums():
+            album["selected"] = album["id"] in selected_album_ids
+            immich_albums.append(album)
+        immich_albums.sort(
+            key=lambda x: (-x["selected"], -x["count"], x["name"])
+        )
 
         # Discover folder structure
         immich_folders = immich_api.search_folders(sample_size=500)
@@ -2547,12 +2258,8 @@ def api_next_video():
     """
     import random as _random
     hour = datetime.now().hour
-    if hour < 14:
-        preferred = ["Comedy", "Family", "Western"]
-    elif hour < 17:
-        preferred = ["Western", "Comedy", "Drama", "Crime"]
-    else:
-        preferred = ["Western", "Family", "Comedy", "Crime"]
+    from services.content import get_time_period
+    preferred = get_time_period(hour)["jellyfin_genres"]
 
     jf = _get_jellyfin()
     if not jf:
@@ -2642,12 +2349,8 @@ def api_next_channel():
     """
     import random as _random
     hour = datetime.now().hour
-    if hour < 14:
-        preferred = ["Game Shows", "Morning Shows", "Local News", "Classic TV"]
-    elif hour < 17:
-        preferred = ["Westerns", "Classic TV", "Comedy", "Crime & Drama"]
-    else:
-        preferred = ["Wind Down", "Comedy", "Classic TV", "Westerns"]
+    from services.content import get_time_period
+    preferred = get_time_period(hour)["channel_categories"]
 
     try:
         yt_channels = models.get_youtube_channels()
@@ -2859,113 +2562,8 @@ def admin_volume():
 @app.route("/api/health")
 def api_health():
     """System health check for monitoring and watchdog."""
-    import psutil
-
-    health = {
-        "timestamp": datetime.now().isoformat(),
-        "uptime_seconds": int((datetime.now() - app_start_time).total_seconds()),
-        "status": "ok",
-        "checks": {},
-    }
-
-    # Disk
-    disk = shutil.disk_usage("/")
-    health["checks"]["disk"] = {
-        "used_pct": round(disk.used / disk.total * 100, 1),
-        "ok": disk.used / disk.total < 0.9,
-    }
-
-    # Memory
-    mem = psutil.virtual_memory()
-    health["checks"]["memory"] = {
-        "used_pct": mem.percent,
-        "ok": mem.percent < 85,
-    }
-
-    # Chrome process
-    chrome_running = any(
-        "senior-tv-chrome" in " ".join(p.info["cmdline"] or [])
-        for p in psutil.process_iter(["cmdline"])
-    )
-    health["checks"]["chrome"] = {"running": chrome_running, "ok": chrome_running}
-
-    # CEC
-    cec_running = any(
-        "cec_bridge" in " ".join(p.info["cmdline"] or [])
-        for p in psutil.process_iter(["cmdline"])
-    )
-    cec_device = os.path.exists("/dev/cec0")
-    health["checks"]["cec"] = {
-        "bridge_running": cec_running,
-        "device_exists": cec_device,
-        "ok": True,
-    }
-
-    # Audio — check if HDMI is default sink
-    try:
-        audio_env = os.environ.copy()
-        audio_env["XDG_RUNTIME_DIR"] = "/run/user/1000"
-        result = subprocess.run(
-            ["wpctl", "status"], capture_output=True, text=True, timeout=5,
-            env=audio_env
-        )
-        hdmi_default = False
-        for line in result.stdout.split("\n"):
-            if "*" in line and ("hdmi" in line.lower() or "rembrandt" in line.lower()):
-                hdmi_default = True
-                break
-        health["checks"]["audio"] = {"hdmi_default": hdmi_default, "ok": hdmi_default}
-    except Exception:
-        health["checks"]["audio"] = {"hdmi_default": False, "ok": False}
-
-    # Jellyfin
-    try:
-        jf_url = get_setting_or_default("jellyfin_url")
-        resp = requests.get(f"{jf_url}/System/Ping", timeout=3)
-        health["checks"]["jellyfin"] = {"reachable": resp.ok, "ok": resp.ok}
-    except Exception:
-        health["checks"]["jellyfin"] = {"reachable": False, "ok": False}
-
-    # Internet
-    try:
-        requests.get("https://api.open-meteo.com/v1/forecast?latitude=0&longitude=0&current=temperature_2m", timeout=5)
-        health["checks"]["internet"] = {"reachable": True, "ok": True}
-    except Exception:
-        health["checks"]["internet"] = {"reachable": False, "ok": False}
-
-    # Tailscale
-    try:
-        ts = subprocess.run(["tailscale", "status", "--json"], capture_output=True, text=True, timeout=5)
-        ts_state = json.loads(ts.stdout).get("BackendState", "")
-        health["checks"]["tailscale"] = {"state": ts_state, "ok": ts_state == "Running"}
-    except Exception:
-        health["checks"]["tailscale"] = {"state": "unknown", "ok": False}
-
-    # Watchdog repair count
-    try:
-        with open("/tmp/senior_tv_repair_count") as f:
-            repair_count = int(f.read().strip())
-    except Exception:
-        repair_count = 0
-    health["checks"]["watchdog"] = {"repairs_today": repair_count, "ok": repair_count < 20}
-
-    # Scheduler
-    from scheduler import scheduler as _sched
-    health["checks"]["scheduler"] = {"running": _sched.running, "ok": _sched.running}
-
-    # Immich
-    try:
-        import immich_api
-        if immich_api.is_configured():
-            ok, msg = immich_api.test_connection()
-            health["checks"]["immich"] = {"connected": ok, "detail": msg, "ok": ok}
-    except Exception:
-        pass
-
-    # Overall
-    all_ok = all(c.get("ok", True) for c in health["checks"].values())
-    health["status"] = "ok" if all_ok else "degraded"
-    return jsonify(health)
+    from services.health import check_all
+    return jsonify(check_all(app_start_time))
 
 
 # ========================================
