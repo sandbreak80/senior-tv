@@ -1,8 +1,13 @@
 {% extends "admin/base.html" %}
 {% block title %}Services{% endblock %}
 {% block content %}
-<h1 style="margin: 20px 0;">Services</h1>
+<h1 style="margin: 20px 0;">Network Services</h1>
 
+{% if not services %}
+<div class="card" style="padding: 30px; text-align: center; color: #999;">
+    No services configured. Add Jellyfin, Immich, Home Assistant, or Frigate URLs in <a href="/admin/settings">Settings</a>.
+</div>
+{% else %}
 <div class="stats-row">
     {% for svc in services %}
     <div class="stat-card" style="cursor: pointer;" onclick="window.open('{{ svc.url }}', '_blank')">
@@ -29,13 +34,11 @@
             <a href="{{ svc.url }}" target="_blank" style="font-size: 13px; color: #e94560; text-decoration: none;">Open &rarr;</a>
         </div>
         {% if svc.ok %}
-        <div style="padding: 16px; text-align: center;">
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px; text-align: left; margin-bottom: 12px;">
-                <div><strong>Status:</strong> <span style="color: #4caf50;">Running</span></div>
-                <div><strong>Port:</strong> {{ svc.port }}</div>
-                {% if svc.detail %}
-                <div style="grid-column: span 2;"><strong>Info:</strong> {{ svc.detail }}</div>
-                {% endif %}
+        <div style="padding: 16px;">
+            <div style="font-size: 13px; margin-bottom: 12px;">
+                <div><strong>URL:</strong> <code style="font-size: 12px;">{{ svc.url }}</code></div>
+                {% if svc.version %}<div style="margin-top: 4px;"><strong>Version:</strong> {{ svc.version }}</div>{% endif %}
+                {% if svc.detail %}<div style="margin-top: 4px; color: #888;">{{ svc.detail }}</div>{% endif %}
             </div>
             <a href="{{ svc.url }}" target="_blank"
                style="display: inline-block; padding: 10px 24px; background: #e94560; color: white;
@@ -44,28 +47,12 @@
             </a>
         </div>
         {% else %}
-        <div style="padding: 30px; text-align: center; color: #999;">Service is not responding.</div>
+        <div style="padding: 30px; text-align: center; color: #999;">
+            Not responding at <code>{{ svc.check }}</code>
+        </div>
         {% endif %}
     </div>
     {% endfor %}
-</div>
-
-{% if docker_stats %}
-<div class="card" style="margin-top: 20px;">
-    <h2>Container Resources</h2>
-    <div class="table-wrap">
-        <table>
-            <tr><th>Container</th><th>Status</th><th>CPU</th><th>Memory</th></tr>
-            {% for c in docker_stats %}
-            <tr>
-                <td>{{ c.name }}</td>
-                <td style="color: {{ '#4caf50' if 'Up' in c.status else '#f44336' }};">{{ c.status[:20] }}</td>
-                <td>{{ c.cpu }}</td>
-                <td>{{ c.mem }}</td>
-            </tr>
-            {% endfor %}
-        </table>
-    </div>
 </div>
 {% endif %}
 {% endblock %}

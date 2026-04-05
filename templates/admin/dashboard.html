@@ -127,22 +127,22 @@
 </div>
 {% endif %}
 
-<!-- F: Today's Activity Timeline -->
-{% if tv_presence and tv_presence.hourly %}
+<!-- F: Recent Activity -->
+{% if recent_activity %}
 <div class="card">
-    <h2>📊 Today's Activity</h2>
-    <div class="timeline-bar">
-        {% for h in range(6, 23) %}
-            {% set mins = tv_presence.hourly.get(h, 0) %}
-            {% set pct = (mins * 100 // 60) if mins else 0 %}
-            <div class="bar {{ 'active' if mins > 0 else '' }}"
-                 style="height: {{ [pct, 5] | max if mins > 0 else 5 }}%;"
-                 title="{{ h }}:00 — {{ mins }}min"></div>
-        {% endfor %}
+    <h2>📊 Recent Activity</h2>
+    {% for log in recent_activity %}
+    <div style="display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid #f0f0f0;">
+        <span style="font-size:18px;">
+            {% if 'play' in (log.activity_type or '') %}▶{% elif 'auto_play' in (log.activity_type or '') %}📺{% elif 'screensaver' in (log.activity_type or '') %}🌙{% else %}📋{% endif %}
+        </span>
+        <div style="flex:1;">
+            <div style="font-weight:600;">{{ log.item_title or log.activity_type | replace('_', ' ') | title }}</div>
+            <div style="font-size:12px; color:#888;">{{ log.started_at | localtime }} {% if log.duration_seconds %}&middot; {{ (log.duration_seconds // 60) }}min{% endif %}</div>
+        </div>
     </div>
-    <div class="timeline-labels">
-        <span>6am</span><span>12pm</span><span>6pm</span><span>10pm</span>
-    </div>
+    {% endfor %}
+    <a href="/admin/activity" style="display:block; text-align:center; padding:8px; font-size:13px; color:#e94560; text-decoration:none; margin-top:8px;">View all activity &rarr;</a>
 </div>
 {% endif %}
 

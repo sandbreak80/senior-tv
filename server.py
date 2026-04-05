@@ -1554,16 +1554,20 @@ def admin_dashboard():
     except Exception:
         pass
 
-    # Recent doorbell events from Frigate
+    # Recent doorbell events from Frigate — only last 24 hours
     doorbell_events = []
     frigate_url = get_setting_or_default("frigate_url")
     if frigate_url:
         try:
+            import time as _time
             from smart_home import frigate_get_events
-            raw_events = frigate_get_events(frigate_url, camera="front_door", label="person", limit=4)
+            cutoff = _time.time() - 86400  # 24 hours ago
+            raw_events = frigate_get_events(frigate_url, camera="front_door", label="person", limit=8, after=cutoff)
             if raw_events:
                 for evt in raw_events:
                     ts = evt.get("start_time", 0)
+                    if ts < cutoff:
+                        continue
                     try:
                         evt_dt = datetime.fromtimestamp(ts)
                         evt_mins = int((datetime.now() - evt_dt).total_seconds() / 60)
@@ -1723,49 +1727,51 @@ def admin_camera_snapshot(camera_name):
 
 @app.route("/admin/services")
 def admin_services():
-    """Docker service management page."""
-    # Build service URLs dynamically based on request host
-    host_ip = request.host.split(":")[0]
-    local = _is_local_request()
-    services = [
-        {"name": "Jellyfin", "icon": "🎬", "url": f"http://{host_ip}:8096" if local else "/jellyfin/", "check": "http://localhost:8096", "port": "8096", "detail": "Media server — movies, shows, music"},
-        {"name": "Immich", "icon": "📸", "url": f"http://{host_ip}:2283" if local else "/immich/", "check": "http://localhost:2283", "port": "2283", "detail": "Photo library — family photos"},
-        {"name": "Home Assistant", "icon": "🏠", "url": f"http://{host_ip}:8123" if local else "/ha/", "check": "http://localhost:8123", "port": "8123", "detail": "Smart home — TV control, automations"},
-    ]
+    """Network service status page."""
+    jf_url = get_setting_or_default("jellyfin_url") or ""
+    im_url = get_setting_or_default("immich_url") or ""
+    ha_url = get_setting_or_default("ha_url") or ""
+    ha_token = get_setting_or_default("ha_token") or ""
+    frigate_url = get_setting_or_default("frigate_url") or ""
+
+    services = []
+    if jf_url:
+        services.append({"name": "Jellyfin", "icon": "🎬", "url": jf_url,
+                          "check": f"{jf_url}/System/Info/Public",
+                          "detail": "Media server — movies, shows, music"})
+    if im_url:
+        services.append({"name": "Immich", "icon": "📸", "url": im_url,
+                          "check": f"{im_url}/api/server/about",
+                          "detail": "Photo library — family photos"})
+    if ha_url:
+        services.append({"name": "Home Assistant", "icon": "🏠", "url": ha_url,
+                          "check": f"{ha_url}/api/",
+                          "headers": {"Authorization": f"Bearer {ha_token}"},
+                          "detail": "Smart home — TV control, automations"})
+    if frigate_url:
+        services.append({"name": "Frigate", "icon": "📷", "url": frigate_url,
+                          "check": f"{frigate_url}/api/stats",
+                          "detail": "Camera NVR — doorbell alerts, person detection"})
+
     for svc in services:
         try:
-            resp = requests.get(svc["check"], timeout=3, allow_redirects=True)
+            hdrs = svc.pop("headers", {})
+            resp = requests.get(svc["check"], headers=hdrs, timeout=3,
+                                allow_redirects=True, verify=False)
             svc["ok"] = resp.status_code < 500
+            if resp.ok:
+                try:
+                    info = resp.json()
+                    if "Version" in info:
+                        svc["version"] = info["Version"]
+                    elif "version" in info:
+                        svc["version"] = info["version"]
+                except Exception:
+                    pass
         except Exception:
             svc["ok"] = False
 
-    # Docker container stats
-    docker_stats = []
-    try:
-        result = subprocess.run(
-            ["docker", "stats", "--no-stream", "--format", "{{.Name}}\t{{.Status}}\t{{.CPUPerc}}\t{{.MemUsage}}"],
-            capture_output=True, text=True, timeout=10,
-        )
-        # Fallback to docker ps if stats fails
-        if not result.stdout.strip():
-            result = subprocess.run(
-                ["docker", "ps", "--format", "{{.Names}}\t{{.Status}}\t-\t-"],
-                capture_output=True, text=True, timeout=5,
-            )
-        for line in result.stdout.strip().split("\n"):
-            if line:
-                parts = line.split("\t")
-                if len(parts) >= 4:
-                    docker_stats.append({
-                        "name": parts[0],
-                        "status": parts[1] if len(parts) > 1 else "?",
-                        "cpu": parts[2] if len(parts) > 2 else "?",
-                        "mem": parts[3] if len(parts) > 3 else "?",
-                    })
-    except Exception:
-        pass
-
-    return render_template("admin/services.html", services=services, docker_stats=docker_stats)
+    return render_template("admin/services.html", services=services, docker_stats=[])
 
 
 @app.route("/admin/tv-view")
