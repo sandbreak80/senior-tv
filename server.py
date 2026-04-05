@@ -2280,6 +2280,12 @@ def tv_photos():
 @app.route("/admin/photos", methods=["GET", "POST"])
 def admin_photos():
     if request.method == "POST":
+        # Handle album selection save
+        if "save_albums" in request.form:
+            selected = request.form.getlist("albums")
+            models.set_setting("immich_album_ids", ",".join(selected))
+            return redirect("/admin/photos")
+        # Handle file upload
         files = request.files.getlist("photos")
         for f in files:
             if f and f.filename:
@@ -2287,8 +2293,74 @@ def admin_photos():
                 f.save(os.path.join(config.MEDIA_DIR, "photos", filename))
         return redirect("/admin/photos")
 
-    photos = _get_all_photos()
-    return render_template("admin/photos.html", photos=photos)
+    # Immich data
+    import immich_api
+    immich_ok = False
+    immich_albums = []
+    immich_photo_count = 0
+    immich_preview = []
+    selected_album_ids = set((models.get_setting("immich_album_ids") or "").split(","))
+    selected_album_ids.discard("")
+
+    if immich_api.is_configured():
+        ok, msg = immich_api.test_connection()
+        immich_ok = ok
+        immich_photo_count = immich_api.get_photo_count()
+        try:
+            im_url, im_key = immich_api._get_config()
+            resp = requests.get(f"{im_url}/api/albums",
+                                headers={"x-api-key": im_key}, timeout=5)
+            if resp.ok:
+                for a in resp.json():
+                    album = {
+                        "id": a["id"],
+                        "name": a["albumName"],
+                        "count": a.get("assetCount", 0),
+                        "selected": a["id"] in selected_album_ids,
+                        "thumb_id": a.get("albumThumbnailAssetId", ""),
+                    }
+                    immich_albums.append(album)
+                immich_albums.sort(key=lambda x: (-x["selected"], -x["count"], x["name"]))
+        except Exception:
+            pass
+
+        # Preview: get sample photos from selected albums or random
+        cache.set("immich_preview", None, ttl=0)
+        if selected_album_ids:
+            for aid in list(selected_album_ids)[:3]:
+                try:
+                    resp = requests.get(f"{im_url}/api/albums/{aid}",
+                                        headers={"x-api-key": im_key}, timeout=5)
+                    if resp.ok:
+                        assets = resp.json().get("assets", [])[:8]
+                        for asset in assets:
+                            if asset.get("type") == "IMAGE":
+                                immich_preview.append({
+                                    "id": asset["id"],
+                                    "url": f"/api/immich-photo/{asset['id']}?size=thumbnail",
+                                    "name": asset.get("originalFileName", ""),
+                                })
+                except Exception:
+                    pass
+        if not immich_preview:
+            # Show random sample
+            sample = immich_api.get_random_photos(count=12)
+            immich_preview = [{"id": p["id"], "url": p["thumb"], "name": p["name"]} for p in sample]
+
+    # Local uploaded photos
+    uploaded = []
+    photo_dir = os.path.join(config.MEDIA_DIR, "photos")
+    os.makedirs(photo_dir, exist_ok=True)
+    for f in sorted(os.listdir(photo_dir)):
+        if f.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp')):
+            uploaded.append({"url": f"/static/media/photos/{f}", "name": f})
+
+    return render_template("admin/photos.html",
+                           immich_ok=immich_ok, immich_albums=immich_albums,
+                           immich_photo_count=immich_photo_count,
+                           immich_preview=immich_preview,
+                           selected_album_ids=selected_album_ids,
+                           uploaded=uploaded)
 
 
 @app.route("/admin/photos/delete/<filename>", methods=["POST"])

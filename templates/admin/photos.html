@@ -1,40 +1,105 @@
 {% extends "admin/base.html" %}
 {% block title %}Photos{% endblock %}
 {% block content %}
-<h1 style="margin: 20px 0;">📷 Photo Gallery</h1>
+<h1 style="margin: 20px 0;">Photos</h1>
 
-<div class="card">
+<!-- Immich Integration -->
+{% if immich_ok %}
+<div class="card" style="border-left: 4px solid #4caf50;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <div>
+            <h2 style="margin: 0;">Immich Photo Library</h2>
+            <div style="color: #888; margin-top: 4px;">{{ "{:,}".format(immich_photo_count) }} photos available</div>
+        </div>
+        <span style="background: #4caf50; color: #fff; padding: 4px 12px; border-radius: 20px; font-size: 13px;">Connected</span>
+    </div>
+
+    {% if immich_albums %}
+    <form method="POST">
+        <input type="hidden" name="save_albums" value="1">
+        <h3 style="margin: 20px 0 12px; font-size: 16px;">Select albums for the TV slideshow:</h3>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px;">
+            {% for album in immich_albums %}
+            <label style="display: flex; align-items: center; gap: 12px; padding: 12px; background: {{ '#e8f5e9' if album.selected else '#f8f9fa' }}; border: 2px solid {{ '#4caf50' if album.selected else '#e0e0e0' }}; border-radius: 10px; cursor: pointer; transition: all 0.15s;">
+                <input type="checkbox" name="albums" value="{{ album.id }}" {{ 'checked' if album.selected }} style="width: 20px; height: 20px; accent-color: #4caf50;">
+                {% if album.thumb_id %}
+                <img src="/api/immich-photo/{{ album.thumb_id }}?size=thumbnail" style="width: 48px; height: 48px; object-fit: cover; border-radius: 6px;" loading="lazy">
+                {% else %}
+                <div style="width: 48px; height: 48px; background: #ddd; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 24px;">📷</div>
+                {% endif %}
+                <div style="flex: 1; min-width: 0;">
+                    <div style="font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ album.name }}</div>
+                    <div style="font-size: 13px; color: #888;">{{ album.count }} photos</div>
+                </div>
+            </label>
+            {% endfor %}
+        </div>
+        <div style="margin-top: 16px; display: flex; align-items: center; gap: 16px;">
+            <button type="submit" class="btn btn-primary">Save Album Selection</button>
+            <span style="font-size: 13px; color: #888;">
+                {% if selected_album_ids %}{{ selected_album_ids | length }} album{{ 's' if selected_album_ids | length != 1 }} selected{% else %}All photos (no filter){% endif %}
+            </span>
+        </div>
+    </form>
+    {% else %}
+    <div style="padding: 20px; text-align: center; color: #888;">
+        <p style="font-size: 18px;">No albums found in Immich.</p>
+        <p>Create albums at <a href="{{ immich_url or 'http://192.168.50.165:2283' }}" target="_blank" style="color: #e94560;">your Immich server</a> and they'll appear here.</p>
+        <p style="margin-top: 8px;">Meanwhile, the slideshow pulls random photos from your full library of {{ "{:,}".format(immich_photo_count) }} photos.</p>
+    </div>
+    {% endif %}
+
+    <!-- Preview -->
+    {% if immich_preview %}
+    <div style="margin-top: 24px; border-top: 1px solid #eee; padding-top: 16px;">
+        <h3 style="font-size: 16px; margin-bottom: 12px;">
+            Preview — {% if selected_album_ids %}selected albums{% else %}random sample from library{% endif %}
+        </h3>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px;">
+            {% for photo in immich_preview[:16] %}
+            <img src="{{ photo.url }}" alt="{{ photo.name }}" loading="lazy"
+                 style="width: 100%; height: 100px; object-fit: cover; border-radius: 6px;">
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% elif not immich_ok and immich_photo_count == 0 %}
+<div class="card" style="border-left: 4px solid #ff9800;">
+    <h2>Immich Photo Library</h2>
+    <p style="color: #888;">Not connected. Configure your Immich server in <a href="/admin/settings" style="color: #e94560;">Settings</a> to browse
+    thousands of family photos for the TV slideshow.</p>
+</div>
+{% endif %}
+
+<!-- Upload Photos (fallback) -->
+<div class="card" style="margin-top: 16px;">
     <h2>Upload Photos</h2>
+    <p style="color: #888; margin-bottom: 12px;">Upload directly from your device. These are stored locally on the TV box.</p>
     <form method="POST" enctype="multipart/form-data">
         <div class="form-group">
             <input type="file" name="photos" multiple accept="image/*">
-            <div class="hint">Upload family photos. They'll appear in the photo frame slideshow on the TV.</div>
         </div>
         <button type="submit" class="btn btn-primary">Upload</button>
     </form>
 </div>
 
-<div class="card">
-    <h2>Photos ({{ photos | length }})</h2>
-    {% if photos %}
+{% if uploaded %}
+<div class="card" style="margin-top: 16px;">
+    <h2>Uploaded Photos ({{ uploaded | length }})</h2>
     <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px;">
-        {% for photo in photos %}
+        {% for photo in uploaded %}
         <div style="position: relative;">
-            <img src="{{ photo.url }}" alt="{{ photo.name }}" style="width: 100%; height: 120px; object-fit: cover; border-radius: 8px;">
+            <img src="{{ photo.url }}" alt="{{ photo.name }}" style="width: 100%; height: 120px; object-fit: cover; border-radius: 8px;" loading="lazy">
             <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                 {{ photo.name }}
-                {% if photo.source == 'nas' %}<span style="color: var(--primary);">(NAS)</span>{% endif %}
             </div>
-            {% if photo.source == 'upload' %}
             <form method="POST" action="/admin/photos/delete/{{ photo.name }}" style="position: absolute; top: 4px; right: 4px;">
                 <button type="submit" class="btn btn-sm btn-danger" style="padding: 2px 8px; font-size: 11px;" onclick="return confirm('Delete?')">✕</button>
             </form>
-            {% endif %}
         </div>
         {% endfor %}
     </div>
-    {% else %}
-    <p class="empty">No photos yet. Upload some above or set a NAS path in Settings.</p>
-    {% endif %}
 </div>
+{% endif %}
 {% endblock %}

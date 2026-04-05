@@ -29,9 +29,11 @@ def get_random_photos(count=20):
     Otherwise pulls from the entire library.
     """
     from models import get_setting
-    album_id = get_setting("immich_album_id") or ""
+    # Support both single album (immich_album_id) and multi-album (immich_album_ids)
+    album_ids_str = get_setting("immich_album_ids") or get_setting("immich_album_id") or ""
+    album_ids = [a.strip() for a in album_ids_str.split(",") if a.strip()]
 
-    cache_key = f"immich_random_{count}_{album_id}"
+    cache_key = f"immich_random_{count}_{album_ids_str}"
     cached = cache.get(cache_key)
     if cached is not None:
         return cached
@@ -41,17 +43,21 @@ def get_random_photos(count=20):
         return []
 
     try:
-        if album_id:
-            # Fetch from specific album
-            resp = requests.get(
-                f"{url}/api/albums/{album_id}",
-                headers=_headers(api_key),
-                timeout=10,
-            )
-            resp.raise_for_status()
-            assets = resp.json().get("assets", [])
-            # Shuffle and take `count` random photos
+        if album_ids:
+            # Fetch from selected albums
             import random
+            assets = []
+            for album_id in album_ids:
+                try:
+                    resp = requests.get(
+                        f"{url}/api/albums/{album_id}",
+                        headers=_headers(api_key),
+                        timeout=10,
+                    )
+                    resp.raise_for_status()
+                    assets.extend(resp.json().get("assets", []))
+                except Exception:
+                    continue
             random.shuffle(assets)
             assets = assets[:count]
         else:
