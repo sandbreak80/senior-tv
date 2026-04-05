@@ -17,6 +17,7 @@ static/media/
 static/media/photos/
 static/media/uploads/
 screenshots/
+!docs/screenshots/
 
 # Logs
 *.log

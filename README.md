@@ -42,13 +42,32 @@ Senior TV turns any TV into a **supervised entertainment and care appliance**:
 
 ## Screenshots
 
-| Home Screen | Live TV | Movies & Shows |
-|:-----------:|:-------:|:--------------:|
-| Time-aware greeting, weather, wind-down video, family photo, content rows | 421 free channels with logos and category filters | Jellyfin library with genre filters and continue watching |
-
-| YouTube | Pill Reminder | Admin Panel |
-|:-------:|:-------------:|:-----------:|
-| 36 curated channels, fully sandboxed player | Full-screen overlay with voice announcement | Mobile-friendly care management from any device |
+<table>
+<tr>
+<td align="center"><strong>Home Screen</strong><br><sub>Time-aware greeting, live news, weather forecast, content rows</sub></td>
+<td align="center"><strong>Admin Dashboard</strong><br><sub>Care status, pill tracking, activity log, system health</sub></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/home.png" width="480"></td>
+<td><img src="docs/screenshots/admin.png" width="480"></td>
+</tr>
+<tr>
+<td align="center"><strong>YouTube Channels</strong><br><sub>Curated channels by category, fully sandboxed</sub></td>
+<td align="center"><strong>Weather</strong><br><sub>Current conditions + 5-day forecast</sub></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/youtube.png" width="480"></td>
+<td><img src="docs/screenshots/weather.png" width="480"></td>
+</tr>
+<tr>
+<td align="center"><strong>Calendar</strong><br><sub>Daily view with upcoming events</sub></td>
+<td align="center"><strong>Photo Slideshow</strong><br><sub>Family photos from Immich</sub></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/calendar.png" width="480"></td>
+<td><img src="docs/screenshots/photos.png" width="480"></td>
+</tr>
+</table>
 
 ---
 
@@ -136,8 +155,8 @@ Mobile-friendly management from any device — locally or remotely via Cloudflar
 │  └─────────────────────────────────────────────────┘  │
 │         │              │              │                │
 │    Jellyfin       Pluto TV        Immich             │
-│   (Docker)       (free API)      (Docker)            │
-│  localhost:8096               localhost:2283          │
+│   (network)      (free API)     (network)            │
+│  LAN or local                 LAN or local           │
 │                                                      │
 │  Optional: Frigate · Home Assistant · Cloudflare     │
 └──────────────────────────────────────────────────────┘
@@ -157,7 +176,7 @@ Mobile-friendly management from any device — locally or remotely via Cloudflar
 ### Install
 
 ```bash
-git clone https://github.com/piBstoner/senior-tv.git
+git clone https://github.com/sandbreak80/senior-tv.git
 cd senior-tv
 cp .env.example .env       # Edit: set your names, location, optional service tokens
 sudo ./install.sh           # 15-20 minutes — installs everything
