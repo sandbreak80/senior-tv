@@ -27,7 +27,7 @@
                         <div style="font-size: 38px; font-weight: 600;">From {{ msg.sender }}</div>
                         <div style="font-size: 30px; color: var(--text-muted);">{{ msg.message[:80] if msg.message else 'Photo/Video message' }}</div>
                     </div>
-                    <div style="font-size: 24px; color: var(--text-muted);">{{ msg.created_at[:16] }}</div>
+                    <div style="font-size: 24px; color: var(--text-muted);">{{ msg.created_at | localtime }}</div>
                 </a>
                 {% endfor %}
             {% else %}

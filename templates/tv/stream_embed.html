@@ -74,7 +74,10 @@
             hideTimeout = setTimeout(() => bar.classList.add('hidden'), 5000);
         }
 
-        function goHome() { window.quickNav('/'); }
+        function goHome() {
+            if (window.quickNav) { window.quickNav('/'); }
+            else { window.location.href = '/'; }
+        }
 
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape' || e.key === 'Backspace' || e.key === 'BrowserBack') {

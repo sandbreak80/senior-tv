@@ -149,13 +149,13 @@ html, body {
     border-radius: 10px;
 }
 
-.mini-day-name { font-size: 22px; font-weight: 600; color: var(--text-muted); }
-.mini-day-icon { font-size: 28px; margin: 4px 0; }
-.mini-day-temp { font-size: 22px; font-weight: 600; }
+.mini-day-name { font-size: 26px; font-weight: 600; color: var(--text-muted); }
+.mini-day-icon { font-size: 32px; margin: 4px 0; }
+.mini-day-temp { font-size: 26px; font-weight: 600; }
 
 /* Quote in left panel */
 .home-quote {
-    font-size: 26px;
+    font-size: 30px;
     color: var(--text-muted);
     font-style: italic;
     line-height: 1.5;
@@ -168,7 +168,7 @@ html, body {
 
 /* On This Day fact */
 .home-fact {
-    font-size: 24px;
+    font-size: 28px;
     color: var(--text-muted);
     line-height: 1.4;
     margin-top: 10px;
@@ -221,14 +221,20 @@ html, body {
     flex-shrink: 0;
 }
 
-.quick-icon { font-size: 28px; }
-.quick-label { font-size: 24px; }
+.quick-icon { font-size: 30px; }
+.quick-label { font-size: 28px; }
 
 .home-quick-btn.selected {
     background: var(--bg-selected);
     border-color: var(--accent);
-    box-shadow: var(--glow);
-    transform: scale(1.03);
+    border-width: 4px;
+    box-shadow: var(--glow), 0 0 0 2px rgba(255,255,255,0.25);
+    transform: scale(1.06);
+}
+
+.home-quick-btn.selected .quick-label {
+    color: #fff;
+    font-weight: 700;
 }
 
 /* Menu items — shared style */
@@ -299,30 +305,30 @@ html, body {
 .home-poster-row::-webkit-scrollbar { display: none; }
 
 .home-poster-row .poster-card {
-    min-width: 210px;
-    max-width: 240px;
+    min-width: 230px;
+    max-width: 270px;
 }
 
 .home-poster-row .poster-card .poster-title {
-    font-size: 20px;
-    padding: 6px 8px 2px;
+    font-size: 28px;
+    padding: 8px 10px 2px;
     white-space: normal;
     line-height: 1.2;
-    max-height: 50px;
+    max-height: 72px;
     overflow: hidden;
 }
 
 .home-poster-row .poster-card .poster-subtitle {
-    font-size: 16px;
-    padding: 0 8px 6px;
+    font-size: 22px;
+    padding: 0 10px 8px;
     white-space: normal;
     line-height: 1.2;
-    max-height: 38px;
+    max-height: 54px;
     overflow: hidden;
 }
 
 .daily-digest {
-    font-size: 26px;
+    font-size: 30px;
     color: var(--text-muted);
     line-height: 1.5;
     text-align: center;
@@ -341,10 +347,10 @@ html, body {
 }
 
 .home-section-label {
-    font-size: 28px;
-    font-weight: 600;
+    font-size: 32px;
+    font-weight: 700;
     color: var(--text-muted);
-    margin-bottom: 10px;
+    margin-bottom: 12px;
 }
 
 .home-news-embed {
@@ -419,8 +425,8 @@ html, body {
 }
 
 .home-reco-title {
-    font-size: 18px;
-    padding: 6px 8px;
+    font-size: 26px;
+    padding: 8px 10px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -459,18 +465,19 @@ html, body {
 .menu-item.selected {
     background: var(--bg-selected);
     border-color: var(--accent);
-    box-shadow: var(--glow);
-    transform: scale(1.02);
+    border-width: 4px;
+    box-shadow: var(--glow), 0 0 0 2px rgba(255,255,255,0.2);
+    transform: scale(1.03);
 }
 
 /* --- Navigation Hint --- */
 
 .nav-hint {
     text-align: center;
-    font-size: 26px;
+    font-size: 28px;
     color: var(--text-muted);
     padding-top: 20px;
-    opacity: 0.5;
+    opacity: 0.8;
     flex-shrink: 0;
 }
 
@@ -578,8 +585,8 @@ html, body {
 }
 
 .back-hint {
-    font-size: 28px;
-    color: var(--text-muted);
+    font-size: 30px;
+    color: #b0b0c8;
     margin-left: auto;
 }
 
@@ -815,8 +822,9 @@ html, body {
 
 .poster-card.selected {
     border-color: var(--accent);
-    box-shadow: var(--glow);
-    transform: scale(1.05);
+    border-width: 5px;
+    box-shadow: var(--glow), 0 0 0 2px rgba(255,255,255,0.3);
+    transform: scale(1.08);
     z-index: 2;
 }
 
@@ -912,14 +920,14 @@ html, body {
 }
 
 .poster-title {
-    font-size: 26px;
+    font-size: 32px;
     font-weight: 600;
     padding: 10px 12px 4px;
     line-height: 1.2;
 }
 
 .poster-subtitle {
-    font-size: 20px;
+    font-size: 26px;
     color: var(--text-muted);
     padding: 0 12px 10px;
     line-height: 1.2;
@@ -1163,9 +1171,9 @@ html, body {
 }
 
 .player-progress-bar {
-    height: 8px;
+    height: 14px;
     background: rgba(255,255,255,0.2);
-    border-radius: 4px;
+    border-radius: 7px;
     overflow: hidden;
 }
 
@@ -1177,15 +1185,15 @@ html, body {
 }
 
 .player-time {
-    font-size: 28px;
+    font-size: 32px;
     color: var(--text-muted);
     margin-bottom: 10px;
 }
 
 .player-controls-hint {
-    font-size: 28px;
-    color: var(--text-muted);
-    opacity: 0.7;
+    font-size: 30px;
+    color: #c0c0d0;
+    opacity: 1;
 }
 
 /* ========================================

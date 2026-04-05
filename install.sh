@@ -163,6 +163,14 @@ else
     ok "uBlock Origin already installed"
 fi
 
+# Disable GNOME keyring password prompt (Chrome triggers unlock dialogs otherwise)
+KEYRING_DIR="$INSTALL_HOME/.local/share/keyrings"
+sudo -u "$INSTALL_USER" mkdir -p "$KEYRING_DIR"
+if [ -f "$KEYRING_DIR/login.keyring" ]; then
+    sudo -u "$INSTALL_USER" mv "$KEYRING_DIR/login.keyring" "$KEYRING_DIR/login.keyring.bak" 2>/dev/null
+fi
+ok "GNOME keyring unlock prompt disabled"
+
 # -----------------------------------------------------------
 # Step 3: Python virtual environment + dependencies
 # -----------------------------------------------------------

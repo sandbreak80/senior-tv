@@ -312,6 +312,12 @@
             _stallCount = 0;
             return;
         }
+        // Don't stall-check while paused (user pressed pause, or phone call, etc.)
+        if (video.paused) {
+            _lastCheckTime = video.currentTime;
+            _stallCount = 0;
+            return;
+        }
         // Video is progressing — reset stall counter
         if (video.currentTime > _lastCheckTime + 1) {
             _lastCheckTime = video.currentTime;

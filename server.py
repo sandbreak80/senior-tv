@@ -62,12 +62,38 @@ app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
 
+def _utc_to_local(timestamp_str):
+    """Convert a UTC timestamp string from SQLite to a local datetime."""
+    from datetime import timezone
+    dt = datetime.strptime(str(timestamp_str)[:19], "%Y-%m-%d %H:%M:%S")
+    dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone()
+
+
+@app.template_filter("localtime")
+def localtime_filter(timestamp_str, fmt="%Y-%m-%d %H:%M"):
+    """Convert UTC timestamp to local time string."""
+    try:
+        return _utc_to_local(timestamp_str).strftime(fmt)
+    except Exception:
+        return str(timestamp_str)[:16] if timestamp_str else ""
+
+
+@app.template_filter("localtime_short")
+def localtime_short_filter(timestamp_str):
+    """Convert UTC timestamp to local HH:MM."""
+    try:
+        return _utc_to_local(timestamp_str).strftime("%H:%M")
+    except Exception:
+        return str(timestamp_str)[11:16] if timestamp_str else ""
+
+
 @app.template_filter("timeago")
 def timeago_filter(timestamp_str):
-    """Convert timestamp to '5m ago' style string."""
+    """Convert UTC timestamp to '5m ago' style string."""
     try:
-        dt = datetime.strptime(str(timestamp_str)[:19], "%Y-%m-%d %H:%M:%S")
-        mins = int((datetime.now() - dt).total_seconds() / 60)
+        local_dt = _utc_to_local(timestamp_str)
+        mins = int((datetime.now().astimezone() - local_dt).total_seconds() / 60)
         if mins < 1:
             return "Just now"
         if mins < 60:
@@ -77,6 +103,26 @@ def timeago_filter(timestamp_str):
         return f"{mins // 1440}d ago"
     except Exception:
         return ""
+
+
+def is_quiet_hours():
+    """Check if current time falls within configured quiet hours."""
+    start = get_setting_or_default("quiet_hours_start")
+    end = get_setting_or_default("quiet_hours_end")
+    if not start or not end:
+        return False
+    try:
+        now = datetime.now().hour * 60 + datetime.now().minute
+        sh, sm = int(start.split(":")[0]), int(start.split(":")[1])
+        eh, em = int(end.split(":")[0]), int(end.split(":")[1])
+        start_min = sh * 60 + sm
+        end_min = eh * 60 + em
+        if start_min <= end_min:
+            return start_min <= now < end_min
+        else:  # Wraps midnight (e.g., 22:00 - 07:00)
+            return now >= start_min or now < end_min
+    except (ValueError, IndexError):
+        return False
 
 
 def _safe_int(value, default=0):
@@ -104,11 +150,17 @@ def check_remote_auth():
     """Require password for ALL remote (Cloudflare tunnel) access."""
     if _is_local_request():
         return  # LAN users skip auth entirely — Don & Colleen never see login
-    # Allow login page, static assets, and API endpoints without auth
-    # APIs are used by HLS player, image proxies, SSE, etc.
+    # Allow login page and static assets without auth
     if (request.path == "/admin/login"
-            or request.path.startswith("/static/")
-            or request.path.startswith("/api/")):
+            or request.path.startswith("/static/")):
+        return
+    # TV-facing API endpoints needed by the browser player (no sensitive ops)
+    _PUBLIC_API = ("/api/health", "/api/home-data", "/api/daily-digest",
+                   "/api/has-photos", "/api/immich-photo/", "/api/immich-slideshow",
+                   "/api/jellyfin-stream/", "/api/nas-photo/", "/api/pluto-proxy",
+                   "/api/tv-state", "/api/log-level", "/events",
+                   "/api/frigate-snapshot/")
+    if any(request.path == p or request.path.startswith(p) for p in _PUBLIC_API):
         return
     # Check for session auth
     if session.get("remote_auth"):
@@ -1126,9 +1178,9 @@ def tv_youtube_watch(video_id):
             move_on_seconds = min(move_on_seconds, rotation * 60)
         else:
             move_on_seconds = first_duration + 10
-    elif first_duration > 0:
-        # Short video (under 10 min) — play it but move on quickly
-        move_on_seconds = first_duration + 10
+    elif 0 < first_duration < 600:
+        # Short video (Shorts/clip) — redirect home immediately, auto-play will pick real content
+        return redirect("/")
     else:
         # Duration unknown — use 10 min fallback (better to move on early than be stuck 90 min)
         move_on_seconds = 600
@@ -1375,7 +1427,7 @@ def sse_events():
 
 @app.route("/api/acknowledge", methods=["POST"])
 def api_acknowledge():
-    data = request.get_json()
+    data = request.get_json(force=True, silent=True) or {}
     reminder_id = data.get("reminder_id")
     if reminder_id and acknowledge_reminder(reminder_id):
         return jsonify({"status": "ok"})
@@ -2096,7 +2148,8 @@ def admin_settings():
                      "classical_music_enabled", "classical_music_hour",
                      "news_schedule", "news_channels", "auto_play_interrupt",
                      "tts_enabled", "audio_processing", "voice_boost", "audio_target",
-                     "log_level"]:
+                     "log_level",
+                     "quiet_hours_start", "quiet_hours_end", "presence_enabled"]:
             val = request.form.get(key)
             if val is not None:
                 models.set_setting(key, val)
@@ -2109,7 +2162,8 @@ def admin_settings():
                  "classical_music_enabled", "classical_music_hour",
                  "news_schedule", "news_channels", "auto_play_interrupt",
                  "tts_enabled", "audio_processing", "voice_boost", "audio_target",
-                 "log_level"]:
+                 "log_level",
+                 "quiet_hours_start", "quiet_hours_end", "presence_enabled"]:
         settings[key] = models.get_setting(key) or ""
 
     # Immich status and albums
@@ -2263,6 +2317,21 @@ def _get_all_photos():
         photos.extend(immich_api.get_random_photos(count=30))
 
     return photos
+
+
+@app.route("/api/tv-state")
+def api_tv_state():
+    """Returns quiet hours and presence status for tv.js decision-making."""
+    from smart_home import get_presence
+    presence = get_presence()
+    presence_enabled = get_setting_or_default("presence_enabled") == "1"
+    return jsonify({
+        "quiet_hours": is_quiet_hours(),
+        "quiet_hours_start": get_setting_or_default("quiet_hours_start"),
+        "quiet_hours_end": get_setting_or_default("quiet_hours_end"),
+        "presence_enabled": presence_enabled,
+        "room_occupied": presence.get("occupied", True) if presence_enabled else True,
+    })
 
 
 @app.route("/api/has-photos")
@@ -2496,30 +2565,27 @@ def api_next_channel():
         _random.shuffle(remaining)
         candidates.extend(remaining)
 
-        # Try channels until we find one with a long-enough video
-        for ch in candidates[:8]:  # limit attempts
+        # Try channels until we find one with a long-enough video.
+        # Many channels now post Shorts — iterate through feed to find long-form.
+        for ch in candidates[:10]:
             try:
                 feed = feedparser.parse(
                     f"https://www.youtube.com/feeds/videos.xml?channel_id={ch['channel_id']}")
-                vids = []
-                for entry in feed.entries[:15]:
+                for entry in feed.entries[:10]:
                     vid_id = entry.get("yt_videoid", "")
-                    if vid_id and re.match(r'^[a-zA-Z0-9_-]{11}$', vid_id):
-                        vids.append(vid_id)
-                if not vids:
-                    continue
+                    if not vid_id or not re.match(r'^[a-zA-Z0-9_-]{11}$', vid_id):
+                        continue
 
-                # Check duration of first video — skip channels with short content
-                duration = _get_youtube_duration(vids[0])
-                if 0 < duration < 600:  # under 10 minutes
-                    continue
+                    duration = _get_youtube_duration(vid_id)
+                    if duration < 600:  # under 10 min OR scrape failed (0) — skip
+                        continue
 
-                return jsonify({
-                    "id": ch["channel_id"],
-                    "name": ch["name"],
-                    "category": ch.get("category", ""),
-                    "url": f"/tv/youtube/watch/{vids[0]}?channel={ch['channel_id']}",
-                })
+                    return jsonify({
+                        "id": ch["channel_id"],
+                        "name": ch["name"],
+                        "category": ch.get("category", ""),
+                        "url": f"/tv/youtube/watch/{vid_id}?channel={ch['channel_id']}",
+                    })
             except Exception:
                 continue
 
@@ -2841,9 +2907,10 @@ if __name__ == "__main__":
             models.set_setting(key, val)
     start_scheduler()
     _start_smart_home()
-    # Start TV room presence monitor
-    from smart_home import start_presence_monitor
-    start_presence_monitor(alert_queue=reminder_queue)
+    # Start TV room presence monitor (if enabled)
+    if get_setting_or_default("presence_enabled") == "1":
+        from smart_home import start_presence_monitor
+        start_presence_monitor(alert_queue=reminder_queue)
     print("Presence monitor started (tv_room webcam)")
     try:
         debug_mode = os.environ.get("SENIOR_TV_DEBUG", "0") == "1"

@@ -25,6 +25,10 @@ from urllib.parse import quote
 
 import requests
 
+# Flush output immediately so progress is visible in logs
+sys.stdout.reconfigure(line_buffering=True)
+sys.stderr.reconfigure(line_buffering=True)
+
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
@@ -49,48 +53,143 @@ MAX_FILE_MB = 2000
 
 CONTENT = {
     "music": [
-        # Musopen Collection — 37 classical albums, 145 MP3 tracks (~1.25 GB)
+        # Classical — Colleen (music memory preserved longest in Alzheimer's)
         {"id": "MusopenCollectionAsFlac", "title": "Musopen Classical Collection", "format": "mp3"},
         {"id": "chopin-nocturnes", "title": "Chopin - Nocturnes", "format": "mp3"},
         {"id": "CanonPachelbel", "title": "Pachelbel - Canon", "format": "mp3"},
         {"id": "SchubertSymphonyNo.8unfinished_347", "title": "Schubert - Symphony No. 8", "format": "mp3"},
+        # Big band / swing — Don & Colleen's youth (1940s-50s dance era)
+        {"id": "GlennMillerOrchestra-CompleteStudioRecordings", "title": "Glenn Miller Orchestra", "format": "mp3"},
+        {"id": "BigBandRemotes", "title": "Big Band Remotes", "format": "mp3"},
+        {"id": "CommandPerformance", "title": "Command Performance", "format": "mp3"},
     ],
     "movies": [
+        # ===================================================================
+        # ALL content 1936 or later — Don & Colleen born 1931
+        # All identifiers verified on Archive.org as of April 2026
+        # ===================================================================
+
         # -- Westerns (Don's favorites) --
         {"id": "mclintok_widescreen", "title": "McLintock! (1963)", "genre": "Western"},
         {"id": "angel_and_the_badman", "title": "Angel and the Badman (1947)", "genre": "Western"},
-        {"id": "texas_terror_1935", "title": "Texas Terror (1935)", "genre": "Western"},
-        {"id": "west_of_the_divide", "title": "West of the Divide (1934)", "genre": "Western"},
-        # -- Comedy (both) --
-        {"id": "charlie_chaplin_film_fest", "title": "Charlie Chaplin Festival", "genre": "Comedy"},
-        {"id": "The_General_Buster_Keaton", "title": "The General (1926)", "genre": "Comedy"},
+        {"id": "Santa_Fe_Trail_movie", "title": "Santa Fe Trail (1940)", "genre": "Western"},
+        {"id": "OnlytheValaint", "title": "Only the Valiant (1951)", "genre": "Western"},
+        {"id": "WarOfTheWildcats-JohnWayne1943", "title": "War of the Wildcats (1943)", "genre": "Western"},
+        {"id": "TheOvertheHillGang", "title": "The Over-the-Hill Gang (1969)", "genre": "Western"},
+        {"id": "TheOver-the-HillGangRidesAgain", "title": "The Over-the-Hill Gang Rides Again (1970)", "genre": "Western"},
+        {"id": "Winds_of_the_Wasteland", "title": "Winds of the Wasteland (1936)", "genre": "Western"},
+        {"id": "AbileneTown", "title": "Abilene Town (1946)", "genre": "Western"},
+        {"id": "american_empire", "title": "American Empire (1942)", "genre": "Western"},
+        {"id": "Hell_Town", "title": "Hell Town (1937)", "genre": "Western"},
+        {"id": "VengeanceValley", "title": "Vengeance Valley (1951)", "genre": "Western"},
+        {"id": "Daniel_Boone_-_Trail_Blazer", "title": "Daniel Boone, Trail Blazer (1956)", "genre": "Western"},
+        {"id": "my_pal_trigger", "title": "My Pal Trigger (1946)", "genre": "Western"},
+        {"id": "TheBigTrees720p1952", "title": "The Big Trees (1952)", "genre": "Western"},
+        {"id": "BuckskinFrontier1943", "title": "Buckskin Frontier (1943)", "genre": "Western"},
+        {"id": "Death_Rides_A_Horse_pan_and_scan", "title": "Death Rides a Horse (1967)", "genre": "Western"},
+        {"id": "silver_spurs", "title": "Silver Spurs (1943)", "genre": "Western"},
+        {"id": "border_patrol", "title": "Border Patrol (1943)", "genre": "Western"},
+        {"id": "aces_and_eights", "title": "Aces and Eights (1936)", "genre": "Western"},
+
+        # -- Comedy --
         {"id": "AfricaScreams", "title": "Africa Screams (1949)", "genre": "Comedy"},
         {"id": "disorder_in_the_court", "title": "Disorder in the Court (1936)", "genre": "Comedy"},
         {"id": "Topper_Returns_41", "title": "Topper Returns (1941)", "genre": "Comedy"},
-        # -- Drama --
+        {"id": "my_favorite_brunette", "title": "My Favorite Brunette (1947)", "genre": "Comedy"},
+        {"id": "TheFlyingDeuces", "title": "The Flying Deuces (1939)", "genre": "Comedy"},
+        {"id": "AtWarWithTheArmy", "title": "At War with the Army (1950)", "genre": "Comedy"},
+        {"id": "cco_jackandthebeanstalk", "title": "Jack and the Beanstalk (1952)", "genre": "Comedy"},
+        {"id": "the_inspector_general", "title": "The Inspector General (1949)", "genre": "Comedy"},
+        {"id": "behave_yourself_ipod", "title": "Behave Yourself (1951)", "genre": "Comedy"},
+        {"id": "Pygmalion", "title": "Pygmalion (1938)", "genre": "Comedy"},
+        {"id": "NothingSacred", "title": "Nothing Sacred (1937)", "genre": "Comedy"},
+        {"id": "my_dear_secretary", "title": "My Dear Secretary (1949)", "genre": "Comedy"},
+        {"id": "amazing_adventure", "title": "The Amazing Adventure (1936)", "genre": "Comedy"},
+
+        # -- Drama / Noir --
         {"id": "his_girl_friday", "title": "His Girl Friday (1940)", "genre": "Drama"},
         {"id": "its-a-wonderful-life-1946_202108", "title": "It's a Wonderful Life (1946)", "genre": "Drama"},
         {"id": "penny_serenade", "title": "Penny Serenade (1941)", "genre": "Drama"},
         {"id": "suddenly", "title": "Suddenly (1954)", "genre": "Drama"},
         {"id": "ScarletStreet", "title": "Scarlet Street (1945)", "genre": "Drama"},
         {"id": "impact", "title": "Impact (1949)", "genre": "Drama"},
-        # -- Musicals/Family --
-        {"id": "gullivers_travels1939", "title": "Gulliver's Travels (1939)", "genre": "Family"},
+        {"id": "TheStranger_0", "title": "The Stranger (1946)", "genre": "Drama"},
+        {"id": "Detour", "title": "Detour (1945)", "genre": "Drama"},
+        {"id": "meet_john_doe", "title": "Meet John Doe (1941)", "genre": "Drama"},
+        {"id": "Cyrano_DeBergerac", "title": "Cyrano de Bergerac (1950)", "genre": "Drama"},
+        {"id": "He_Walked_By_Night.avi", "title": "He Walked by Night (1948)", "genre": "Drama"},
+        {"id": "Hitch_Hiker", "title": "The Hitch-Hiker (1953)", "genre": "Drama"},
+        {"id": "angel_on_my_shoulder", "title": "Angel on My Shoulder (1946)", "genre": "Drama"},
+        {"id": "AStarIsBorn", "title": "A Star Is Born (1937)", "genre": "Drama"},
+        {"id": "They_Made_Me_A_Criminal_1939", "title": "They Made Me a Criminal (1939)", "genre": "Drama"},
+        {"id": "Martha_Ivers_movie", "title": "Strange Love of Martha Ivers (1946)", "genre": "Drama"},
+        {"id": "kansascityconfidencial", "title": "Kansas City Confidential (1952)", "genre": "Drama"},
+        {"id": "BloodontheSun", "title": "Blood on the Sun (1945)", "genre": "Drama"},
+        {"id": "CaptainKidd_", "title": "Captain Kidd (1945)", "genre": "Adventure"},
+        {"id": "LoveAffair", "title": "Love Affair (1939)", "genre": "Romance"},
+        {"id": "made_for_each_other_film", "title": "Made for Each Other (1939)", "genre": "Drama"},
+        {"id": "TheRedHouse", "title": "The Red House (1947)", "genre": "Drama"},
+        {"id": "sabrina-1954", "title": "Sabrina (1954)", "genre": "Romance"},
+
+        # -- War (Don's era) --
+        {"id": "Gung_Ho", "title": "Gung Ho! (1943)", "genre": "War"},
+        {"id": "In_Which_We_Serve", "title": "In Which We Serve (1942)", "genre": "War"},
+
+        # -- Musical / Family --
+        {"id": "gullivers_travels1939", "title": "Gulliver's Travels (1939)", "genre": "Musical"},
         {"id": "royal_wedding", "title": "Royal Wedding (1951)", "genre": "Musical"},
         {"id": "little_princess", "title": "The Little Princess (1939)", "genre": "Family"},
-        # -- Thriller (lighter ones only — no high-stimulation for sundowning) --
+        {"id": "till_the_clouds_roll_by", "title": "Till the Clouds Roll By (1946)", "genre": "Musical"},
+        {"id": "pot_o_gold", "title": "Pot o' Gold (1941)", "genre": "Musical"},
+        {"id": "second_chorus_1940", "title": "Second Chorus (1940)", "genre": "Musical"},
+        {"id": "The_Pied_Piper_of_Hamelin", "title": "The Pied Piper of Hamelin (1957)", "genre": "Musical"},
+        {"id": "this_is_the_army", "title": "This Is the Army (1943)", "genre": "Musical"},
+
+        # -- Suspense (lighter ones — avoid high-stimulation for sundowning) --
         {"id": "house_on_haunted_hill_ipod", "title": "House on Haunted Hill (1959)", "genre": "Thriller"},
-        {"id": "youtube-RmSdum4BMqI", "title": "The 39 Steps (1935)", "genre": "Thriller"},
+        {"id": "dressed_to_kill", "title": "Dressed to Kill (1946)", "genre": "Thriller"},
     ],
     "shows": [
         # -- Game Shows (Don loves these) --
         {"id": "whats-my-line", "title": "What's My Line", "genre": "Game Show"},
-        # -- Sitcoms/Variety --
+        {"id": "ybylcollection", "title": "You Bet Your Life (Groucho Marx)", "genre": "Game Show"},
+        {"id": "Queen_For_A_Day", "title": "Queen for a Day", "genre": "Game Show"},
+        {"id": "BeatTheClock13October1951", "title": "Beat the Clock", "genre": "Game Show"},
+        {"id": "toTellTheTruth-May221967", "title": "To Tell the Truth", "genre": "Game Show"},
+        {"id": "TruthConsequences1955", "title": "Truth or Consequences", "genre": "Game Show"},
+        {"id": "strikeItRich-26August1955", "title": "Strike It Rich", "genre": "Game Show"},
+        # -- Sitcoms --
         {"id": "bevhill-s01e01-36", "title": "Beverly Hillbillies S1", "genre": "Sitcom"},
         {"id": "pdburnsallen", "title": "Burns and Allen", "genre": "Sitcom"},
         {"id": "georgeburnsandgracieallen", "title": "George Burns & Gracie Allen", "genre": "Sitcom"},
+        {"id": "The_Beverly_Hillbillies", "title": "Beverly Hillbillies", "genre": "Sitcom"},
+        {"id": "GreenAcresCompleteSeries", "title": "Green Acres", "genre": "Sitcom"},
+        {"id": "The_Dick_van_Dyke_Show", "title": "The Dick Van Dyke Show", "genre": "Sitcom"},
+        {"id": "I_Married_Joan", "title": "I Married Joan", "genre": "Sitcom"},
+        {"id": "Petticoat_Junction_Series", "title": "Petticoat Junction", "genre": "Sitcom"},
+        {"id": "Topper-HenriettaSellsTheHouse", "title": "Topper", "genre": "Sitcom"},
+        # -- Variety --
         {"id": "Cavalcade_Of_Stars", "title": "Cavalcade of Stars (1951)", "genre": "Variety"},
+        {"id": "TheDeanMartinShow", "title": "The Dean Martin Show", "genre": "Variety"},
+        {"id": "ColgateComedyHour_AbbottCostello", "title": "Colgate Comedy Hour", "genre": "Variety"},
+        {"id": "hollywoodpalace", "title": "The Hollywood Palace", "genre": "Variety"},
+        {"id": "Red_Skelton_CarolChanningGuest", "title": "Red Skelton Show", "genre": "Variety"},
+        # -- Westerns --
         {"id": "enter_the_lone_ranger", "title": "The Lone Ranger", "genre": "Western"},
+        {"id": "theloneranger_201705", "title": "Lone Ranger TV Show", "genre": "Western"},
+        {"id": "Bonanza_pd", "title": "Bonanza", "genre": "Western"},
+        {"id": "Bonanza_-_The_Trail_Gang", "title": "Bonanza - The Trail Gang", "genre": "Western"},
+        {"id": "Bonanza_-_Day_Of_Reckoning", "title": "Bonanza - Day of Reckoning", "genre": "Western"},
+        {"id": "Bonanza-BitterWater", "title": "Bonanza - Bitter Water", "genre": "Western"},
+        {"id": "Bonanza-TheFearMerchants", "title": "Bonanza - Fear Merchants", "genre": "Western"},
+        {"id": "Bonanza-BloodOnTheLand", "title": "Bonanza - Blood on the Land", "genre": "Western"},
+        {"id": "Bonanza-EscapeToPonderosa", "title": "Bonanza - Escape to Ponderosa", "genre": "Western"},
+        {"id": "theriflemanpd", "title": "The Rifleman", "genre": "Western"},
+        {"id": "tateseason1", "title": "Tate (1960)", "genre": "Western"},
+        # -- Drama --
+        {"id": "Dragnet1951", "title": "Dragnet", "genre": "Drama"},
+        {"id": "SherlockHolmes1954", "title": "Adventures of Sherlock Holmes", "genre": "Drama"},
+        {"id": "Andy_Griffith_A_Wife_For_Andy", "title": "Andy Griffith Show", "genre": "Drama"},
     ],
     "ambient": [
         # Wind-down content for after 3 PM

@@ -111,6 +111,33 @@
     </div>
 
     <div class="card">
+        <h2>🌙 Quiet Hours (Sleep Mode)</h2>
+        <div class="form-group">
+            <label for="quiet_hours_start">Start Time</label>
+            <input type="time" id="quiet_hours_start" name="quiet_hours_start"
+                   value="{{ settings.quiet_hours_start or '22:00' }}">
+        </div>
+        <div class="form-group">
+            <label for="quiet_hours_end">End Time</label>
+            <input type="time" id="quiet_hours_end" name="quiet_hours_end"
+                   value="{{ settings.quiet_hours_end or '07:00' }}">
+        </div>
+        <div class="hint">During quiet hours: no auto-play, no scheduled content (news, music, exercise), screensaver only. The TV stays on but shows a photo slideshow or black screen. Clear both fields to disable.</div>
+    </div>
+
+    <div class="card">
+        <h2>👤 Presence Detection</h2>
+        <div class="form-group">
+            <label for="presence_enabled">Person Detection</label>
+            <select id="presence_enabled" name="presence_enabled">
+                <option value="1" {% if settings.presence_enabled != '0' %}selected{% endif %}>Enabled — webcam detects when room is empty</option>
+                <option value="0" {% if settings.presence_enabled == '0' %}selected{% endif %}>Disabled — assume someone is always watching</option>
+            </select>
+            <div class="hint">When enabled, the system uses the USB webcam to detect people. If the room is empty for 15 minutes, the TV switches to a photo screensaver. When someone sits down, content auto-plays. When disabled, auto-play and scheduled content run continuously (except during quiet hours).</div>
+        </div>
+    </div>
+
+    <div class="card">
         <h2>📰 Scheduled News</h2>
         <div class="form-group">
             <label for="news_schedule">News Times (24h, comma-separated)</label>

@@ -26,18 +26,30 @@ Senior TV is a full-screen kiosk-style entertainment, communication, and care sy
 - **Watchdog** (`watchdog.sh`) — runs every 3 min via systemd timer; checks/repairs Flask, Chrome, audio, network, Tailscale, disk, memory
 - **Health agent** (`health_check_agent.sh`) — hourly cron runs Claude CLI to diagnose and fix issues, takes desktop screenshot
 
+## Code Style
+
+- **Python:** Standard library + Flask. No ORMs. SQLite via `get_db_safe()`. Lint with `ruff check *.py --select E,F,W`.
+- **JavaScript:** Vanilla JS only. No frameworks, no build step, no npm. ES5-compatible where possible.
+- **CSS:** Vanilla CSS only. No preprocessors. TV styles in `tv.css`, admin in `admin.css`.
+- **Templates:** Jinja2. TV templates are standalone HTML. Admin templates extend `admin/base.html`.
+
 ## Key Design Constraints
+
+These are hard constraints, not suggestions. They're driven by the users' medical conditions.
 
 - **Don** can follow structured content: game shows, sports, sitcoms, westerns
 - **Colleen** needs low/no-plot: music, ambient, familiar visuals (music memory preserved longest)
+- **6-button navigation only** — Arrow keys, Enter, Escape. No mouse, no touch, no scroll. Everything reachable with these 6 inputs (Samsung remote → CEC → xdotool)
+- **36px minimum text** — Readable from 8 feet away on a 65" TV. When in doubt, make it bigger
+- **Dark theme, high contrast** — Light text on dark backgrounds. No thin fonts. No low-contrast decorative elements
+- **No cognitive load** — If a feature requires a decision, it should make that decision automatically
+- **Fail silently** — If a service is down, show what's available. Never expose technical errors to the TV screen
+- **Instant response** — `window.quickNav()` kills iframes/videos/images before navigating. Back button must feel instant
 - Persistent title bar on all players — they forget what's watching
 - No news/high-stimulation content after 3 PM (sundowning); wind-down ambient video plays instead
 - Shower reminders (Tue/Thu) block TV for 15 minutes — can't dismiss (safety timeout auto-unlocks after 2x duration)
-- All text minimum 36px, high contrast dark theme
-- Navigation: arrow keys + Enter + Escape only (6 buttons via Samsung remote → CEC → xdotool)
 - Time-of-day content: morning (game shows, news), afternoon (westerns, comedy), evening (wind down)
 - YouTube iframes are fully locked: `sandbox` without `allow-popups`, transparent click-blocking overlays, `disablekb=1`, `iv_load_policy=3`, `fs=0`, `playlist+loop` to prevent end screens
-- All page exits use `window.quickNav()` which kills iframes/videos/images before navigating for instant response
 
 ## Important Patterns
 
@@ -187,7 +199,7 @@ git clone <repo> && cd senior-tv
 cp .env.example .env                 # Edit with your tokens
 sudo ./install.sh                    # Installs everything, configures services
 
-# Development
+# Development (Docker/Jellyfin/Immich not required — system degrades gracefully)
 source venv/bin/activate
 python3 server.py                    # http://localhost:5000
 
@@ -207,8 +219,14 @@ cat /var/log/senior-tv-claude-check.log
 # Fix audio manually
 bash fix_audio.sh
 
-# Lint
-source venv/bin/activate && ruff check *.py
+# Lint (CI uses --select E,F,W)
+source venv/bin/activate && ruff check *.py --select E,F,W
+
+# Syntax check (what CI runs)
+python3 -m py_compile server.py models.py config.py scheduler.py smart_home.py jellyfin_api.py pluto_tv.py immich_api.py
+
+# Template validation
+python3 -c "from jinja2 import Environment, FileSystemLoader; env = Environment(loader=FileSystemLoader('templates')); [env.get_template(f.replace('templates/','')) for f in __import__('glob').glob('templates/**/*.html', recursive=True)]"
 
 # UI tests (requires Flask running at localhost:5000)
 source venv/bin/activate && python3 test_ui.py

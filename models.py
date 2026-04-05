@@ -463,8 +463,13 @@ def prune_old_logs(activity_days=30, remote_days=7):
         db.execute(
             "DELETE FROM volume_logs WHERE logged_at < datetime('now', '-30 days')",
         )
-        db.execute("VACUUM")
         db.commit()
+    # VACUUM must run outside any transaction
+    with get_db_safe() as db:
+        db.execute("PRAGMA journal_mode=WAL")
+        db.isolation_level = None  # autocommit mode
+        db.execute("VACUUM")
+        db.isolation_level = ""  # restore
 
 
 # --- Calendar helpers ---

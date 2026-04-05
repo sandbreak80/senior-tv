@@ -11,7 +11,7 @@
             <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #4caf50; font-weight: 700;">Now Playing</div>
             <div style="font-size: 18px; font-weight: 600;">{{ now_playing.item_title or 'Unknown' }}</div>
             <div style="font-size: 13px; color: var(--text-muted);">
-                Since {{ now_playing.started_at[11:16] if now_playing.started_at else '' }}
+                Since {{ now_playing.started_at | localtime_short }}
                 {% if now_playing.item_type %}
                     &middot; {{ now_playing.item_type | replace('_', ' ') | title }}
                 {% endif %}
@@ -50,7 +50,7 @@
                 {% endif %}
             </div>
             <div class="activity-meta">
-                {{ log.started_at[:16] if log.started_at else '' }}
+                {{ log.started_at | localtime }}
                 {% if log.item_type %}
                     &middot; {{ log.item_type }}
                 {% endif %}

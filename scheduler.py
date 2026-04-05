@@ -1,4 +1,5 @@
 import json
+import re
 import sys
 import queue
 import threading
@@ -17,6 +18,28 @@ _lock = threading.Lock()
 _last_fired = {}  # {"pill_id_HH:MM": datetime}
 
 DAY_MAP = {"mon": 0, "tue": 1, "wed": 2, "thu": 3, "fri": 4, "sat": 5, "sun": 6}
+
+
+def _is_quiet_hours():
+    """Check if current time falls within configured quiet hours."""
+    from models import get_setting
+    start = get_setting("quiet_hours_start", "22:00")
+    end = get_setting("quiet_hours_end", "07:00")
+    if not start or not end:
+        return False
+    try:
+        now = datetime.now()
+        now_min = now.hour * 60 + now.minute
+        sh, sm = int(start.split(":")[0]), int(start.split(":")[1])
+        eh, em = int(end.split(":")[0]), int(end.split(":")[1])
+        start_min = sh * 60 + sm
+        end_min = eh * 60 + em
+        if start_min <= end_min:
+            return start_min <= now_min < end_min
+        else:  # Wraps midnight (e.g., 22:00 - 07:00)
+            return now_min >= start_min or now_min < end_min
+    except (ValueError, IndexError):
+        return False
 
 
 def check_pills():
@@ -209,6 +232,9 @@ def check_favorite_shows():
     Previously used Pluto TV EPG (deprecated Feb 2026). Now checks YouTube RSS feeds
     for channels matching favorite show names.
     """
+    if _is_quiet_hours():
+        return
+
     import feedparser
     from models import get_favorite_shows, get_youtube_channels
 
@@ -235,15 +261,33 @@ def check_favorite_shows():
         if not matching_yt:
             continue
 
-        # Check RSS feed for recent uploads (within last 2 hours)
+        # Check RSS feed for recent uploads — skip Shorts (<10 min)
         try:
             feed = feedparser.parse(
                 f"https://www.youtube.com/feeds/videos.xml?channel_id={matching_yt['channel_id']}"
             )
-            for entry in feed.entries[:3]:
+            for entry in feed.entries[:10]:
                 vid_id = entry.get("yt_videoid", "")
                 if not vid_id:
                     continue
+
+                # Skip Shorts and short clips — 90-year-olds need long-form content
+                try:
+                    import urllib.request
+                    req = urllib.request.Request(
+                        f"https://www.youtube.com/watch?v={vid_id}",
+                        headers={"User-Agent": "Mozilla/5.0"})
+                    html = urllib.request.urlopen(req, timeout=8).read().decode("utf-8", errors="ignore")
+                    m = re.search(r'"lengthSeconds":"(\d+)"', html)
+                    if m:
+                        duration = int(m.group(1))
+                        if duration < 600:
+                            continue  # Skip Shorts
+                    # duration unknown — skip to be safe
+                    elif not m:
+                        continue
+                except Exception:
+                    continue  # Can't verify duration — skip
 
                 reminder_id = f"show_{show['id']}_{vid_id}"
                 with _lock:
@@ -285,6 +329,9 @@ def trigger_classical_music():
     import feedparser
     import random as _random
     from models import get_setting
+
+    if _is_quiet_hours():
+        return
 
     enabled = get_setting("classical_music_enabled", "1")
     if enabled != "1":
@@ -346,6 +393,9 @@ def trigger_exercise():
     import random as _random
     from models import get_setting
 
+    if _is_quiet_hours():
+        return
+
     enabled = get_setting("exercise_enabled", "1")
     if enabled != "1":
         return
@@ -404,15 +454,18 @@ def trigger_news_block():
     Checks every 10 minutes if current time matches a news schedule slot.
     Picks a random Pluto TV news channel and pushes an auto_play event.
     """
+    import feedparser
     import random as _random
     from models import get_setting
+
+    if _is_quiet_hours():
+        return
 
     schedule_str = get_setting("news_schedule") or ""
     if not schedule_str.strip():
         return
 
     now = datetime.now()
-    current_hhmm = now.strftime("%H:%M")
 
     # Check if current time matches any scheduled slot (within 10-min window)
     matched = False
@@ -431,8 +484,8 @@ def trigger_news_block():
     if not matched:
         return
 
-    # Deduplicate: only fire once per slot per day
-    dedup_key = f"news_{now.strftime('%Y-%m-%d_%H:%M')}"
+    # Deduplicate: only fire once per slot per day (use slot hour, not exact minute)
+    dedup_key = f"news_{now.strftime('%Y-%m-%d')}_{slot}"
     with _lock:
         if dedup_key in active_reminders:
             return

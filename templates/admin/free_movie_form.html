@@ -50,8 +50,8 @@
                  style="width:320px;border-radius:8px;">
             <div style="margin-top:8px;font-size:13px;color:var(--text-muted);">
                 Plays: {{ movie.play_count or 0 }} ·
-                Last played: {{ movie.last_played_at[:16] if movie.last_played_at else 'never' }} ·
-                Added: {{ movie.created_at[:10] if movie.created_at else '?' }}
+                Last played: {{ movie.last_played_at | localtime if movie.last_played_at else 'never' }} ·
+                Added: {{ movie.created_at | localtime if movie.created_at else '?' }}
             </div>
         </div>
         {% endif %}

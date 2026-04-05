@@ -347,7 +347,10 @@ class SmartHomeMonitor:
 
         self._last_event_time = time.time()
 
-        # Trim seen events set to prevent memory growth
+        # Trim seen events set to prevent memory growth — keep recent half
         with self._seen_lock:
             if len(self._seen_events) > 1000:
-                self._seen_events.clear()
+                # Keep the 500 most recent (set is unordered, but this prevents
+                # the burst of re-alerts that full clear() causes)
+                trim = list(self._seen_events)[:500]
+                self._seen_events = set(trim)

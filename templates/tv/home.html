@@ -62,7 +62,7 @@
                     <!-- Family Photo -->
                     <a class="navigable" href="/tv/photos" style="display:block; margin-top:12px; border-radius:12px; overflow:hidden; border:3px solid transparent; transition:all 0.15s;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='transparent'">
                         <img id="home-family-photo" src="{{ home_photo.url }}" alt="Family photo"
-                             style="width:100%; height:140px; object-fit:cover; border-radius:10px; opacity:0.9;">
+                             style="width:100%; height:200px; object-fit:cover; border-radius:10px;">
                     </a>
                     {% endif %}
                 </div>
@@ -305,7 +305,7 @@
 
     <script src="/static/js/tv.js?v=6"></script>
     <script>
-        // Live clock
+        // Live clock — 10s interval so pill timing is accurate
         setInterval(function() {
             const el = document.getElementById('home-time');
             if (el) {
@@ -316,7 +316,7 @@
                 const m = String(now.getMinutes()).padStart(2, '0');
                 el.textContent = h + ':' + m + ' ' + ampm;
             }
-        }, 30000);
+        }, 10000);
 
         // Load quote and On This Day — rotate every 5 minutes
         function refreshDigest(fresh) {

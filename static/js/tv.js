@@ -12,7 +12,17 @@
 // Log levels: "minimal" (playback only), "normal" (+ pages/alerts), "verbose" (everything)
 window._pageLoadTime = Date.now();
 window._logLevel = "verbose"; // default until loaded
+window._quietHours = false; // updated by periodic poll
+window._roomEmpty = false; // updated by SSE presence_change events
 fetch("/api/log-level").then(function(r){return r.json()}).then(function(d){window._logLevel=d.level||"verbose"}).catch(function(){});
+// Poll quiet hours state every 5 minutes (handles crossing midnight boundary)
+function _pollQuietHours() {
+    fetch("/api/tv-state").then(function(r){return r.ok?r.json():{}}).then(function(s){
+        window._quietHours = !!s.quiet_hours;
+    }).catch(function(){});
+}
+_pollQuietHours();
+setInterval(_pollQuietHours, 300000);
 
 // Events that each level includes
 var _LOG_MINIMAL = ["playback_start","playback_stop","auto_play","dead_stream","frozen_stream"];
@@ -169,6 +179,7 @@ window.quickNav = function(url) {
                 p.classList.contains("menu-list") ||
                 p.classList.contains("poster-grid") ||
                 p.classList.contains("category-tabs") ||
+                p.classList.contains("season-tabs") ||
                 p.classList.contains("content-body")) {
                 return p;
             }
@@ -257,6 +268,8 @@ window.quickNav = function(url) {
     // --- Key Handling ---
 
     function handleKeyDown(e) {
+        // Refresh nav items in case DOM changed (lazy pagination, dynamic content)
+        refreshNavItems();
         // If reminder is active, handle dismiss/action
         if (reminderActive) {
             if (!reminderBlocked) {
@@ -356,8 +369,8 @@ window.quickNav = function(url) {
                             dismissReminder();
                         }
                     } else if (data.type === "auto_play") {
-                        // Only auto-play if someone is watching (skip if room empty)
-                        if (data.url && !window._roomEmpty) {
+                        // Only auto-play if someone is watching and not in quiet hours
+                        if (data.url && !window._roomEmpty && !window._quietHours) {
                             var interrupt = data.interrupt || "always";
                             var onIdlePage = window.location.pathname === "/" ||
                                              window.location.pathname.indexOf("/tv/photos") === 0;
@@ -652,6 +665,7 @@ window.quickNav = function(url) {
 
         overlay.classList.add("active");
         reminderActive = true;
+        currentReminderId = "__doorbell_" + (data.event_id || Date.now());
         window.logActivity("alert_doorbell", data.title || "Doorbell", "doorbell");
 
         // Pause any playing video
@@ -662,9 +676,10 @@ window.quickNav = function(url) {
         playDoorbell();
         setTimeout(function() { speakAlert("doorbell_alert", data); }, 1300);
 
-        // Auto-dismiss after 30 seconds
-        setTimeout(() => {
-            if (reminderActive) dismissReminder();
+        // Auto-dismiss after 30 seconds — only if this doorbell is still showing
+        var doorbellId = currentReminderId;
+        setTimeout(function() {
+            if (reminderActive && currentReminderId === doorbellId) dismissReminder();
         }, 30000);
     }
 
@@ -769,12 +784,14 @@ window.quickNav = function(url) {
 
         overlay.classList.add("active");
         reminderActive = true;
+        currentReminderId = data.reminder_id || ("__show_" + Date.now());
         window.logActivity("alert_show", data.show_name || "Show Alert", "show", {item_id: data.channel_id});
         playChime();
         setTimeout(function() { speakAlert("show_alert", data); }, 1000);
 
-        // Auto-dismiss after 30 seconds
-        setTimeout(function() { if (reminderActive) dismissReminder(); }, 30000);
+        // Auto-dismiss after 30 seconds — only if this show alert is still showing
+        var showAlertId = currentReminderId;
+        setTimeout(function() { if (reminderActive && currentReminderId === showAlertId) dismissReminder(); }, 30000);
     }
 
     // --- Family Message Alert ---
@@ -827,9 +844,12 @@ window.quickNav = function(url) {
     // --- Auto-Play from Home Screen ---
     // Don & Colleen watch TV for hours without pressing buttons.
     // Screensaver is triggered ONLY by presence detection (room empty),
-    // never by keyboard idle. After showing the home screen for 5 minutes
+    // never by keyboard idle. After showing the home screen for 45 seconds
     // (weather, greeting, pills, family photo), auto-play genre-appropriate
     // content from Jellyfin based on time-of-day care plan.
+    //
+    // Quiet hours (default 10 PM - 7 AM): no auto-play, screensaver only.
+    // Room empty + presence enabled: screensaver instead of auto-play.
 
     var autoPlayTimer = null;
     var AUTO_PLAY_DELAY = 45 * 1000; // 45 seconds on home before auto-play
@@ -837,42 +857,30 @@ window.quickNav = function(url) {
     function initAutoPlay() {
         if (window.location.pathname !== "/") return;
 
-        autoPlayTimer = setTimeout(function() {
+        autoPlayTimer = setTimeout(function _tryAutoPlay() {
             if (reminderActive) {
-                // Reminder active — try again in 1 minute
-                autoPlayTimer = setTimeout(arguments.callee, 60000);
+                autoPlayTimer = setTimeout(_tryAutoPlay, 60000);
                 return;
             }
-            // Try Jellyfin first (genre-matched to time of day)
-            fetch("/api/next-video")
-                .then(function(r) { return r.ok ? r.json() : null; })
-                .then(function(data) {
-                    if (data && data.url) {
-                        window.logActivity("auto_play", data.title || "Auto-play", data.url, {item_id: data.id});
-                        window.quickNav(data.url);
-                    } else {
-                        // Jellyfin unavailable — fall back to a time-appropriate Pluto channel
-                        return fetch("/api/next-channel")
-                            .then(function(r) { return r.ok ? r.json() : null; })
-                            .then(function(ch) {
-                                if (ch && ch.url) {
-                                    window.logActivity("auto_play", ch.name || "Live TV", ch.url);
-                                    window.quickNav(ch.url);
-                                }
-                            });
+            // Check quiet hours and presence before auto-playing
+            fetch("/api/tv-state")
+                .then(function(r) { return r.ok ? r.json() : {}; })
+                .then(function(state) {
+                    if (state.quiet_hours) {
+                        // Quiet hours — go to screensaver, retry in 15 min
+                        window.logActivity("screensaver_start", "Quiet hours — screensaver", "/");
+                        window.quickNav("/tv/photos?screensaver=1");
+                        return;
                     }
+                    if (state.presence_enabled && !state.room_occupied) {
+                        // Room empty — go to screensaver, presence_change will wake us
+                        window.logActivity("screensaver_start", "Room empty — screensaver", "/");
+                        window.quickNav("/tv/photos?screensaver=1");
+                        return;
+                    }
+                    _doAutoPlay();
                 })
-                .catch(function() {
-                    fetch("/api/next-channel")
-                        .then(function(r) { return r.ok ? r.json() : null; })
-                        .then(function(ch) {
-                            if (ch && ch.url) {
-                                window.logActivity("auto_play", ch.name || "Live TV", ch.url);
-                                window.quickNav(ch.url);
-                            }
-                        })
-                        .catch(function() {});
-                });
+                .catch(function() { _doAutoPlay(); });
         }, AUTO_PLAY_DELAY);
 
         // Cancel auto-play if user navigates manually — but restart it after 2 min
@@ -887,6 +895,38 @@ window.quickNav = function(url) {
                 }, 120000);
             }
         }, { once: true });
+    }
+
+    function _doAutoPlay() {
+        // Try Jellyfin first (genre-matched to time of day)
+        fetch("/api/next-video")
+            .then(function(r) { return r.ok ? r.json() : null; })
+            .then(function(data) {
+                if (data && data.url) {
+                    window.logActivity("auto_play", data.title || "Auto-play", data.url, {item_id: data.id});
+                    window.quickNav(data.url);
+                } else {
+                    return fetch("/api/next-channel")
+                        .then(function(r) { return r.ok ? r.json() : null; })
+                        .then(function(ch) {
+                            if (ch && ch.url) {
+                                window.logActivity("auto_play", ch.name || "Live TV", ch.url);
+                                window.quickNav(ch.url);
+                            }
+                        });
+                }
+            })
+            .catch(function() {
+                fetch("/api/next-channel")
+                    .then(function(r) { return r.ok ? r.json() : null; })
+                    .then(function(ch) {
+                        if (ch && ch.url) {
+                            window.logActivity("auto_play", ch.name || "Live TV", ch.url);
+                            window.quickNav(ch.url);
+                        }
+                    })
+                    .catch(function() {});
+            });
     }
 
     // --- Daily Digest ---
@@ -933,7 +973,7 @@ window.quickNav = function(url) {
 
                     if (greetEl) greetEl.textContent = data.greeting;
                     if (dateEl) dateEl.textContent = data.date;
-                    if (weatherEl) {
+                    if (weatherEl && data.weather) {
                         weatherEl.textContent = data.weather.temp + " " + data.weather.condition;
                     }
                     if (pillEl && data.next_pill) {

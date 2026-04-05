@@ -126,7 +126,7 @@
 
             // Load initial photos from server render
             {% for photo in photos %}
-            queue.push("{{ photo.url }}");
+            queue.push({{ photo.url|tojson }});
             {% endfor %}
 
             // Fetch more from Immich API

@@ -100,6 +100,9 @@ start_chrome() {
         sleep 2
     done
 
+    # Unlock GNOME keyring with empty password to suppress unlock popups
+    echo -n "" | gnome-keyring-daemon --unlock --replace 2>/dev/null || true
+
     google-chrome \
         --noerrdialogs \
         --disable-infobars \
@@ -110,6 +113,7 @@ start_chrome() {
         --load-extension=$HOME/.config/senior-tv-chrome/ublock-origin \
         --autoplay-policy=no-user-gesture-required \
         --password-store=basic \
+        --use-mock-keychain \
         --remote-debugging-port=9222 \
         --remote-allow-origins=* \
         --user-data-dir=$HOME/.config/senior-tv-chrome \

@@ -49,4 +49,11 @@ DEFAULTS = {
     # Activity log level: "minimal" (playback only), "normal" (+ pages, alerts),
     # "verbose" (everything — for performance analysis)
     "log_level": "verbose",
+    # Quiet hours — no auto-play, no scheduled content, screensaver only
+    # 24h format. Empty = disabled.
+    "quiet_hours_start": "22:00",
+    "quiet_hours_end": "07:00",
+    # Presence detection — webcam person detection controls screensaver/auto-play
+    # "1" = enabled, "0" = disabled (system assumes room is always occupied)
+    "presence_enabled": "1",
 }
