@@ -41,6 +41,9 @@ jobs:
           python -c "
           from jinja2 import Environment, FileSystemLoader
           env = Environment(loader=FileSystemLoader('templates'))
+          # Register custom filters so templates parse without errors
+          for f_name in ['localtime', 'localtime_short', 'timeago']:
+              env.filters[f_name] = lambda x: x
           errors = []
           import glob
           for f in glob.glob('templates/**/*.html', recursive=True):
