@@ -42,32 +42,7 @@ Senior TV turns any TV into a **supervised entertainment and care appliance**:
 
 ## Screenshots
 
-<table>
-<tr>
-<td align="center"><strong>Home Screen</strong><br><sub>Time-aware greeting, live news, weather forecast, content rows</sub></td>
-<td align="center"><strong>Admin Dashboard</strong><br><sub>Care status, pill tracking, activity log, system health</sub></td>
-</tr>
-<tr>
-<td><img src="docs/screenshots/home.png" width="480"></td>
-<td><img src="docs/screenshots/admin.png" width="480"></td>
-</tr>
-<tr>
-<td align="center"><strong>YouTube Channels</strong><br><sub>Curated channels by category, fully sandboxed</sub></td>
-<td align="center"><strong>Weather</strong><br><sub>Current conditions + 5-day forecast</sub></td>
-</tr>
-<tr>
-<td><img src="docs/screenshots/youtube.png" width="480"></td>
-<td><img src="docs/screenshots/weather.png" width="480"></td>
-</tr>
-<tr>
-<td align="center"><strong>Calendar</strong><br><sub>Daily view with upcoming events</sub></td>
-<td align="center"><strong>Photo Slideshow</strong><br><sub>Family photos from Immich</sub></td>
-</tr>
-<tr>
-<td><img src="docs/screenshots/calendar.png" width="480"></td>
-<td><img src="docs/screenshots/photos.png" width="480"></td>
-</tr>
-</table>
+*Coming soon — demo screenshots without personal data.*
 
 ---
 
