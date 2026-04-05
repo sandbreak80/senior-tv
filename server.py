@@ -1561,7 +1561,7 @@ def admin_dashboard():
         try:
             import time as _time
             from smart_home import frigate_get_events
-            cutoff = _time.time() - 86400  # 24 hours ago
+            cutoff = _time.time() - 14400  # 4 hours ago
             raw_events = frigate_get_events(frigate_url, camera="front_door", label="person", limit=8, after=cutoff)
             if raw_events:
                 for evt in raw_events:
