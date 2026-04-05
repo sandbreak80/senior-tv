@@ -23,8 +23,15 @@ def _headers(api_key):
 
 
 def get_random_photos(count=20):
-    """Fetch random photo metadata from Immich. Cached for 10 minutes."""
-    cache_key = f"immich_random_{count}"
+    """Fetch random photo metadata from Immich. Cached for 10 minutes.
+
+    If immich_album_id is set in settings, pulls only from that album.
+    Otherwise pulls from the entire library.
+    """
+    from models import get_setting
+    album_id = get_setting("immich_album_id") or ""
+
+    cache_key = f"immich_random_{count}_{album_id}"
     cached = cache.get(cache_key)
     if cached is not None:
         return cached
@@ -34,15 +41,32 @@ def get_random_photos(count=20):
         return []
 
     try:
-        resp = requests.get(
-            f"{url}/api/assets/random",
-            params={"count": count},
-            headers=_headers(api_key),
-            timeout=10,
-        )
-        resp.raise_for_status()
+        if album_id:
+            # Fetch from specific album
+            resp = requests.get(
+                f"{url}/api/albums/{album_id}",
+                headers=_headers(api_key),
+                timeout=10,
+            )
+            resp.raise_for_status()
+            assets = resp.json().get("assets", [])
+            # Shuffle and take `count` random photos
+            import random
+            random.shuffle(assets)
+            assets = assets[:count]
+        else:
+            # Fetch random from entire library
+            resp = requests.get(
+                f"{url}/api/assets/random",
+                params={"count": count},
+                headers=_headers(api_key),
+                timeout=10,
+            )
+            resp.raise_for_status()
+            assets = resp.json()
+
         photos = []
-        for asset in resp.json():
+        for asset in assets:
             if asset.get("type") != "IMAGE":
                 continue
             photos.append({
