@@ -112,7 +112,8 @@ def is_quiet_hours():
     if not start or not end:
         return False
     try:
-        now = datetime.now().hour * 60 + datetime.now().minute
+        _now = datetime.now()
+        now = _now.hour * 60 + _now.minute
         sh, sm = int(start.split(":")[0]), int(start.split(":")[1])
         eh, em = int(end.split(":")[0]), int(end.split(":")[1])
         start_min = sh * 60 + sm
@@ -421,7 +422,6 @@ def tv_home():
                 pass
 
     # Random free YouTube movies for the home page
-    import random as _random_home
     free_movies_home = models.get_random_youtube_movies(limit=12)
 
     # Suggested YouTube channels for this time period
@@ -2286,8 +2286,10 @@ def admin_photos():
             selected_folders = request.form.getlist("folders")
             models.set_setting("immich_album_ids", ",".join(selected_albums))
             models.set_setting("immich_folder_paths", ",".join(selected_folders))
-            # Clear cache so slideshow picks up changes immediately
-            cache.set(f"immich_random_20_", None, ttl=0)
+            # Clear all immich caches so slideshow picks up changes immediately
+            for key in list(cache._cache.keys()):
+                if key.startswith("immich_"):
+                    cache.set(key, None, ttl=0)
             return redirect("/admin/photos")
         # Handle file upload
         files = request.files.getlist("photos")
@@ -2301,6 +2303,7 @@ def admin_photos():
     import immich_api
     immich_ok = False
     immich_albums = []
+    immich_folders = []
     immich_photo_count = 0
     immich_preview = []
     selected_album_ids = set((models.get_setting("immich_album_ids") or "").split(","))
