@@ -53,23 +53,23 @@ MAX_FILE_MB = 2000
 
 CONTENT = {
     "music": [
-        # Classical — Colleen (music memory preserved longest in Alzheimer's)
+        # Classical — music memory preserved longest in Alzheimer's
         {"id": "MusopenCollectionAsFlac", "title": "Musopen Classical Collection", "format": "mp3"},
         {"id": "chopin-nocturnes", "title": "Chopin - Nocturnes", "format": "mp3"},
         {"id": "CanonPachelbel", "title": "Pachelbel - Canon", "format": "mp3"},
         {"id": "SchubertSymphonyNo.8unfinished_347", "title": "Schubert - Symphony No. 8", "format": "mp3"},
-        # Big band / swing — Don & Colleen's youth (1940s-50s dance era)
+        # Big band / swing — classic 1940s-50s dance era
         {"id": "GlennMillerOrchestra-CompleteStudioRecordings", "title": "Glenn Miller Orchestra", "format": "mp3"},
         {"id": "BigBandRemotes", "title": "Big Band Remotes", "format": "mp3"},
         {"id": "CommandPerformance", "title": "Command Performance", "format": "mp3"},
     ],
     "movies": [
         # ===================================================================
-        # ALL content 1936 or later — Don & Colleen born 1931
+        # ALL content 1936 or later — content from the care recipients' era
         # All identifiers verified on Archive.org as of April 2026
         # ===================================================================
 
-        # -- Westerns (Don's favorites) --
+        # -- Westerns --
         {"id": "mclintok_widescreen", "title": "McLintock! (1963)", "genre": "Western"},
         {"id": "angel_and_the_badman", "title": "Angel and the Badman (1947)", "genre": "Western"},
         {"id": "Santa_Fe_Trail_movie", "title": "Santa Fe Trail (1940)", "genre": "Western"},
@@ -131,7 +131,7 @@ CONTENT = {
         {"id": "TheRedHouse", "title": "The Red House (1947)", "genre": "Drama"},
         {"id": "sabrina-1954", "title": "Sabrina (1954)", "genre": "Romance"},
 
-        # -- War (Don's era) --
+        # -- War --
         {"id": "Gung_Ho", "title": "Gung Ho! (1943)", "genre": "War"},
         {"id": "In_Which_We_Serve", "title": "In Which We Serve (1942)", "genre": "War"},
 
@@ -150,7 +150,7 @@ CONTENT = {
         {"id": "dressed_to_kill", "title": "Dressed to Kill (1946)", "genre": "Thriller"},
     ],
     "shows": [
-        # -- Game Shows (Don loves these) --
+        # -- Game Shows --
         {"id": "whats-my-line", "title": "What's My Line", "genre": "Game Show"},
         {"id": "ybylcollection", "title": "You Bet Your Life (Groucho Marx)", "genre": "Game Show"},
         {"id": "Queen_For_A_Day", "title": "Queen for a Day", "genre": "Game Show"},

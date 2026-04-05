@@ -6,7 +6,7 @@ All notable changes to Senior TV are documented here.
 
 ### First Public Beta
 
-The first public release of Senior TV. A fully functional kiosk entertainment, care, and communication system for seniors, deployed and battle-tested on a live system for Don & Colleen in Sun City, CA.
+The first public release of Senior TV. A fully functional kiosk entertainment, care, and communication system for seniors, deployed and battle-tested on a live system.
 
 ### Entertainment
 - 421 live TV channels via Pluto TV with category filters and HLS streaming

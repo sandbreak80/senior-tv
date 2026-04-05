@@ -1,8 +1,8 @@
 # Senior TV — Feature Tour
 
-**A complete entertainment, care, and communication system for Don & Colleen**
+**A complete entertainment, care, and communication system for seniors**
 
-Built for a 65" Samsung TV connected to a GMKtec NucBox K11 mini PC. Designed for two 95-year-olds with dementia and Alzheimer's — every feature prioritizes simplicity, large text, and minimal cognitive load.
+Built for a 65" Samsung TV connected to a mini PC. Designed for elderly viewers with dementia and Alzheimer's — every feature prioritizes simplicity, large text, and minimal cognitive load.
 
 ---
 
@@ -11,8 +11,8 @@ Built for a 65" Samsung TV connected to a GMKtec NucBox K11 mini PC. Designed fo
 The home screen is a hotel-TV-style welcome page that adapts throughout the day.
 
 **What you see:**
-- Large clock, personalized greeting ("Good Morning, Colleen & Don!")
-- Current weather for Sun City, CA
+- Large clock, personalized greeting ("Good Morning!")
+- Current weather for your configured location
 - Next pill reminder and upcoming calendar event
 - Menu on the left, live LA news stream on the right (morning only — hidden after 3 PM per care plan)
 - After 3 PM: calming ambient video from Wind Down channels (Bob Ross, BBC Earth, nature, fireplace)
@@ -72,7 +72,7 @@ Powered by Jellyfin media server. Full library browsing with poster art.
 
 ## ▶️ YouTube — 36 Curated Channels
 
-Hand-picked channels organized by category for Don & Colleen's interests.
+Hand-picked channels organized by category for seniors' interests.
 
 **Categories:**
 - **Westerns:** Bonanza, The Rifleman, Death Valley Days
@@ -95,7 +95,7 @@ Hand-picked channels organized by category for Don & Colleen's interests.
 **You and Cheryl can send messages, photos, and videos directly to their TV.**
 
 **How it works:**
-1. Go to the admin panel from your phone: `http://192.168.50.159:5000/admin/messages/send`
+1. Go to the admin panel from your phone: `http://<device-ip>:5000/admin/messages/send`
 2. Type a message, optionally attach a photo or video
 3. Hit "Send to TV Now"
 4. A notification pops up on the TV immediately: "💌 New Message from Brad!"
@@ -123,7 +123,7 @@ News is hidden from the home screen after 3 PM (care plan — reduces evening ag
 
 ## 🌤️ Weather
 
-Full weather display for Sun City, CA.
+Full weather display for your configured location.
 - Current temperature, conditions, humidity, wind
 - 5-day forecast with daily highs/lows
 - Weather summary always visible on the home screen
@@ -140,7 +140,7 @@ Full weather display for Sun City, CA.
 
 **Pre-loaded with US holidays** through 2027 (Memorial Day, Independence Day, Thanksgiving, Christmas, etc.)
 
-**Birthdays:** Don (March 3) and Colleen (March 16) — full-screen birthday greetings at 9 AM with a Happy Birthday melody and age display.
+**Birthdays:** Full-screen birthday greetings at 9 AM with a Happy Birthday melody and age display.
 
 *Screenshots: `09_calendar_daily.png`, `10_calendar_monthly.png`, `11_calendar_upcoming.png`*
 
@@ -212,8 +212,7 @@ Cameras monitored: `front_door` (configurable to add `back_patio`, `garage`, etc
 Add family birthdays via admin. On their birthday at 9 AM:
 - Full-screen greeting with Happy Birthday melody
 - Shows their name and age (if birth year provided)
-- Don: March 3, 1931 (turns 95 in 2026)
-- Colleen: March 16, 1931 (turns 95 in 2026)
+- Add family birthdays with birth year for age display
 
 *Screenshot: `17_admin_birthdays.png`*
 
@@ -221,7 +220,7 @@ Add family birthdays via admin. On their birthday at 9 AM:
 
 ## 📱 Admin Panel
 
-Accessible from any device on the network at **http://192.168.50.159:5000/admin**
+Accessible from any device on the network at **http://<device-ip>:5000/admin**
 
 **Sections:**
 | Page | What it does |
@@ -243,14 +242,14 @@ Accessible from any device on the network at **http://192.168.50.159:5000/admin*
 
 ## 🔧 Technical Details
 
-- **Hardware:** GMKtec NucBox K11 mini PC, Ubuntu 24.04, 4K display
+- **Hardware:** Mini PC, Ubuntu 24.04, 4K display
 - **TV:** Samsung 65" connected via HDMI
 - **Browser:** Google Chrome kiosk mode (dedicated profile, uBlock Origin ad blocker)
 - **Backend:** Python/Flask, SQLite, APScheduler
 - **Media:** Jellyfin (local Docker on localhost:8096 — public domain movies, classical music, classic TV shows from Archive.org)
 - **Live TV:** Pluto TV (421 channels with logos, HLS proxy for CORS bypass)
 - **Photos:** Immich (local Docker on localhost:2283 — family photo library, ML disabled for RAM savings)
-- **Smart Home:** Frigate (doorbell camera, 192.168.50.114), Home Assistant (TV control, 192.168.50.76)
+- **Smart Home:** Frigate (doorbell camera), Home Assistant (TV control)
 - **Remote:** Samsung TV remote via HDMI-CEC → keyboard events via xdotool
 - **Auto-start:** systemd service with process supervision (Flask + Chrome + CEC bridge)
 - **Self-healing:** Local watchdog (3 min) + Claude AI health agent (hourly) + HDMI audio persistence
@@ -268,10 +267,10 @@ Accessible from any device on the network at **http://192.168.50.159:5000/admin*
 - Persistent title bar so they never forget what's playing
 - Time-of-day content adapted to cognitive needs
 - No high-stimulation content in the evening (sundowning prevention)
-- Music content prioritized for Colleen (music memory preserved longest in Alzheimer's)
-- Structured content for Don (game shows, sports, procedurals)
+- Music content prioritized for Alzheimer's care (music memory preserved longest)
+- Structured content for dementia care (game shows, sports, procedurals)
 - Shower reminders that block the TV — because that's what it takes
 - Family stays connected through messages, photos, and video
 - Doorbell alerts keep them aware of visitors
 
-**Built with love for Don & Colleen.**
+**Built with love for seniors everywhere.**

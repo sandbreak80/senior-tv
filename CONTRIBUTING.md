@@ -20,7 +20,7 @@ These aren't suggestions. They're hard constraints driven by the users.
 
 2. **36px minimum text** — Readable from a couch 8 feet away on a 65" TV. When in doubt, make it bigger.
 
-3. **No cognitive load** — Don has mid-stage dementia. Colleen has advanced Alzheimer's. If a feature requires a decision, it should make that decision automatically.
+3. **No cognitive load** — The care recipients have dementia/Alzheimer's. If a feature requires a decision, it should make that decision automatically.
 
 4. **Dark theme, high contrast** — Light text on dark backgrounds. No thin fonts. No low-contrast decorative elements.
 
@@ -34,7 +34,7 @@ These aren't suggestions. They're hard constraints driven by the users.
 
 ### Good First Issues
 
-- **Remove a hardcoded value** — Search for "Don", "Colleen", "Sun City", or hardcoded IPs. Make it configurable via the Settings admin page.
+- **Remove a hardcoded value** — Search for hardcoded names, locations, or IPs. Make it configurable via the Settings admin page.
 - **Improve an admin page** — Better mobile layout, clearer labels, inline help text.
 - **Add a YouTube channel category** — Edit the seed data in `models.py`.
 - **Improve test coverage** — `test_ui.py` has 93 tests but many features are untested.

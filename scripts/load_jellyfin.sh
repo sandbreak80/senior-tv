@@ -17,7 +17,7 @@ MOVIES_DIR="$HOME/media/movies"
 
 # ---------------------------------------------------------------------------
 # Classical Music from Archive.org (public domain recordings)
-# Perfect for Colleen — music memory is preserved longest in Alzheimer's
+# Classical music — music memory is preserved longest in Alzheimer's
 # These pair with the fine art + landscape slideshows
 # ---------------------------------------------------------------------------
 
@@ -128,7 +128,7 @@ download_ambient() {
 
 # ---------------------------------------------------------------------------
 # Public Domain Classic Films from Archive.org
-# Westerns for Don, classic films for both
+# Classic westerns and films from the care recipients' era
 # ---------------------------------------------------------------------------
 
 download_movies() {
@@ -140,7 +140,7 @@ download_movies() {
     # Archive.org public domain films
     # These are confirmed public domain (pre-1929 or explicitly PD)
     local films=(
-        # Classic Westerns (for Don)
+        # Classic Westerns
         "Stagecoach1939|Stagecoach (1939)"
         "the_outlaw_1943|The Outlaw (1943)"
         "AngelAndTheBadman1947|Angel and the Badman (1947)"

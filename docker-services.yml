@@ -41,7 +41,7 @@ services:
       - /home/media/media/shows:/media/shows:ro
       - /home/media/media/music:/media/music:ro
     environment:
-      - JELLYFIN_PublishedServerUrl=http://192.168.50.159:8096
+      - JELLYFIN_PublishedServerUrl=http://your-host-ip:8096  # Replace with your server IP
     devices:
       - /dev/dri:/dev/dri  # Hardware transcoding (AMD GPU)
 

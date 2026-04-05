@@ -241,7 +241,7 @@ This system is designed to **run for months without physical intervention**:
 
 ## Known Limitations
 
-- **Single deployment** — Hardcoded names ("Don & Colleen") and location (Sun City, CA) throughout templates. Profile system planned
+- **Single deployment** — Hardcoded names and location throughout templates. Profile system planned
 - **No first-boot wizard** — Post-install config requires admin panel. Guided setup planned
 - **Pluto TV dependency** — Live TV relies on Pluto TV's free API which could change or shut down
 - **YouTube sandboxing** — YouTube iframes can't report playback state, so duration tracking is estimate-based
@@ -300,5 +300,5 @@ We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 <p align="center">
   <em>Built with love for Don & Colleen.</em><br>
-  <em>Two 95-year-olds in Sun City, CA who just want to watch TV.</em>
+  <em>Two 95-year-olds who just want to watch TV.</em>
 </p>

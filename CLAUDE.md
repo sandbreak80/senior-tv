@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Senior TV is a full-screen kiosk-style entertainment, communication, and care system for Don & Colleen (both 95, born 1931). Don has mid-stage dementia; Colleen has advanced Alzheimer's. TV is their primary daily activity. The system runs on a GMKtec NucBox K11 mini PC (Ubuntu 24.04, 4K) connected to a Samsung 65" TV via HDMI in Sun City, CA.
+Senior TV is a full-screen kiosk-style entertainment, communication, and care system for the care recipients (elderly couple with dementia/Alzheimer's). TV is their primary daily activity. The system runs on a mini PC (Ubuntu 24.04, 4K) connected to a Samsung 65" TV via HDMI.
 
 ## Architecture
 
@@ -15,9 +15,9 @@ Senior TV is a full-screen kiosk-style entertainment, communication, and care sy
 - **SQLite** (`senior_tv.db`) — pills, calendar, birthdays, messages, favorites, settings; WAL mode for concurrent reads
 - **APScheduler** (`scheduler.py`) — pill reminders (1 min), birthday checks (1 hr), show alerts (10 min)
 - **SSE** (`/events`) — pushes pill reminders, doorbell alerts, show notifications, family messages to TV
-- **Jellyfin API** (`jellyfin_api.py`) — media library at `192.168.50.20:8096` (network server)
+- **Jellyfin API** (`jellyfin_api.py`) — media library on network server (URL configured in settings)
 - **Pluto TV** (`pluto_tv.py`) — 421 free live TV channels via HLS, logos via `path` key (not `url`)
-- **Immich API** (`immich_api.py`) — family photos from Immich at `192.168.50.165:2283` (network server); photos proxied through `/api/immich-photo/<id>` to hide API key
+- **Immich API** (`immich_api.py`) — family photos from Immich on network server (URL configured in settings); photos proxied through `/api/immich-photo/<id>` to hide API key
 - **Smart Home** (`smart_home.py`) — Frigate person detection on front_door camera, HA integration, room presence tracking
 - **Display** — forced to 1920x1080 (no 4K content); `monitors.xml` covers both HDMI ports, `start.sh` enforces via Mutter DBus API
 - **HDMI audio** (`fix_audio.sh`) — finds any HDMI sink via PipeWire `object.path`, works with either HDMI port; called by `start.sh` and `watchdog.sh`
@@ -45,8 +45,8 @@ Custom skills in `.claude/skills/` are automatically loaded by Claude Code when 
 
 These are hard constraints, not suggestions. They're driven by the users' medical conditions.
 
-- **Don** can follow structured content: game shows, sports, sitcoms, westerns
-- **Colleen** needs low/no-plot: music, ambient, familiar visuals (music memory preserved longest)
+- **Care recipient with dementia** can follow structured content: game shows, sports, sitcoms, westerns
+- **Care recipient with Alzheimer's** needs low/no-plot: music, ambient, familiar visuals (music memory preserved longest)
 - **6-button navigation only** — Arrow keys, Enter, Escape. No mouse, no touch, no scroll. Everything reachable with these 6 inputs (Samsung remote → CEC → xdotool)
 - **36px minimum text** — Readable from 8 feet away on a 65" TV. When in doubt, make it bigger
 - **Dark theme, high contrast** — Light text on dark backgrounds. No thin fonts. No low-contrast decorative elements
@@ -118,19 +118,19 @@ SSE reconnects with exponential backoff (5s → 60s max). Alert sounds use Web A
 
 | Service | Location | URL | Auth |
 |---------|----------|-----|------|
-| Jellyfin | Network server | `http://192.168.50.20:8096` | API key in settings DB |
-| Immich | Network server | `http://192.168.50.165:2283` | API key in settings DB |
-| Frigate | Network | `http://192.168.50.114:5000` | Session cookie login |
-| Home Assistant | Network | `http://192.168.50.76:8123` | Long-lived token |
+| Jellyfin | Network server | Configured in settings | API key in settings DB |
+| Immich | Network server | Configured in settings | API key in settings DB |
+| Frigate | Network | Configured in settings | Session cookie login |
+| Home Assistant | Network | Configured in settings | Long-lived token |
 | Pluto TV | External | Public API | No auth |
-| Open-Meteo | External | Public API | No auth (Sun City, CA: 33.7083, -117.1972) |
+| Open-Meteo | External | Public API | No auth (coordinates configured in settings) |
 
 **Important:** All services run on dedicated network servers. Nothing runs in Docker on this box — no nginx, no Jellyfin, no Immich. Flask runs directly on the host. Cloudflare tunnel points directly at `localhost:5000`.
 
 ## Deployment & Remote Access
 
 - **Fully automated install**: `git clone <repo> && cd senior-tv && sudo ./install.sh` — configures everything including Jellyfin, Immich, and Cloudflare tunnel
-- **Standardized credentials**: Jellyfin user `seniortv`/`seniortv`, Immich admin `bstoner@gmail.com`/`seniortv` (configurable via `.env`)
+- **Standardized credentials**: Jellyfin user `seniortv`/`seniortv`, Immich admin `admin@example.com`/`seniortv` (configurable via `.env`)
 - **Cloudflare Tunnel** for remote admin access (set `CLOUDFLARE_TUNNEL_TOKEN` in `.env`)
 - **SSH** via Tailscale: `ssh seniortv@<hostname>` (key-only auth)
 - **Tailscale** mesh VPN with SSH enabled (`tailscale up --ssh`)
@@ -150,7 +150,7 @@ SSE reconnects with exponential backoff (5s → 60s max). Alert sounds use Web A
 ### Content population
 Media lives in `~/media/{movies,shows,music}/` (mounted read-only into the Jellyfin container). Two loader scripts:
 
-- **`scripts/load_jellyfin_content.py`** (primary) — Downloads public domain content from Archive.org. 50 GB budget, rate limiting (auto-waits 60s on 429), resumes partial downloads, triggers Jellyfin library scan on completion. Categories: music (classical for Colleen), movies (westerns/comedy/drama), shows (game shows/sitcoms), ambient (fireplace/aquarium for wind-down).
+- **`scripts/load_jellyfin_content.py`** (primary) — Downloads public domain content from Archive.org. 50 GB budget, rate limiting (auto-waits 60s on 429), resumes partial downloads, triggers Jellyfin library scan on completion. Categories: music (classical, suited for Alzheimer's care), movies (westerns/comedy/drama), shows (game shows/sitcoms), ambient (fireplace/aquarium for wind-down).
 - **`scripts/load_jellyfin.sh`** (legacy) — Bash-based alternative, same Archive.org sources.
 
 ```bash

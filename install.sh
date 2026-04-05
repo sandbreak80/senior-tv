@@ -238,7 +238,7 @@ INSTALL_GID=$(id -g "$INSTALL_USER")
 # Standardized credentials (override via .env or env vars)
 JELLYFIN_USER="${JELLYFIN_USER:-seniortv}"
 JELLYFIN_PASS="${JELLYFIN_PASS:-seniortv}"
-IMMICH_ADMIN_EMAIL="${IMMICH_ADMIN_EMAIL:-bstoner@gmail.com}"
+IMMICH_ADMIN_EMAIL="${IMMICH_ADMIN_EMAIL:-admin@example.com}"
 IMMICH_ADMIN_PASS="${IMMICH_ADMIN_PASS:-seniortv}"
 CF_TUNNEL_TOKEN="${CLOUDFLARE_TUNNEL_TOKEN:-}"
 

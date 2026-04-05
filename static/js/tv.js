@@ -842,7 +842,7 @@ window.quickNav = function(url) {
     const _origDismiss = dismissReminder;
 
     // --- Auto-Play from Home Screen ---
-    // Don & Colleen watch TV for hours without pressing buttons.
+    // The care recipients watch TV for hours without pressing buttons.
     // Screensaver is triggered ONLY by presence detection (room empty),
     // never by keyboard idle. After showing the home screen for 45 seconds
     // (weather, greeting, pills, family photo), auto-play genre-appropriate

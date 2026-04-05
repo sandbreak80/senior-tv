@@ -31,7 +31,7 @@ Every external service (Jellyfin, Immich, Home Assistant, Frigate) is optional. 
 
 ## Current State (April 2026)
 
-Single-deployment system built for Don & Colleen in Sun City, CA. Runs on one GMKtec NucBox K11 (AMD Ryzen 5, 28GB RAM, 937GB NVMe) connected to a Samsung 65" TV via HDMI. Remote access via SSH + Tailscale + Cloudflare tunnel (`seniortv.riffyx.com`). Self-healing with local watchdog (3 min) and Claude AI health agent (hourly).
+Single-deployment system built for an elderly couple. Runs on a mini PC connected to a Samsung 65" TV via HDMI. Remote access via SSH + Tailscale + Cloudflare tunnel. Self-healing with local watchdog (3 min) and Claude AI health agent (hourly).
 
 **Fully automated deployment** — `install.sh` handles everything from bare Ubuntu to working kiosk: system packages, Chrome with uBlock Origin, Docker services (Jellyfin + Immich + Bazarr + Nginx), first-time wizard automation for both Jellyfin and Immich (user creation, API keys, library setup, VA-API transcoding), Cloudflare tunnel registration, systemd services, cron jobs, database initialization, and environment-based settings. Zero manual post-install steps.
 
@@ -61,27 +61,27 @@ Single-deployment system built for Don & Colleen in Sun City, CA. Runs on one GM
 ## Priority Matrix
 
 Every item scored on two axes, then combined for execution order:
-- **D&C** = Impact on Don & Colleen's daily experience (1–5). They're 95, dementia/Alzheimer's, watching TV 8+ hours/day. A 5 means "they'd notice this immediately and it materially improves their day."
-- **Project** = Impact on making this usable by other families (1–5). A 5 means "blocks anyone else from deploying this" or "the killer differentiating feature."
-- **Combined** = D&C + Project. Tiebreakers favor D&C (they're real people, today).
+- **Care** = Impact on the care recipients' daily experience (1--5). They have dementia/Alzheimer's and watch TV 8+ hours/day. A 5 means "they'd notice this immediately and it materially improves their day."
+- **Project** = Impact on making this usable by other families (1--5). A 5 means "blocks anyone else from deploying this" or "the killer differentiating feature."
+- **Combined** = Care + Project. Tiebreakers favor Care (they're real people, today).
 
 ### Executive Priority: Audio Quality & Subtitles First
 
-Audio quality and subtitles are the highest combined-priority items because they score 5/5 for Don & Colleen (they're hearing-impaired and watching 8+ hours/day) AND 4/5 for the project (every elderly deployment needs this). These four items — voice boost EQ, cross-content volume normalization, commercial loudness taming, and auto-subtitles — should be the first work done. They improve the experience for the two real users we have today while simultaneously being table-stakes features that every future deployment will need. The project infrastructure items (`install.sh`, profiles, hardcoded values) are also P0 but are blocking prerequisites for other families, not quality-of-life improvements for Don & Colleen.
+Audio quality and subtitles are the highest combined-priority items because they score 5/5 for the care recipients (they're hearing-impaired and watching 8+ hours/day) AND 4/5 for the project (every elderly deployment needs this). These four items — voice boost EQ, cross-content volume normalization, commercial loudness taming, and auto-subtitles — should be the first work done. They improve the experience for the real users we have today while simultaneously being table-stakes features that every future deployment will need. The project infrastructure items (`install.sh`, profiles, hardcoded values) are also P0 but are blocking prerequisites for other families, not quality-of-life improvements for the care recipients.
 
 ### P0 — Do Now (Combined 9–10)
 
-These are high-impact for both Don & Colleen AND the project. Work on these first.
+These are high-impact for both the care recipients AND the project. Work on these first.
 
-| Item | D&C | Project | Combined | Why |
-|------|-----|---------|----------|-----|
+| Item | Care | Project | Combined | Why |
+|------|------|---------|----------|-----|
 | ~~**Voice boost / parametric EQ**~~ | 5 | 4 | 9 | DONE — 3-band EQ chain (highpass, presence boost, mud cut), configurable off/mild/strong in admin. |
 | ~~**Broadcast-style volume normalization**~~ | 5 | 4 | 9 | DONE — Replaced feedback-loop design with broadcast chain: slow AGC → fixed makeup gain → fast limiter. No oscillation. Configurable target level in admin. |
 | ~~**Commercial loudness taming**~~ | 5 | 4 | 9 | DONE — Fast limiter (1ms attack, -3dB ceiling) catches all peaks. AGC compressor evens levels. |
 | **Auto-subtitles (Bazarr + Whisper)** | 5 | 4 | 9 | Both are hearing-impaired. Subtitles on all 5K+ movies/shows = transformative. Bazarr is the one *Arr tool that's P0. |
 | **Audio/video sync fix** | 5 | 4 | 9 | Web Audio API processing chain adds latency that desynchronizes audio from video. Lips don't match words. Must compensate with `ctx.baseLatency` + `ctx.outputLatency` or use `delayNode` on video. |
 | ~~**`install.sh`**~~ | 1 | 5 | 6* | DONE — Fully automated: Jellyfin wizard, Immich wizard, Cloudflare tunnel, VA-API transcoding, systemd, cron, all via REST APIs. Zero manual post-install steps. |
-| **Remove hardcoded values** | 1 | 5 | 6* | "Don & Colleen" baked into templates, Sun City coordinates, specific IPs. Blocks all other deployments. Elevated to P0. |
+| **Remove hardcoded values** | 1 | 5 | 6* | Names baked into templates, location coordinates, specific IPs. Blocks all other deployments. Elevated to P0. |
 | **Profiles table** | 1 | 5 | 6* | Foundation for everything — care templates, content engine, setup wizard all depend on this. Elevated to P0. |
 
 *Elevated from raw score because they're project-blocking prerequisites.
@@ -90,10 +90,10 @@ These are high-impact for both Don & Colleen AND the project. Work on these firs
 
 High impact on one axis, solid on the other. The "after P0" queue.
 
-| Item | D&C | Project | Combined | Why |
-|------|-----|---------|----------|-----|
+| Item | Care | Project | Combined | Why |
+|------|------|---------|----------|-----|
 | **Bedtime auto-off** | 4 | 3 | 7 | TV stays on all night if they fall asleep. Wastes power, disrupts sleep with light/sound. |
-| **Night mode audio** | 4 | 3 | 7 | Tighter compression after 9 PM. Prevents loud moments from waking Colleen if Don's still watching. |
+| **Night mode audio** | 4 | 3 | 7 | Tighter compression after 9 PM. Prevents loud moments from waking a sleeping care recipient. |
 | **Silence detection (microphone)** | 4 | 3 | 7 | They sit in front of a dead stream for hours without noticing. Mic detects silence, auto-repairs. |
 | **Source-specific gain presets** | 4 | 3 | 7 | Jellyfin movies are cinema-level quiet, Pluto is broadcast-loud. Pre-learned offsets per source. |
 | **Immich "Who is this?" overlay** | 4 | 3 | 7 | Name overlay on family photos during slideshow. Reinforces recognition — therapeutic for dementia. |
@@ -106,10 +106,10 @@ High impact on one axis, solid on the other. The "after P0" queue.
 
 ### P2 — Important (Combined 5–6)
 
-Meaningful improvements, but either less urgent for D&C or dependent on P0/P1 work.
+Meaningful improvements, but either less urgent for care recipients or dependent on P0/P1 work.
 
-| Item | D&C | Project | Combined | Why |
-|------|-----|---------|----------|-----|
+| Item | Care | Project | Combined | Why |
+|------|------|---------|----------|-----|
 | **AI content engine** | 2 | 5 | 7* | The killer differentiator. But complex, and depends on profiles table + content rules in DB. *Demoted to P2 for dependency reasons. |
 | **Internet Archive integration** | 2 | 5 | 7* | Free legal content library out of the box. Makes "zero external services" promise real. Old Time Radio is a goldmine for seniors. *Depends on AI content engine but is the #1 enabler for new deployments without Jellyfin. |
 | **Immich album selection** | 3 | 3 | 6 | Choose which albums appear on TV. Currently 143K random photos includes irrelevant ones. |
@@ -118,7 +118,7 @@ Meaningful improvements, but either less urgent for D&C or dependent on P0/P1 wo
 | **PipeWire session persistence** | 3 | 3 | 6 | Stop re-routing audio every 3 minutes. WirePlumber rules instead of `wpctl` commands. |
 | **HDMI hotplug handling** | 3 | 3 | 6 | TV power cycle loses audio until next watchdog cycle (up to 3 min of silence). |
 | **YouTube playlist integration** | 3 | 3 | 6 | Paste a Lawrence Welk playlist URL → browsable show in our UI. Easy content addition. |
-| **Installation documentation** | 1 | 5 | 6 | Step-by-step guide. Critical for project but zero D&C impact. |
+| **Installation documentation** | 1 | 5 | 6 | Step-by-step guide. Critical for project but zero care-recipient impact. |
 | **Care profile templates** | 1 | 4 | 5 | Pre-built starting points (dementia, independent, child, accessibility). Depends on profiles table. |
 | **Generalized reminders** | 1 | 4 | 5 | Beyond pills/showers: exercise, meals, hydration, screen time. Depends on profiles. |
 | **Stretch break admin config** | 2 | 3 | 5 | Currently managed as pills. Minor admin UX improvement. |
@@ -129,8 +129,8 @@ Meaningful improvements, but either less urgent for D&C or dependent on P0/P1 wo
 
 Nice-to-have, complex, or dependent on multiple P1/P2 items being done first.
 
-| Item | D&C | Project | Combined | Why |
-|------|-----|---------|----------|-----|
+| Item | Care | Project | Combined | Why |
+|------|------|---------|----------|-----|
 | **Dynamic voice detection** | 3 | 2 | 5 | Complex DSP. Static parametric EQ (P0) gets 80% of the benefit. |
 | **Sibilance control / hearing aid mode** | 2 | 2 | 4 | Niche. Only matters if they use hearing aids with the TV. |
 | **Room loudness metering** | 3 | 2 | 5 | Cool but complex. Mic calibration, feedback loops, ambient noise filtering. |
@@ -180,7 +180,7 @@ Items in Tiers 2–4 are primarily project-focused (making Senior TV usable by 1
 - [ ] **Bedtime auto-off** — After 10 PM, if USB camera shows room empty for 30+ minutes, power off TV via CEC. Re-enable TV power automation with correct 65" Samsung entity. Morning auto-on when presence detected.
 
 ### Accessibility
-- [ ] **Auto-subtitle all media (Bazarr — P0)** — Deploy Bazarr via Docker (the one *Arr tool that's P0 priority). Bazarr watches the Jellyfin library, auto-downloads English subtitles from OpenSubtitles/Subscene for all 5,000+ movies and 108 shows. Use Whisper (local AI) as fallback for files with no online subs. Enable captions by default in the player for hearing-impaired viewers. This is the single most impactful accessibility improvement for Don & Colleen.
+- [ ] **Auto-subtitle all media (Bazarr — P0)** — Deploy Bazarr via Docker (the one *Arr tool that's P0 priority). Bazarr watches the Jellyfin library, auto-downloads English subtitles from OpenSubtitles/Subscene for all 5,000+ movies and 108 shows. Use Whisper (local AI) as fallback for files with no online subs. Enable captions by default in the player for hearing-impaired viewers. This is the single most impactful accessibility improvement for the care recipients.
 
 ### Immich Integration
 
@@ -345,7 +345,7 @@ The USB webcam (Logitech C920) has a built-in microphone. We use it to measure w
 #### Environmental Sensors (SensorPush / BLE)
 The room environment directly affects comfort and safety for elderly residents. Temperature and humidity matter: seniors are more vulnerable to heat stress, dehydration, and respiratory issues from dry air. The TV system is already the always-on brain in the room — it should monitor the room itself, not just what's on screen.
 
-**Target hardware:** SensorPush HT.w (or similar BLE temperature/humidity sensor, ~$50). Water-resistant, long battery life, BLE range covers a room easily. The NucBox K11 has built-in Bluetooth.
+**Target hardware:** SensorPush HT.w (or similar BLE temperature/humidity sensor, ~$50). Water-resistant, long battery life, BLE range covers a room easily. Most mini PCs have built-in Bluetooth.
 
 - [ ] **BLE sensor polling** — Background daemon reads SensorPush (or any BLE temp/humidity sensor) via `bleak` Python library. Poll every 60 seconds. Store readings in `environment_logs` table (temperature, humidity, timestamp).
 - [ ] **Admin environment dashboard** — `/admin/environment` with temp + humidity charts, daily min/max/avg, trend over days/weeks. Combine with volume data for a full "room status" view.
@@ -473,7 +473,7 @@ Even with nothing connected — no Jellyfin, no Immich, no camera, no HA — Sen
 
 #### Development System
 
-Our deployment runs on a GMKtec NucBox K11 (Ryzen 9 8945HS, 32GB DDR5, 1TB NVMe, ~$817) — but that machine also runs Jellyfin, Immich, Home Assistant, and other services. Senior TV alone uses <5% of its capacity. We replaced Frigate (2.7GB RAM, Docker) with local MobileNet SSD person detection (~100MB RAM, pure Python) in March 2026, proving the system can run on minimal hardware.
+Our development deployment runs on a higher-spec mini PC — but that machine also runs Jellyfin, Immich, Home Assistant, and other services. Senior TV alone uses <5% of its capacity. We replaced Frigate (2.7GB RAM, Docker) with local MobileNet SSD person detection (~100MB RAM, pure Python) in March 2026, proving the system can run on minimal hardware.
 
 ### Installation
 - [ ] **`install.sh` script** — One-command setup on fresh Ubuntu 22.04/24.04:
@@ -696,7 +696,7 @@ The *Arr suite has 26+ tools. Senior TV integrates with exactly 4 at the API lev
 ### Profiles & Configuration
 - [ ] **Profiles table** — `name`, `birth_year`, `greeting`, `photo`, `cognitive_level`, `care_template`, `content_profile` (JSON from AI engine), `viewing_schedule` (JSON), `custom_rules` (JSON). Replaces all hardcoded names/greetings in templates.
 - [ ] **Care profile templates** — Pre-built starting points users pick and customize:
-  - **Senior with dementia** — current Don & Colleen setup: time-of-day content, sundowning protection, simplified UI, medication reminders, blocking hygiene reminders
+  - **Senior with dementia** — time-of-day content, sundowning protection, simplified UI, medication reminders, blocking hygiene reminders
   - **Senior, independent** — full content access, simplified UI, medication reminders (non-blocking), family communication, doorbell alerts
   - **Child (young, under 8)** — allowlisted content only, screen time budget, educational content scheduling, big picture tiles, reward-gated access
   - **Child (older, 8-16)** — broader content with parental approval, daily time limits, activity logging, bedtime auto-off
@@ -881,8 +881,8 @@ The core product is free and open-source forever. Optional paid services for fam
 ### Home Screen
 | Component | Status |
 |-----------|--------|
-| Time, date, personalized greeting (Don & Colleen) | Done |
-| Current weather + 5-day forecast (Open-Meteo, Sun City CA) | Done |
+| Time, date, personalized greeting | Done |
+| Current weather + 5-day forecast (Open-Meteo) | Done |
 | Next pill status, next calendar event, unread message count | Done |
 | Daily quote + "on this day" history | Done |
 | Family photo widget (random Immich photo) | Done |
@@ -944,7 +944,7 @@ The core product is free and open-source forever. Optional paid services for fam
 | 10 cameras (9 IP + 1 USB webcam with person detection) | Done |
 | CEC TV control with Home Assistant fallback | Done |
 | TV input control via Home Assistant | Done (see known limitations) |
-| Cloudflare tunnel (seniortv.riffyx.com) | Done |
+| Cloudflare tunnel | Done |
 | SSH + Tailscale remote access | Done |
 | Check on Loved Ones (saved camera snapshots every 15 min) | Done |
 
@@ -961,11 +961,11 @@ The core product is free and open-source forever. Optional paid services for fam
 
 ### Hardware (cannot fix in software)
 - **Samsung TV HDMI input switching** — The HA Samsung integration for older models (MU6100) exposes a single "HDMI" source that maps to Samsung's smart hub, not individual HDMI ports. CEC-enabled devices like Roku can steal the input. **Workaround:** Unplug Roku — Senior TV replaces it entirely. Input switching is disabled in watchdog.
-- **AMD GPU CEC** — NucBox K11 AMD Phoenix GPU has kernel CEC module loaded but doesn't expose `/dev/cec0`. No native HDMI-CEC without USB adapter. TV control uses Home Assistant fallback.
+- **AMD GPU CEC** — Some AMD GPUs have kernel CEC module loaded but don't expose `/dev/cec0`. No native HDMI-CEC without USB adapter. TV control uses Home Assistant fallback.
 - **USB webcam resolution** — Logitech C920 outputs YUYV at max 640x480 to Frigate (via mediamtx H.264 transcode). Higher resolutions available but increase CPU load.
 
 ### Infrastructure
-- **Immich remote access** — Immich's SPA doesn't support subpath proxying (`/immich/`). Works on LAN via direct port (:2283). For remote access, needs its own subdomain (e.g., `photos.riffyx.com`).
+- **Immich remote access** — Immich's SPA doesn't support subpath proxying (`/immich/`). Works on LAN via direct port (:2283). For remote access, needs its own subdomain.
 - **Home Assistant remote access** — Similar subpath limitation. Works on LAN (:8123), needs own subdomain for remote.
 
 ### Resolved (March 2026)

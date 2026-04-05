@@ -73,10 +73,11 @@ if [ "$MEM_PCT" -gt 90 ]; then
 fi
 
 # --- 6. Network (gateway) ---
-if ! ping -c 1 -W 2 192.168.50.1 > /dev/null 2>&1; then
-    log "WARN: Gateway unreachable"
+DEFAULT_GW=$(ip route | awk '/default/ {print $3; exit}')
+if [ -n "$DEFAULT_GW" ] && ! ping -c 1 -W 2 "$DEFAULT_GW" > /dev/null 2>&1; then
+    log "WARN: Gateway unreachable ($DEFAULT_GW)"
     sleep 5
-    if ! ping -c 1 -W 2 192.168.50.1 > /dev/null 2>&1; then
+    if ! ping -c 1 -W 2 "$DEFAULT_GW" > /dev/null 2>&1; then
         repair "Restarting NetworkManager (gateway unreachable)"
         systemctl restart NetworkManager
         ISSUES=$((ISSUES + 1))

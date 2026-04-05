@@ -47,7 +47,7 @@ from scheduler import (
 app = Flask(__name__)
 app_start_time = datetime.now()
 
-# Content exclusions — anime, foreign language films not suitable for Don & Colleen
+# Content exclusions — anime, foreign language films not suitable for the care recipients
 _excluded_ids = set()
 _exclusions_path = os.path.join(config.BASE_DIR, "content_exclusions.json")
 if os.path.exists(_exclusions_path):
@@ -135,7 +135,7 @@ def _is_local_request():
 def check_remote_auth():
     """Require password for ALL remote (Cloudflare tunnel) access."""
     if _is_local_request():
-        return  # LAN users skip auth entirely — Don & Colleen never see login
+        return  # LAN users skip auth entirely — the care recipients never see login
     # Allow login page and static assets without auth
     if (request.path == "/admin/login"
             or request.path.startswith("/static/")):
@@ -1330,7 +1330,7 @@ def admin_dashboard():
 
     # Care status banner
     if tv_presence and tv_presence.get("occupied"):
-        care_status = {"message": "Don & Colleen are watching TV", "color": "#4caf50", "icon": "📺"}
+        care_status = {"message": "The seniors are watching TV", "color": "#4caf50", "icon": "📺"}
     elif presence and "Active" in presence.get("label", ""):
         care_status = {"message": presence["label"], "color": "#4caf50", "icon": "✅"}
     elif presence and "Idle" in presence.get("label", ""):
