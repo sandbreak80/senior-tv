@@ -170,39 +170,7 @@ def init_db():
         print(f"*** First boot: admin password set to {pin} ***")
         print("*** Change it at http://localhost:5000/admin/settings ***")
 
-    # Pre-seed YouTube channels if table is empty
-    count = db.execute("SELECT COUNT(*) FROM youtube_channels").fetchone()[0]
-    if count == 0:
-        seed_channels = [
-            # (name, channel_id, category)
-            ("Jeopardy!", "UCM-Rl5rQMg0JzuIPnMLBpg", "Game Shows"),
-            ("Wheel of Fortune", "UCuMn69gZSgDBp-cYJtJrWlA", "Game Shows"),
-            ("The Price Is Right", "UCay1OU-kB0yNLahkQSA70Bg", "Game Shows"),
-            ("Family Feud", "UCnB4zUqYfkG6O9t3-eo1TTg", "Game Shows"),
-            ("The Andy Griffith Show", "UCUH7JiEWE3c0R3Q_vmlz_SQ", "Classic TV"),
-            ("I Love Lucy", "UCFNRr0jGrqNJXJ1Ii8GR9Ig", "Classic TV"),
-            ("The Carol Burnett Show", "UCjlCJlb2-a_68WKXQ_3Fz_g", "Classic TV"),
-            ("Bob Ross", "UCxcnsr1R5Ge_fbTu5ajt8DQ", "Wind Down"),
-            ("Nature Relaxation Films", "UC4lp9Emg1ci8eo2eDkB-Tag", "Wind Down"),
-            ("BBC Earth", "UCwmZiChSryoWQCZMIQezgTg", "Wind Down"),
-            ("Scenic Relaxation", "UC95bEkaIgwhxSjSsdMFXYGg", "Wind Down"),
-            ("Oldies Music Radio", "UCaZDizLXZkR0V2DkZGEWeYw", "Music"),
-            ("Lawrence Welk LPs", "UCepuqk1t-8J1nByerAKfP7g", "Music"),
-            ("Essential Classic", "UClScm1QV2xecmZrAuADnP9g", "Music"),
-            ("America's Funniest Home Videos", "UCYhMHEBSRK3mFW0GMlIHVSg", "Comedy"),
-            ("Johnny Carson", "UC7McHNOsrUL2fRxTB_xvgRQ", "Comedy"),
-            ("Bonanza", "UCzJhgN8iJpgatGOjPkyE4PA", "Westerns"),
-            ("Sit and Be Fit", "UCLgvL3aGzMByecNYtMcyK_g", "Health"),
-            ("ABC News", "UCBi2mrWuNuyYy4gbM6fU18Q", "News"),
-            ("CBS News", "UC8p1vwvWtl6T73JiExfWs1g", "News"),
-        ]
-        for name, ch_id, cat in seed_channels:
-            db.execute(
-                "INSERT INTO youtube_channels (name, channel_id, category) VALUES (?, ?, ?)",
-                (name, ch_id, cat),
-            )
-        db.commit()
-        print(f"Pre-seeded {len(seed_channels)} YouTube channels")
+    # YouTube channels are added via admin UI — no auto-seeding
 
     db.close()
 

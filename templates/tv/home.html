@@ -250,24 +250,7 @@
             </div>
             {% endif %}
 
-            <!-- Live TV Categories -->
-            {% if suggested_pluto %}
-            <div class="home-content-section">
-                <div class="home-section-label">📺 Live TV — 400+ Free Channels</div>
-                <div class="home-poster-row">
-                    {% for cat in suggested_pluto %}
-                    <a class="poster-card poster-wide navigable" href="/tv/live?category={{ cat }}">
-                        <div class="poster-img poster-placeholder">{{ cat }}</div>
-                        <div class="poster-title">Live TV</div>
-                    </a>
-                    {% endfor %}
-                    <a class="poster-card poster-wide navigable" href="/tv/live">
-                        <div class="poster-img poster-placeholder">All Channels</div>
-                        <div class="poster-title">Browse All</div>
-                    </a>
-                </div>
-            </div>
-            {% endif %}
+            <!-- Pluto TV removed — service deprecated -->
 
             <!-- Local News channels -->
             {% if local_youtube %}
