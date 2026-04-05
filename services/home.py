@@ -19,16 +19,14 @@ def get_jellyfin_recommendations(jf, excluded_ids):
             lib_type = lib.get("type", "")
             try:
                 items = jf.get_library_items(
-                    lib["id"], sort="Random",
-                    sort_order="Ascending", limit=30,
+                    lib["id"],
+                    sort="Random",
+                    sort_order="Ascending",
+                    limit=30,
                 )
-                items = [
-                    i for i in items
-                    if i["id"] not in excluded_ids
-                ][:20]
+                items = [i for i in items if i["id"] not in excluded_ids][:20]
                 for item in items:
-                    if (item.get("type") == "series"
-                            or lib_type == "tvshows"):
+                    if item.get("type") == "series" or lib_type == "tvshows":
                         jf_shows.append(item)
                     else:
                         jf_movies.append(item)
@@ -45,6 +43,7 @@ def get_home_photo():
     Returns photo dict or None."""
     try:
         import immich_api
+
         if immich_api.is_configured():
             photos = immich_api.get_random_photos(count=5)
             if photos:
@@ -66,11 +65,8 @@ def get_day_info():
     today_events = models.get_upcoming_events(days=1)
     holidays_today = ""
     for ev in today_events:
-        if (ev["event_date"] == today_date
-                and "\U0001f389" in ev["title"]):
-            holidays_today = ev["title"].replace(
-                "\U0001f389 ", ""
-            )
+        if ev["event_date"] == today_date and "\U0001f389" in ev["title"]:
+            holidays_today = ev["title"].replace("\U0001f389 ", "")
             break
 
     return {
@@ -81,27 +77,19 @@ def get_day_info():
 
 def build_menu_items(unread_msgs, free_movie_count):
     """Build the home screen navigation menu."""
-    msg_label = (
-        f"Messages ({unread_msgs} new)"
-        if unread_msgs > 0 else "Messages"
-    )
+    msg_label = f"Messages ({unread_msgs} new)" if unread_msgs > 0 else "Messages"
     return [
-        {"label": "Live TV", "icon": "\U0001f4fa",
-         "url": "/tv/live"},
-        {"label": f"Free Movies ({free_movie_count})",
-         "icon": "\U0001f37f", "url": "/tv/free-movies"},
-        {"label": "Movies & Shows", "icon": "\U0001f3ac",
-         "url": "/tv/plex"},
-        {"label": "YouTube", "icon": "\u25b6\ufe0f",
-         "url": "/tv/youtube"},
-        {"label": msg_label, "icon": "\U0001f48c",
-         "url": "/tv/messages"},
-        {"label": "News", "icon": "\U0001f4f0",
-         "url": "/tv/news"},
-        {"label": "Weather", "icon": "\U0001f324\ufe0f",
-         "url": "/tv/weather"},
-        {"label": "Calendar", "icon": "\U0001f4c5",
-         "url": "/tv/calendar"},
-        {"label": "Photo Frame", "icon": "\U0001f4f7",
-         "url": "/tv/photos"},
+        {"label": "Live TV", "icon": "\U0001f4fa", "url": "/tv/live"},
+        {
+            "label": f"Free Movies ({free_movie_count})",
+            "icon": "\U0001f37f",
+            "url": "/tv/free-movies",
+        },
+        {"label": "Movies & Shows", "icon": "\U0001f3ac", "url": "/tv/plex"},
+        {"label": "YouTube", "icon": "\u25b6\ufe0f", "url": "/tv/youtube"},
+        {"label": msg_label, "icon": "\U0001f48c", "url": "/tv/messages"},
+        {"label": "News", "icon": "\U0001f4f0", "url": "/tv/news"},
+        {"label": "Weather", "icon": "\U0001f324\ufe0f", "url": "/tv/weather"},
+        {"label": "Calendar", "icon": "\U0001f4c5", "url": "/tv/calendar"},
+        {"label": "Photo Frame", "icon": "\U0001f4f7", "url": "/tv/photos"},
     ]

@@ -20,11 +20,11 @@ _last_event_id = None
 # --- TV Room Presence Tracking ---
 _presence_state = {
     "occupied": False,
-    "last_seen": None,         # datetime when person last detected
-    "last_empty": None,        # datetime when room became empty
-    "today_minutes": 0,        # total occupied minutes today
-    "today_date": None,        # date for resetting counter
-    "hourly": {},              # {hour: minutes_occupied}
+    "last_seen": None,  # datetime when person last detected
+    "last_empty": None,  # datetime when room became empty
+    "today_minutes": 0,  # total occupied minutes today
+    "today_date": None,  # date for resetting counter
+    "hourly": {},  # {hour: minutes_occupied}
 }
 _presence_lock = threading.Lock()
 
@@ -55,7 +55,7 @@ def _update_presence(person_detected):
             hour = now.hour
             _presence_state["hourly"][hour] = _presence_state["hourly"].get(hour, 0) + 1
             if was_occupied:
-                _presence_state["today_minutes"] += 1/6  # Called every 10 sec
+                _presence_state["today_minutes"] += 1 / 6  # Called every 10 sec
         else:
             if was_occupied:
                 _presence_state["last_empty"] = now
@@ -68,10 +68,13 @@ def start_presence_monitor(alert_queue=None):
     ~30ms per frame). Falls back to HA occupancy sensor if webcam unavailable.
     Only declares room empty after sustained absence (6 consecutive empty polls).
     """
+
     def _poll():
         last_occupied = False
         empty_streak = 0  # How many consecutive polls show empty
-        EMPTY_THRESHOLD = 6  # Need 6 consecutive empty polls (60s) before declaring empty
+        EMPTY_THRESHOLD = (
+            6  # Need 6 consecutive empty polls (60s) before declaring empty
+        )
 
         # Load person detection model once
         _detector = None
@@ -79,18 +82,30 @@ def start_presence_monitor(alert_queue=None):
             from person_detector import detect_person, capture_frame
             import cv2
             import os
-            model_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
+
+            model_dir = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), "models"
+            )
             prototxt = os.path.join(model_dir, "MobileNetSSD_deploy.prototxt")
             caffemodel = os.path.join(model_dir, "MobileNetSSD_deploy.caffemodel")
             if os.path.exists(prototxt) and os.path.exists(caffemodel):
                 _detector = cv2.dnn.readNetFromCaffe(prototxt, caffemodel)
-                print("Presence monitor started (local person detection)", file=sys.stderr)
+                print(
+                    "Presence monitor started (local person detection)", file=sys.stderr
+                )
             else:
-                print("Presence monitor: model files missing, using HA fallback", file=sys.stderr)
+                print(
+                    "Presence monitor: model files missing, using HA fallback",
+                    file=sys.stderr,
+                )
         except Exception as e:
-            print(f"Presence monitor: can't load detector ({e}), using HA fallback", file=sys.stderr)
+            print(
+                f"Presence monitor: can't load detector ({e}), using HA fallback",
+                file=sys.stderr,
+            )
 
         import tempfile
+
         frame_path = os.path.join(tempfile.gettempdir(), "presence_frame.jpg")
 
         while True:
@@ -102,10 +117,17 @@ def start_presence_monitor(alert_queue=None):
                 # Primary: local webcam + MobileNet SSD person detection
                 if _detector is not None:
                     try:
-                        from person_detector import capture_frame, detect_person, detect_video_device
+                        from person_detector import (
+                            capture_frame,
+                            detect_person,
+                            detect_video_device,
+                        )
+
                         device = detect_video_device() or "/dev/video0"
                         if capture_frame(device, frame_path):
-                            person_detected, conf, _ = detect_person(_detector, frame_path)
+                            person_detected, conf, _ = detect_person(
+                                _detector, frame_path
+                            )
                     except Exception as e:
                         print(f"Presence: local detection failed: {e}", file=sys.stderr)
 
@@ -122,7 +144,9 @@ def start_presence_monitor(alert_queue=None):
                         if resp2.ok:
                             person_detected = resp2.json().get("state") == "on"
                     except Exception as e:
-                        print(f"Presence: HA occupancy check failed: {e}", file=sys.stderr)
+                        print(
+                            f"Presence: HA occupancy check failed: {e}", file=sys.stderr
+                        )
 
                 person_now = person_detected
 
@@ -138,11 +162,13 @@ def start_presence_monitor(alert_queue=None):
                 # Push SSE event when presence changes
                 if alert_queue and effective_occupied != last_occupied:
                     try:
-                        alert_queue.put_nowait({
-                            "type": "presence_change",
-                            "occupied": effective_occupied,
-                            "timestamp": datetime.now().strftime("%I:%M %p"),
-                        })
+                        alert_queue.put_nowait(
+                            {
+                                "type": "presence_change",
+                                "occupied": effective_occupied,
+                                "timestamp": datetime.now().strftime("%I:%M %p"),
+                            }
+                        )
                     except Exception:
                         pass
                 last_occupied = effective_occupied
@@ -241,8 +267,16 @@ class SmartHomeMonitor:
     """Background thread that monitors Frigate for doorbell/person events
     and pushes alerts to the TV UI via the SSE queue."""
 
-    def __init__(self, frigate_url, frigate_user, frigate_pass,
-                 ha_url, ha_token, alert_queue, cameras=None):
+    def __init__(
+        self,
+        frigate_url,
+        frigate_user,
+        frigate_pass,
+        ha_url,
+        ha_token,
+        alert_queue,
+        cameras=None,
+    ):
         self.frigate_url = frigate_url.rstrip("/")
         self.frigate_user = frigate_user
         self.frigate_pass = frigate_pass
@@ -293,7 +327,9 @@ class SmartHomeMonitor:
             if events is None:
                 # Re-login needed (only if credentials configured)
                 if self.frigate_user and self.frigate_pass:
-                    frigate_login(self.frigate_url, self.frigate_user, self.frigate_pass)
+                    frigate_login(
+                        self.frigate_url, self.frigate_user, self.frigate_pass
+                    )
                 continue
 
             for event in events:
@@ -309,7 +345,9 @@ class SmartHomeMonitor:
                     continue
 
                 camera_name = event.get("camera", camera)
-                score = event.get("top_score") or event.get("data", {}).get("score", 0) or 0
+                score = (
+                    event.get("top_score") or event.get("data", {}).get("score", 0) or 0
+                )
 
                 # Build snapshot URL
                 snapshot_url = frigate_get_snapshot_url(self.frigate_url, event_id)

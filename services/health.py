@@ -15,9 +15,7 @@ def check_all(app_start_time):
     """Run all health checks. Returns the full health dict."""
     health = {
         "timestamp": datetime.now().isoformat(),
-        "uptime_seconds": int(
-            (datetime.now() - app_start_time).total_seconds()
-        ),
+        "uptime_seconds": int((datetime.now() - app_start_time).total_seconds()),
         "status": "ok",
         "checks": {},
     }
@@ -34,9 +32,7 @@ def check_all(app_start_time):
     health["checks"]["scheduler"] = _check_scheduler()
     _check_immich(health)
 
-    all_ok = all(
-        c.get("ok", True) for c in health["checks"].values()
-    )
+    all_ok = all(c.get("ok", True) for c in health["checks"].values())
     health["status"] = "ok" if all_ok else "degraded"
     return health
 
@@ -51,12 +47,14 @@ def _check_disk():
 
 def _check_memory():
     import psutil
+
     mem = psutil.virtual_memory()
     return {"used_pct": mem.percent, "ok": mem.percent < 85}
 
 
 def _check_chrome():
     import psutil
+
     running = any(
         "senior-tv-chrome" in " ".join(p.info["cmdline"] or [])
         for p in psutil.process_iter(["cmdline"])
@@ -66,6 +64,7 @@ def _check_chrome():
 
 def _check_cec():
     import psutil
+
     running = any(
         "cec_bridge" in " ".join(p.info["cmdline"] or [])
         for p in psutil.process_iter(["cmdline"])
@@ -84,14 +83,14 @@ def _check_audio():
         env["XDG_RUNTIME_DIR"] = "/run/user/1000"
         result = subprocess.run(
             ["wpctl", "status"],
-            capture_output=True, text=True, timeout=5, env=env,
+            capture_output=True,
+            text=True,
+            timeout=5,
+            env=env,
         )
         hdmi = False
         for line in result.stdout.split("\n"):
-            if "*" in line and (
-                "hdmi" in line.lower()
-                or "rembrandt" in line.lower()
-            ):
+            if "*" in line and ("hdmi" in line.lower() or "rembrandt" in line.lower()):
                 hdmi = True
                 break
         return {"hdmi_default": hdmi, "ok": hdmi}
@@ -124,7 +123,9 @@ def _check_tailscale():
     try:
         ts = subprocess.run(
             ["tailscale", "status", "--json"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         state = json.loads(ts.stdout).get("BackendState", "")
         return {"state": state, "ok": state == "Running"}
@@ -143,16 +144,20 @@ def _check_watchdog():
 
 def _check_scheduler():
     from scheduler import scheduler as _sched
+
     return {"running": _sched.running, "ok": _sched.running}
 
 
 def _check_immich(health):
     try:
         import immich_api
+
         if immich_api.is_configured():
             ok, msg = immich_api.test_connection()
             health["checks"]["immich"] = {
-                "connected": ok, "detail": msg, "ok": ok,
+                "connected": ok,
+                "detail": msg,
+                "ok": ok,
             }
     except Exception:
         pass

@@ -11,7 +11,12 @@ import requests
 from datetime import datetime, timezone, timedelta
 
 _session_lock = threading.Lock()
-SESSION_CACHE = {"token": None, "stitcher": None, "stitcher_params": "", "acquired_at": 0}
+SESSION_CACHE = {
+    "token": None,
+    "stitcher": None,
+    "stitcher_params": "",
+    "acquired_at": 0,
+}
 
 # Refresh session proactively after 4 hours (tokens last ~24h but 4h is safest)
 _SESSION_MAX_AGE = 4 * 3600
@@ -88,6 +93,7 @@ def invalidate_session():
     with _session_lock:
         SESSION_CACHE["token"] = None
     import cache
+
     cache.clear("pluto_all_channels")
 
 
@@ -97,6 +103,7 @@ def get_channels(category_filter=None, include_all=False):
     Returns (channels_list, error_string).
     """
     import cache as _cache
+
     cache_key = "pluto_all_channels"
 
     # Always ensure we have a session
@@ -114,6 +121,7 @@ def get_channels(category_filter=None, include_all=False):
                 "start": now.strftime("%Y-%m-%dT%H:00:00.000Z"),
                 "stop": (now + timedelta(hours=4)).strftime("%Y-%m-%dT%H:00:00.000Z"),
             }
+
             def _fetch_channels(tk):
                 return requests.get(
                     "https://api.pluto.tv/v2/channels",
@@ -121,6 +129,7 @@ def get_channels(category_filter=None, include_all=False):
                     params=params,
                     timeout=15,
                 )
+
             resp = _fetch_channels(token)
             # Retry with fresh token on auth failure
             if resp.status_code == 401:
@@ -184,17 +193,19 @@ def get_channels(category_filter=None, include_all=False):
             except (KeyError, ValueError):
                 continue
 
-        channels.append({
-            "id": channel_id,
-            "name": ch.get("name", ""),
-            "slug": slug,
-            "number": ch.get("number", 0),
-            "category": category,
-            "summary": (ch.get("summary") or "")[:150],
-            "logo": logo,
-            "stream_url": stream_url,
-            "current_program": current_program,
-        })
+        channels.append(
+            {
+                "id": channel_id,
+                "name": ch.get("name", ""),
+                "slug": slug,
+                "number": ch.get("number", 0),
+                "category": category,
+                "summary": (ch.get("summary") or "")[:150],
+                "logo": logo,
+                "stream_url": stream_url,
+                "current_program": current_program,
+            }
+        )
 
     # Filter out dead/test/junk channels (skip when doing direct ID lookup)
     if not include_all:
@@ -204,15 +215,17 @@ def get_channels(category_filter=None, include_all=False):
 
         # Blacklisted channel names (known dead/promo loops/deprecation screens)
         _BLACKLISTED_NAMES = {
-            "growthday network", "pluto tv offerings", "pluto tv slate",
+            "growthday network",
+            "pluto tv offerings",
+            "pluto tv slate",
             "buzzr",
         }
 
         # Auto-blacklist: channels flagged as dead/frozen in recent activity logs
         _auto_blacklisted_ids = set()
         try:
-            import models as _models
             from models import get_db_safe as _get_db
+
             with _get_db() as _db:
                 # Channels reported dead in last 7 days (2+ reports = blacklisted)
                 rows = _db.execute(
@@ -237,7 +250,17 @@ def get_channels(category_filter=None, include_all=False):
             title = prog.get("title", "").lower()
             name = c.get("name", "").lower()
             # Filter filler/test content by program title
-            if any(x in title for x in ["slate", "filler", "test", "off air", "c'est fini", "paid programming"]):
+            if any(
+                x in title
+                for x in [
+                    "slate",
+                    "filler",
+                    "test",
+                    "off air",
+                    "c'est fini",
+                    "paid programming",
+                ]
+            ):
                 return False
             # Filter blacklisted channel names
             if name in _BLACKLISTED_NAMES:
@@ -249,6 +272,7 @@ def get_channels(category_filter=None, include_all=False):
             if c.get("id") in get_dead_channel_ids():
                 return False
             return True
+
         channels = [c for c in channels if _is_active(c)]
 
     channels.sort(key=lambda c: c["number"])
@@ -309,7 +333,11 @@ def validate_channels():
             if not resp2.ok:
                 return None
             # Get segment URLs
-            seg_urls = [l for l in resp2.text.strip().split("\n") if l.startswith("http") and ".ts" in l]
+            seg_urls = [
+                line
+                for line in resp2.text.strip().split("\n")
+                if line.startswith("http") and ".ts" in line
+            ]
             if not seg_urls:
                 return None
             # Hash first 3 segments

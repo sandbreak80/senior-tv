@@ -56,6 +56,7 @@ if os.path.exists(_exclusions_path):
 
 # Recently-played tracking — avoid repeating the same content in auto-play
 from collections import deque
+
 _recently_played = deque(maxlen=50)  # remember last 50 items
 app.config["SECRET_KEY"] = config.SECRET_KEY
 app.config["MAX_CONTENT_LENGTH"] = config.MAX_UPLOAD_SIZE
@@ -66,6 +67,7 @@ app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 def _utc_to_local(timestamp_str):
     """Convert a UTC timestamp string from SQLite to a local datetime."""
     from datetime import timezone
+
     dt = datetime.strptime(str(timestamp_str)[:19], "%Y-%m-%d %H:%M:%S")
     dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone()
@@ -126,7 +128,12 @@ def _is_local_request():
         return False
     # No CF header = direct access. Check if it's from LAN.
     ip = request.remote_addr or ""
-    if ip.startswith("192.168.") or ip.startswith("10.") or ip.startswith("172.") or ip == "127.0.0.1":
+    if (
+        ip.startswith("192.168.")
+        or ip.startswith("10.")
+        or ip.startswith("172.")
+        or ip == "127.0.0.1"
+    ):
         return True
     return False
 
@@ -137,15 +144,24 @@ def check_remote_auth():
     if _is_local_request():
         return  # LAN users skip auth entirely — the care recipients never see login
     # Allow login page and static assets without auth
-    if (request.path == "/admin/login"
-            or request.path.startswith("/static/")):
+    if request.path == "/admin/login" or request.path.startswith("/static/"):
         return
     # TV-facing API endpoints needed by the browser player (no sensitive ops)
-    _PUBLIC_API = ("/api/health", "/api/home-data", "/api/daily-digest",
-                   "/api/has-photos", "/api/immich-photo/", "/api/immich-slideshow",
-                   "/api/jellyfin-stream/", "/api/nas-photo/", "/api/pluto-proxy",
-                   "/api/tv-state", "/api/log-level", "/events",
-                   "/api/frigate-snapshot/")
+    _PUBLIC_API = (
+        "/api/health",
+        "/api/home-data",
+        "/api/daily-digest",
+        "/api/has-photos",
+        "/api/immich-photo/",
+        "/api/immich-slideshow",
+        "/api/jellyfin-stream/",
+        "/api/nas-photo/",
+        "/api/pluto-proxy",
+        "/api/tv-state",
+        "/api/log-level",
+        "/events",
+        "/api/frigate-snapshot/",
+    )
     if any(request.path == p or request.path.startswith(p) for p in _PUBLIC_API):
         return
     # Check for session auth
@@ -160,6 +176,7 @@ def admin_login():
     """Simple password login for remote admin access."""
     if request.method == "POST":
         from werkzeug.security import check_password_hash, generate_password_hash
+
         password = request.form.get("password", "")
         stored = models.get_setting("admin_password") or ""
         # Support both hashed and legacy plaintext passwords
@@ -205,6 +222,7 @@ border-radius:10px;cursor:pointer;font-weight:700;}
 
 # --- Helpers ---
 
+
 @app.context_processor
 def inject_log_level():
     """Make log_level available in all templates."""
@@ -229,13 +247,13 @@ def get_greeting():
 
 # Weather functions — delegated to services/weather.py
 from services.weather import get_summary as get_weather_summary  # noqa: E402
-from services.weather import code_to_text as weather_code_to_text  # noqa: E402
 from services.weather import code_to_icon as weather_code_to_icon  # noqa: E402
 
 
 # ========================================
 # TV UI Routes
 # ========================================
+
 
 @app.route("/")
 def tv_home():
@@ -249,6 +267,7 @@ def tv_home():
 
     # Time-of-day content categories (care plan)
     from services.content import get_time_period
+
     hour = now.hour
     tp = get_time_period(hour)
     time_period = tp["period"]
@@ -256,25 +275,24 @@ def tv_home():
     suggested_pluto = tp["pluto_categories"]
 
     from services.home import (
-        get_jellyfin_recommendations, get_day_info, build_menu_items, get_home_photo,
+        get_jellyfin_recommendations,
+        get_day_info,
+        build_menu_items,
+        get_home_photo,
     )
+
     unread_msgs = models.get_unread_count()
     day_info = get_day_info()
-    menu_items = build_menu_items(
-        unread_msgs, models.get_youtube_movie_count()
-    )
-    jf_movies, jf_shows = get_jellyfin_recommendations(
-        _get_jellyfin(), _excluded_ids
-    )
+    menu_items = build_menu_items(unread_msgs, models.get_youtube_movie_count())
+    jf_movies, jf_shows = get_jellyfin_recommendations(_get_jellyfin(), _excluded_ids)
 
     # LA news live stream — only show before 3 PM (care plan: no news in evening)
     from services.youtube import scrape_live_video_id, pick_random_wind_down_video
+
     la_news_video_id = None
     wind_down_video = None
     if hour < 15:
-        la_news_video_id = scrape_live_video_id(
-            "https://www.youtube.com/@abc7/live"
-        )
+        la_news_video_id = scrape_live_video_id("https://www.youtube.com/@abc7/live")
     else:
         wind_down_video = pick_random_wind_down_video(
             lambda: models.get_youtube_channels(category="Wind Down")
@@ -291,11 +309,13 @@ def tv_home():
     # Additional category rows
     crime_youtube = models.get_youtube_channels(category="Crime & Drama")
     comedy_youtube = models.get_youtube_channels(category="Comedy")
-    local_youtube = (models.get_youtube_channels(category="Local News")
-                     + models.get_youtube_channels(category="Morning Shows"))
+    local_youtube = models.get_youtube_channels(
+        category="Local News"
+    ) + models.get_youtube_channels(category="Morning Shows")
 
     # 5-day weather forecast
     from services.weather import get_forecast
+
     forecast = get_forecast()
 
     # Next calendar event
@@ -337,35 +357,37 @@ def tv_home():
 @app.route("/tv/weather")
 def tv_weather():
     from services.weather import get_detailed
+
     current, forecast = get_detailed()
     if current is None:
         return render_template(
-            "tv/weather.html",
-            current=None, forecast=[], error="Weather unavailable"
+            "tv/weather.html", current=None, forecast=[], error="Weather unavailable"
         )
-    return render_template(
-        "tv/weather.html", current=current, forecast=forecast
-    )
+    return render_template("tv/weather.html", current=current, forecast=forecast)
 
 
 @app.route("/tv/news")
 def tv_news():
     """News page with live video streams and headlines."""
     from services.youtube import get_live_streams, NEWS_CHANNELS
+
     live_streams = get_live_streams(NEWS_CHANNELS)
 
     # Also include Pluto TV news channels for quick access
     pluto_news = []
     try:
         import pluto_tv
+
         channels, _ = pluto_tv.get_channels(category_filter="News + Opinion")
         for ch in channels[:6]:
-            pluto_news.append({
-                "name": ch["name"],
-                "id": ch["id"],
-                "logo": ch.get("logo", ""),
-                "current_program": ch.get("current_program"),
-            })
+            pluto_news.append(
+                {
+                    "name": ch["name"],
+                    "id": ch["id"],
+                    "logo": ch.get("logo", ""),
+                    "current_program": ch.get("current_program"),
+                }
+            )
     except Exception:
         pass
 
@@ -377,23 +399,29 @@ def tv_news():
         try:
             feed = feedparser.parse(url)
             for entry in feed.entries[:8]:
-                articles.append({
-                    "title": entry.get("title", ""),
-                    "summary": entry.get("summary", "")[:200],
-                    "source": feed.feed.get("title", "News"),
-                })
+                articles.append(
+                    {
+                        "title": entry.get("title", ""),
+                        "summary": entry.get("summary", "")[:200],
+                        "source": feed.feed.get("title", "News"),
+                    }
+                )
         except Exception:
             continue
 
-    return render_template("tv/news.html", live_streams=live_streams,
-                           pluto_news=pluto_news, articles=articles[:10])
+    return render_template(
+        "tv/news.html",
+        live_streams=live_streams,
+        pluto_news=pluto_news,
+        articles=articles[:10],
+    )
 
 
 @app.route("/tv/news/youtube/<video_id>")
 def tv_news_youtube(video_id):
     """Watch a YouTube live news stream."""
     # Sanitize video_id
-    if not re.match(r'^[a-zA-Z0-9_-]{11}$', video_id):
+    if not re.match(r"^[a-zA-Z0-9_-]{11}$", video_id):
         return redirect("/tv/news")
     return render_template("tv/news_player.html", video_id=video_id)
 
@@ -401,6 +429,7 @@ def tv_news_youtube(video_id):
 @app.route("/tv/calendar")
 def tv_calendar():
     import calendar as cal_mod
+
     view = request.args.get("view", "daily")
     now = datetime.now()
     events = models.get_upcoming_events(days=60)
@@ -413,22 +442,35 @@ def tv_calendar():
         day_hours = []
         for h in range(6, 23):
             ampm = f"{h % 12 or 12}:00 {'AM' if h < 12 else 'PM'}"
-            hour_events = [e for e in today_events if e.get("event_time", "").startswith(f"{h:02d}:")]
+            hour_events = [
+                e
+                for e in today_events
+                if e.get("event_time", "").startswith(f"{h:02d}:")
+            ]
             day_hours.append({"label": ampm, "events": hour_events})
         # Next 5 days
         from datetime import timedelta as _td
+
         upcoming_days = []
         for d in range(1, 6):
             day = now + _td(days=d)
             day_date = day.strftime("%Y-%m-%d")
             day_events = [e for e in events if e["event_date"] == day_date]
-            upcoming_days.append({
-                "label": day.strftime("%A, %B %d"),
-                "events": day_events,
-            })
+            upcoming_days.append(
+                {
+                    "label": day.strftime("%A, %B %d"),
+                    "events": day_events,
+                }
+            )
 
-        return render_template("tv/calendar.html", view="daily", today_str=today_str,
-                               day_hours=day_hours, events=events, upcoming_days=upcoming_days)
+        return render_template(
+            "tv/calendar.html",
+            view="daily",
+            today_str=today_str,
+            day_hours=day_hours,
+            events=events,
+            upcoming_days=upcoming_days,
+        )
 
     elif view == "monthly":
         month_name = now.strftime("%B")
@@ -447,15 +489,23 @@ def tv_calendar():
             month_days.append({"num": None, "is_today": False, "has_event": False})
         for d in range(1, days_in_month + 1):
             date_str = f"{year}-{month:02d}-{d:02d}"
-            month_days.append({
-                "num": d,
-                "is_today": d == now.day,
-                "has_event": date_str in event_dates,
-            })
+            month_days.append(
+                {
+                    "num": d,
+                    "is_today": d == now.day,
+                    "has_event": date_str in event_dates,
+                }
+            )
 
-        return render_template("tv/calendar.html", view="monthly", month_name=month_name,
-                               year=year, weekday_labels=weekday_labels, month_days=month_days,
-                               events=events)
+        return render_template(
+            "tv/calendar.html",
+            view="monthly",
+            month_name=month_name,
+            year=year,
+            weekday_labels=weekday_labels,
+            month_days=month_days,
+            events=events,
+        )
     else:
         events = models.get_upcoming_events(days=365)
         return render_template("tv/calendar.html", view="upcoming", events=events)
@@ -463,9 +513,11 @@ def tv_calendar():
 
 # --- Plex Integration ---
 
+
 def _get_jellyfin():
     """Get a JellyfinAPI instance from settings."""
     from jellyfin_api import JellyfinAPI
+
     url = get_setting_or_default("jellyfin_url")
     api_key = get_setting_or_default("jellyfin_api_key")
     user_id = get_setting_or_default("jellyfin_user_id")
@@ -479,16 +531,29 @@ def tv_plex():
     """Media library browser (Jellyfin-powered)."""
     jf = _get_jellyfin()
     if not jf:
-        return render_template("tv/plex.html", libraries=[], on_deck=[], recent=[],
-                               error="Media server not configured. Ask your family member to set it up in the admin panel.")
+        return render_template(
+            "tv/plex.html",
+            libraries=[],
+            on_deck=[],
+            recent=[],
+            error="Media server not configured. Ask your family member to set it up in the admin panel.",
+        )
 
     try:
         libraries = jf.get_libraries()
         on_deck = jf.get_resume(limit=10)
         recent = jf.get_latest(limit=20)
-        return render_template("tv/plex.html", libraries=libraries, on_deck=on_deck, recent=recent, error=None)
+        return render_template(
+            "tv/plex.html",
+            libraries=libraries,
+            on_deck=on_deck,
+            recent=recent,
+            error=None,
+        )
     except Exception as e:
-        return render_template("tv/plex.html", libraries=[], on_deck=[], recent=[], error=str(e))
+        return render_template(
+            "tv/plex.html", libraries=[], on_deck=[], recent=[], error=str(e)
+        )
 
 
 @app.route("/tv/plex/library/<library_id>")
@@ -525,21 +590,48 @@ def tv_plex_library(library_id):
 
     try:
         genres = jf.get_genres(library_id)
-        items = jf.get_library_items(library_id, sort=sort, sort_order=sort_order,
-                                     genre=genre, limit=per_page, start=page * per_page)
+        items = jf.get_library_items(
+            library_id,
+            sort=sort,
+            sort_order=sort_order,
+            genre=genre,
+            limit=per_page,
+            start=page * per_page,
+        )
         libraries = jf.get_libraries()
-        lib_name = next((lib["title"] for lib in libraries if lib["id"] == library_id), "Library")
+        lib_name = next(
+            (lib["title"] for lib in libraries if lib["id"] == library_id), "Library"
+        )
         has_more = len(items) == per_page
 
-        return render_template("tv/plex_browse.html", items=items, library_name=lib_name,
-                               library_id=library_id, genres=genres, selected_genre=genre,
-                               sort_options=SORT_OPTIONS, selected_sort=sort, sort_label=sort_label,
-                               page=page, has_more=has_more)
+        return render_template(
+            "tv/plex_browse.html",
+            items=items,
+            library_name=lib_name,
+            library_id=library_id,
+            genres=genres,
+            selected_genre=genre,
+            sort_options=SORT_OPTIONS,
+            selected_sort=sort,
+            sort_label=sort_label,
+            page=page,
+            has_more=has_more,
+        )
     except Exception as e:
-        return render_template("tv/plex_browse.html", items=[], library_name="Library",
-                               library_id=library_id, genres=[], selected_genre=None,
-                               sort_options=[], selected_sort="SortName", sort_label="A-Z",
-                               page=0, has_more=False, error=str(e))
+        return render_template(
+            "tv/plex_browse.html",
+            items=[],
+            library_name="Library",
+            library_id=library_id,
+            genres=[],
+            selected_genre=None,
+            sort_options=[],
+            selected_sort="SortName",
+            sort_label="A-Z",
+            page=0,
+            has_more=False,
+            error=str(e),
+        )
 
 
 @app.route("/tv/plex/daily")
@@ -556,10 +648,13 @@ def tv_plex_daily():
             return redirect("/tv/plex")
         movies = jf.get_daily_picks(movies_lib["id"], count=20)
         from datetime import date
+
         today_str = date.today().strftime("%A, %B %d")
         return render_template("tv/plex_daily.html", movies=movies, today_str=today_str)
     except Exception as e:
-        return render_template("tv/plex_daily.html", movies=[], today_str="Today", error=str(e))
+        return render_template(
+            "tv/plex_daily.html", movies=[], today_str="Today", error=str(e)
+        )
 
 
 @app.route("/tv/plex/shuffle/<item_id>")
@@ -575,9 +670,14 @@ def tv_plex_shuffle(item_id):
             stream_url = jf.get_stream_url(episode["id"])
             transcode_url = jf.get_transcode_url(episode["id"])
             subtitle_url = jf.get_subtitle_url(episode["id"])
-            return render_template("tv/player.html", item=episode, stream_url=stream_url,
-                                   transcode_url=transcode_url, subtitle_url=subtitle_url,
-                                   item_id=episode["id"])
+            return render_template(
+                "tv/player.html",
+                item=episode,
+                stream_url=stream_url,
+                transcode_url=transcode_url,
+                subtitle_url=subtitle_url,
+                item_id=episode["id"],
+            )
         return redirect(f"/tv/plex/show/{item_id}")
     except Exception:
         return redirect(f"/tv/plex/show/{item_id}")
@@ -599,10 +699,22 @@ def tv_plex_show(item_id):
         if seasons:
             season_id = selected_season or seasons[0]["id"]
             episodes = jf.get_episodes(item_id, season_id)
-        return render_template("tv/plex_show.html", show=show, seasons=seasons,
-                               episodes=episodes, selected_season=season_id)
+        return render_template(
+            "tv/plex_show.html",
+            show=show,
+            seasons=seasons,
+            episodes=episodes,
+            selected_season=season_id,
+        )
     except Exception as e:
-        return render_template("tv/plex_show.html", show=None, seasons=[], episodes=[], selected_season=None, error=str(e))
+        return render_template(
+            "tv/plex_show.html",
+            show=None,
+            seasons=[],
+            episodes=[],
+            selected_season=None,
+            error=str(e),
+        )
 
 
 @app.route("/tv/plex/play/<item_id>")
@@ -618,14 +730,20 @@ def tv_plex_play(item_id):
         transcode_url = jf.get_transcode_url(item_id)
         subtitle_url = jf.get_subtitle_url(item_id)
         jf.report_playback_start(item_id)
-        return render_template("tv/player.html", item=item, stream_url=stream_url,
-                               transcode_url=transcode_url, subtitle_url=subtitle_url,
-                               item_id=item_id)
+        return render_template(
+            "tv/player.html",
+            item=item,
+            stream_url=stream_url,
+            transcode_url=transcode_url,
+            subtitle_url=subtitle_url,
+            item_id=item_id,
+        )
     except Exception:
         return redirect("/tv/plex")
 
 
 # --- Family Messages ---
+
 
 @app.route("/tv/messages")
 def tv_messages():
@@ -647,6 +765,7 @@ def tv_message_view(msg_id):
 
 # --- Pluto TV Live Channels ---
 
+
 @app.route("/tv/live")
 def tv_live():
     """Live TV — redirects to YouTube channels (Pluto TV deprecated Feb 2026)."""
@@ -657,6 +776,7 @@ def tv_live():
 def tv_live_play(channel_id):
     """Play a live Pluto TV channel."""
     import pluto_tv
+
     # Clear cached channels to get fresh stream URLs with current session
     cache.clear("pluto_all_channels")
     channel, error = pluto_tv.get_channel_by_id(channel_id)
@@ -669,6 +789,7 @@ def tv_live_play(channel_id):
 def pluto_stream_master(channel_id):
     """Proxy Pluto TV master m3u8, rewriting URLs to go through our proxy."""
     import pluto_tv
+
     channel, error = pluto_tv.get_channel_by_id(channel_id)
     if not channel:
         return "", 404
@@ -688,8 +809,11 @@ def pluto_stream_master(channel_id):
         base_url = stream_url.rsplit("/", 1)[0] + "/"
 
         rewritten = _rewrite_m3u8(resp.text, base_url)
-        return Response(rewritten, mimetype="application/x-mpegurl",
-                        headers={"Access-Control-Allow-Origin": "*"})
+        return Response(
+            rewritten,
+            mimetype="application/x-mpegurl",
+            headers={"Access-Control-Allow-Origin": "*"},
+        )
     except Exception:
         return "", 502
 
@@ -697,6 +821,7 @@ def pluto_stream_master(channel_id):
 def _rewrite_m3u8(content, base_url):
     """Rewrite m3u8 playlist URLs to go through our proxy."""
     from urllib.parse import urljoin, quote
+
     lines = content.split("\n")
     rewritten = []
     for line in lines:
@@ -716,6 +841,7 @@ def _rewrite_m3u8(content, base_url):
                 else:
                     abs_uri = urljoin(base_url, uri)
                 return f'URI="/api/pluto-proxy?url={quote(abs_uri, safe="")}"'
+
             rewritten.append(re.sub(r'URI="([^"]*)"', rewrite_uri, stripped))
         else:
             rewritten.append(line)
@@ -726,14 +852,25 @@ def _rewrite_m3u8(content, base_url):
 def pluto_proxy():
     """Proxy any Pluto TV URL (segments, sub-playlists) to bypass CORS."""
     url = request.args.get("url")
-    if not url or not any(d in url for d in ("pluto.tv", "plutotv.com", "plutotv.net", "pluto-prod-",
-                                              "akamaized.net", "cloudfront.net", "dai.google.com")):
+    if not url or not any(
+        d in url
+        for d in (
+            "pluto.tv",
+            "plutotv.com",
+            "plutotv.net",
+            "pluto-prod-",
+            "akamaized.net",
+            "cloudfront.net",
+            "dai.google.com",
+        )
+    ):
         return "", 403
     try:
         resp = requests.get(url, timeout=15, stream=True)
         if resp.status_code in (401, 403):
             # Token expired mid-stream — invalidate so next master m3u8 gets a fresh session
             import pluto_tv
+
             pluto_tv.invalidate_session()
             return "", resp.status_code
         if resp.status_code != 200:
@@ -743,16 +880,23 @@ def pluto_proxy():
         if "mpegurl" in content_type or ".m3u8" in url:
             base_url = url.rsplit("/", 1)[0] + "/"
             rewritten = _rewrite_m3u8(resp.text, base_url)
-            return Response(rewritten, mimetype="application/x-mpegurl",
-                            headers={"Access-Control-Allow-Origin": "*"})
+            return Response(
+                rewritten,
+                mimetype="application/x-mpegurl",
+                headers={"Access-Control-Allow-Origin": "*"},
+            )
         else:
-            return Response(resp.content, mimetype=content_type,
-                            headers={"Access-Control-Allow-Origin": "*"})
+            return Response(
+                resp.content,
+                mimetype=content_type,
+                headers={"Access-Control-Allow-Origin": "*"},
+            )
     except Exception:
         return "", 502
 
 
 # --- YouTube Free Movies ---
+
 
 @app.route("/tv/free-movies")
 def tv_free_movies():
@@ -770,38 +914,48 @@ def tv_free_movies():
         if not m.get("thumbnail_url"):
             m["thumbnail_url"] = f"https://i.ytimg.com/vi/{m['video_id']}/hqdefault.jpg"
 
-    return render_template("tv/free_movies.html", movies=movies, genres=genres,
-                           selected_genre=genre, total=len(movies))
+    return render_template(
+        "tv/free_movies.html",
+        movies=movies,
+        genres=genres,
+        selected_genre=genre,
+        total=len(movies),
+    )
 
 
 @app.route("/api/random-free-movie")
 def api_random_free_movie():
     """Get a random free YouTube movie for auto-play."""
     import random as _random
-    from services.content import get_time_period, mark_played, was_recently_played
+    from services.content import get_time_period
+
     tp = get_time_period()
     preferred = tp["jellyfin_genres"]
 
     # Try preferred genre first
     genre = _random.choice(preferred) if _random.random() < 0.6 else None
     movies = models.get_random_youtube_movies(
-        genre=genre, limit=5, exclude_ids=set(str(v) for v in _recently_played))
+        genre=genre, limit=5, exclude_ids=set(str(v) for v in _recently_played)
+    )
     if not movies and genre:
         movies = models.get_random_youtube_movies(limit=5)
     if movies:
         m = movies[0]
         _recently_played.append(m["video_id"])
-        return jsonify({
-            "id": m["video_id"],
-            "title": m["title"],
-            "type": "youtube_movie",
-            "genre": m.get("genre", ""),
-            "url": f"/tv/youtube/watch/{m['video_id']}",
-        })
+        return jsonify(
+            {
+                "id": m["video_id"],
+                "title": m["title"],
+                "type": "youtube_movie",
+                "genre": m.get("genre", ""),
+                "url": f"/tv/youtube/watch/{m['video_id']}",
+            }
+        )
     return jsonify({"error": "no movies"}), 404
 
 
 # --- YouTube ---
+
 
 @app.route("/tv/youtube")
 def tv_youtube():
@@ -818,13 +972,18 @@ def tv_youtube():
     # Also add local live streams
     local_streams = _get_local_live_streams()
 
-    return render_template("tv/youtube.html", categories=categories,
-                           local_streams=local_streams, channels=yt_channels)
+    return render_template(
+        "tv/youtube.html",
+        categories=categories,
+        local_streams=local_streams,
+        channels=yt_channels,
+    )
 
 
 def _get_local_live_streams():
     """Get current live YouTube streams for local LA/SD stations."""
     from services.youtube import get_live_streams, LOCAL_CHANNELS
+
     return get_live_streams(LOCAL_CHANNELS, require_live=True)
 
 
@@ -842,29 +1001,36 @@ def tv_youtube_channel(channel_id):
     channel_name = ch_record["name"] if ch_record else "YouTube"
 
     from services.youtube import get_channel_videos
+
     videos = get_channel_videos(channel_id, limit=20)
 
-    return render_template("tv/youtube_channel.html", channel_name=channel_name,
-                           channel_id=channel_id, videos=videos)
+    return render_template(
+        "tv/youtube_channel.html",
+        channel_name=channel_name,
+        channel_id=channel_id,
+        videos=videos,
+    )
 
 
 def _get_youtube_duration(video_id):
     """Get video duration in seconds. Delegates to shared cached implementation."""
     from youtube_utils import get_youtube_duration
+
     return get_youtube_duration(video_id)
 
 
 @app.route("/tv/youtube/watch/<video_id>")
 def tv_youtube_watch(video_id):
     """Watch a YouTube video. Builds a playlist from the channel for continuous play."""
-    if not re.match(r'^[a-zA-Z0-9_-]{11}$', video_id):
+    if not re.match(r"^[a-zA-Z0-9_-]{11}$", video_id):
         return redirect("/tv/youtube")
 
     # If channel_id is provided, build a playlist of all channel videos
     from services.youtube import get_channel_video_ids
+
     playlist_ids = []
     channel_id = request.args.get("channel")
-    if channel_id and re.match(r'^UC[a-zA-Z0-9_-]{22}$', channel_id):
+    if channel_id and re.match(r"^UC[a-zA-Z0-9_-]{22}$", channel_id):
         playlist_ids = get_channel_video_ids(channel_id, limit=20)
 
     # Ensure the selected video is first, then the rest in order
@@ -907,14 +1073,18 @@ def tv_youtube_watch(video_id):
             item_type="youtube_movie",
         )
 
-    return render_template("tv/youtube_player.html", video_id=video_id,
-                           playlist_ids=playlist_ids,
-                           move_on_seconds=move_on_seconds,
-                           rotation_minutes=rotation,
-                           yt_movie=yt_movie)
+    return render_template(
+        "tv/youtube_player.html",
+        video_id=video_id,
+        playlist_ids=playlist_ids,
+        move_on_seconds=move_on_seconds,
+        rotation_minutes=rotation,
+        yt_movie=yt_movie,
+    )
 
 
 # --- YouTube Admin ---
+
 
 @app.route("/admin/youtube")
 def admin_youtube():
@@ -965,6 +1135,7 @@ def admin_youtube_delete(ch_id):
 
 # --- Free Movies Admin ---
 
+
 @app.route("/admin/free-movies")
 def admin_free_movies():
     genre = request.args.get("genre")
@@ -972,8 +1143,14 @@ def admin_free_movies():
     genres = models.get_youtube_movie_genres()
     total = models.get_youtube_movie_count()
     stats = models.get_youtube_movie_stats()
-    return render_template("admin/free_movies.html", movies=movies, genres=genres,
-                           selected_genre=genre, total=total, stats=stats)
+    return render_template(
+        "admin/free_movies.html",
+        movies=movies,
+        genres=genres,
+        selected_genre=genre,
+        total=total,
+        stats=stats,
+    )
 
 
 @app.route("/admin/free-movies/new", methods=["GET", "POST"])
@@ -1030,7 +1207,9 @@ def admin_free_movies_discover():
             search_q = f"free full movie {query}"
             # sp=EgIYAg%3D%3D filters for 20+ minute videos
             search_url = f"https://www.youtube.com/results?search_query={requests.utils.quote(search_q)}&sp=EgIYAg%253D%253D"
-            resp = requests.get(search_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+            resp = requests.get(
+                search_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10
+            )
             video_ids = []
             seen = set()
             for vid in re.findall(r'"videoId":"([A-Za-z0-9_-]{11})"', resp.text):
@@ -1046,27 +1225,36 @@ def admin_free_movies_discover():
                 try:
                     vresp = requests.get(
                         f"https://www.youtube.com/watch?v={vid_id}",
-                        headers={"User-Agent": "Mozilla/5.0"}, timeout=6)
-                    title_m = re.search(r'<title>(.*?)</title>', vresp.text)
+                        headers={"User-Agent": "Mozilla/5.0"},
+                        timeout=6,
+                    )
+                    title_m = re.search(r"<title>(.*?)</title>", vresp.text)
                     dur_m = re.search(r'"lengthSeconds":"(\d+)"', vresp.text)
-                    title = title_m.group(1).replace(" - YouTube", "").strip() if title_m else vid_id
+                    title = (
+                        title_m.group(1).replace(" - YouTube", "").strip()
+                        if title_m
+                        else vid_id
+                    )
                     duration_sec = int(dur_m.group(1)) if dur_m else 0
                     duration_min = duration_sec // 60
                     # Only show 60+ minute videos (full-length)
                     if duration_min >= 60:
-                        results.append({
-                            "video_id": vid_id,
-                            "title": title,
-                            "duration_minutes": duration_min,
-                            "already_added": vid_id in existing_ids,
-                        })
+                        results.append(
+                            {
+                                "video_id": vid_id,
+                                "title": title,
+                                "duration_minutes": duration_min,
+                                "already_added": vid_id in existing_ids,
+                            }
+                        )
                 except Exception:
                     continue
         except Exception:
             pass
 
-    return render_template("admin/free_movies_discover.html",
-                           results=results, query=query, genre=genre)
+    return render_template(
+        "admin/free_movies_discover.html", results=results, query=query, genre=genre
+    )
 
 
 @app.route("/admin/free-movies/quick-add", methods=["POST"])
@@ -1077,27 +1265,35 @@ def admin_free_movies_quick_add():
 
     # Extract video ID from URL or use as-is
     video_id = url_or_id
-    vid_match = re.search(r'[?&]v=([a-zA-Z0-9_-]{11})', url_or_id)
+    vid_match = re.search(r"[?&]v=([a-zA-Z0-9_-]{11})", url_or_id)
     if vid_match:
         video_id = vid_match.group(1)
-    elif re.search(r'youtu\.be/([a-zA-Z0-9_-]{11})', url_or_id):
-        video_id = re.search(r'youtu\.be/([a-zA-Z0-9_-]{11})', url_or_id).group(1)
+    elif re.search(r"youtu\.be/([a-zA-Z0-9_-]{11})", url_or_id):
+        video_id = re.search(r"youtu\.be/([a-zA-Z0-9_-]{11})", url_or_id).group(1)
 
-    if not re.match(r'^[a-zA-Z0-9_-]{11}$', video_id):
+    if not re.match(r"^[a-zA-Z0-9_-]{11}$", video_id):
         return redirect("/admin/free-movies")
 
     # Fetch metadata from YouTube
     title = video_id
     duration_minutes = None
     try:
-        resp = requests.get(f"https://www.youtube.com/watch?v={video_id}",
-                            headers={"User-Agent": "Mozilla/5.0"}, timeout=8)
-        t_match = re.search(r'<title>(.*?)</title>', resp.text)
+        resp = requests.get(
+            f"https://www.youtube.com/watch?v={video_id}",
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=8,
+        )
+        t_match = re.search(r"<title>(.*?)</title>", resp.text)
         if t_match:
             title = t_match.group(1).replace(" - YouTube", "").strip()
             # Clean up common suffixes
-            for suffix in [" | Full Movie", " | FULL MOVIE", " Full Movie",
-                           " | English Full Movie", " | Free Full Movie"]:
+            for suffix in [
+                " | Full Movie",
+                " | FULL MOVIE",
+                " Full Movie",
+                " | English Full Movie",
+                " | Free Full Movie",
+            ]:
                 title = title.replace(suffix, "")
         d_match = re.search(r'"lengthSeconds":"(\d+)"', resp.text)
         if d_match:
@@ -1105,12 +1301,14 @@ def admin_free_movies_quick_add():
     except Exception:
         pass
 
-    models.create_youtube_movie({
-        "video_id": video_id,
-        "title": title,
-        "genre": genre,
-        "duration_minutes": duration_minutes,
-    })
+    models.create_youtube_movie(
+        {
+            "video_id": video_id,
+            "title": title,
+            "genre": genre,
+            "duration_minutes": duration_minutes,
+        }
+    )
     return redirect("/admin/free-movies")
 
 
@@ -1121,6 +1319,7 @@ def admin_free_movies_delete(movie_id):
 
 
 # --- SSE endpoint for pill reminders ---
+
 
 @app.route("/events")
 def sse_events():
@@ -1139,8 +1338,11 @@ def sse_events():
         finally:
             reminder_queue.unsubscribe(client_queue)
 
-    return Response(stream(), mimetype="text/event-stream",
-                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+    return Response(
+        stream(),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.route("/api/acknowledge", methods=["POST"])
@@ -1206,12 +1408,15 @@ def api_log_remote():
 # Admin Panel Routes
 # ========================================
 
+
 @app.route("/admin")
 def admin_dashboard():
     pills = models.get_pills()
     for pill in pills:
         try:
-            pill["schedule_times_display"] = ", ".join(json.loads(pill["schedule_times"]))
+            pill["schedule_times_display"] = ", ".join(
+                json.loads(pill["schedule_times"])
+            )
         except (json.JSONDecodeError, TypeError):
             pill["schedule_times_display"] = "—"
     events = models.get_upcoming_events(days=14)
@@ -1239,6 +1444,7 @@ def admin_dashboard():
     system_metrics = {}
     try:
         import psutil
+
         system_metrics = {
             "cpu_percent": psutil.cpu_percent(interval=0.5),
             "mem_total_gb": round(psutil.virtual_memory().total / (1024**3), 1),
@@ -1246,7 +1452,9 @@ def admin_dashboard():
             "mem_percent": psutil.virtual_memory().percent,
             "disk_total_gb": round(shutil.disk_usage("/").total / (1024**3)),
             "disk_used_gb": round(shutil.disk_usage("/").used / (1024**3)),
-            "disk_percent": round(shutil.disk_usage("/").used / shutil.disk_usage("/").total * 100, 1),
+            "disk_percent": round(
+                shutil.disk_usage("/").used / shutil.disk_usage("/").total * 100, 1
+            ),
             "uptime": "",
             "containers_running": 0,
         }
@@ -1255,10 +1463,16 @@ def admin_dashboard():
         delta = datetime.now() - boot
         days = delta.days
         hours = delta.seconds // 3600
-        system_metrics["uptime"] = f"{days}d {hours}h" if days else f"{hours}h {(delta.seconds % 3600) // 60}m"
+        system_metrics["uptime"] = (
+            f"{days}d {hours}h" if days else f"{hours}h {(delta.seconds % 3600) // 60}m"
+        )
         try:
-            result = subprocess.run(["docker", "ps", "-q"], capture_output=True, text=True, timeout=3)
-            system_metrics["containers_running"] = len(result.stdout.strip().split("\n")) if result.stdout.strip() else 0
+            result = subprocess.run(
+                ["docker", "ps", "-q"], capture_output=True, text=True, timeout=3
+            )
+            system_metrics["containers_running"] = (
+                len(result.stdout.strip().split("\n")) if result.stdout.strip() else 0
+            )
         except Exception:
             pass
     except Exception:
@@ -1268,6 +1482,7 @@ def admin_dashboard():
     tv_presence = None
     try:
         from smart_home import get_presence
+
         p = get_presence()
         tv_presence = dict(p)
         if p["last_seen"]:
@@ -1275,7 +1490,9 @@ def admin_dashboard():
         else:
             tv_presence["last_seen_str"] = "Not yet today"
         mins = int(p["today_minutes"])
-        tv_presence["today_hours"] = f"{mins // 60}h {mins % 60}m" if mins >= 60 else f"{mins}m"
+        tv_presence["today_hours"] = (
+            f"{mins // 60}h {mins % 60}m" if mins >= 60 else f"{mins}m"
+        )
     except Exception:
         pass
 
@@ -1286,8 +1503,11 @@ def admin_dashboard():
         try:
             import time as _time
             from smart_home import frigate_get_events
+
             cutoff = _time.time() - 86400  # 24 hours ago
-            raw_events = frigate_get_events(frigate_url, camera="front_door", label="person", limit=8, after=cutoff)
+            raw_events = frigate_get_events(
+                frigate_url, camera="front_door", label="person", limit=8, after=cutoff
+            )
             if raw_events:
                 for evt in raw_events:
                     ts = evt.get("start_time", 0)
@@ -1304,11 +1524,13 @@ def admin_dashboard():
                             time_str = evt_dt.strftime("%b %d, %I:%M %p")
                     except Exception:
                         time_str = "Unknown"
-                    doorbell_events.append({
-                        "id": evt.get("id", ""),
-                        "camera": evt.get("camera", "unknown"),
-                        "time": time_str,
-                    })
+                    doorbell_events.append(
+                        {
+                            "id": evt.get("id", ""),
+                            "camera": evt.get("camera", "unknown"),
+                            "time": time_str,
+                        }
+                    )
         except Exception:
             pass
 
@@ -1318,10 +1540,13 @@ def admin_dashboard():
     for entry in pill_adherence:
         pill_summary[entry["status"]] += 1
         pill_summary["total"] += 1
-    pill_adherence.sort(key=lambda x: {"pending": 0, "missed": 1, "taken": 2}.get(x["status"], 3))
+    pill_adherence.sort(
+        key=lambda x: {"pending": 0, "missed": 1, "taken": 2}.get(x["status"], 3)
+    )
 
     # New data for care dashboard
     from scheduler import get_next_pill_info
+
     next_pill = get_next_pill_info()
     unread_messages = models.get_unread_count()
     todays_birthdays = models.get_todays_birthdays()
@@ -1330,7 +1555,11 @@ def admin_dashboard():
 
     # Care status banner
     if tv_presence and tv_presence.get("occupied"):
-        care_status = {"message": "The seniors are watching TV", "color": "#4caf50", "icon": "📺"}
+        care_status = {
+            "message": "The seniors are watching TV",
+            "color": "#4caf50",
+            "icon": "📺",
+        }
     elif presence and "Active" in presence.get("label", ""):
         care_status = {"message": presence["label"], "color": "#4caf50", "icon": "✅"}
     elif presence and "Idle" in presence.get("label", ""):
@@ -1340,23 +1569,33 @@ def admin_dashboard():
         care_status = {"message": msg, "color": "#f44336", "icon": "⚠️"}
 
     # System health (simplified for banner)
-    system_ok = all([
-        system_metrics.get("cpu_percent", 0) < 90,
-        system_metrics.get("mem_percent", 0) < 90,
-        system_metrics.get("disk_percent", 0) < 90,
-    ])
+    system_ok = all(
+        [
+            system_metrics.get("cpu_percent", 0) < 90,
+            system_metrics.get("mem_percent", 0) < 90,
+            system_metrics.get("disk_percent", 0) < 90,
+        ]
+    )
 
-    return render_template("admin/dashboard.html",
-                           pills=pills, events=events, settings=settings,
-                           pill_adherence=pill_adherence, pill_summary=pill_summary,
-                           care_status=care_status, weather=weather,
-                           next_pill=next_pill, unread_messages=unread_messages,
-                           todays_birthdays=todays_birthdays,
-                           recent_activity=recent_activity,
-                           tv_presence=tv_presence,
-                           doorbell_events=doorbell_events,
-                           system_metrics=system_metrics, system_ok=system_ok,
-                           current_year=datetime.now().year)
+    return render_template(
+        "admin/dashboard.html",
+        pills=pills,
+        events=events,
+        settings=settings,
+        pill_adherence=pill_adherence,
+        pill_summary=pill_summary,
+        care_status=care_status,
+        weather=weather,
+        next_pill=next_pill,
+        unread_messages=unread_messages,
+        todays_birthdays=todays_birthdays,
+        recent_activity=recent_activity,
+        tv_presence=tv_presence,
+        doorbell_events=doorbell_events,
+        system_metrics=system_metrics,
+        system_ok=system_ok,
+        current_year=datetime.now().year,
+    )
 
 
 @app.route("/admin/activity")
@@ -1373,22 +1612,35 @@ def admin_cameras():
     cameras = []
     frigate_base = get_setting_or_default("frigate_url") or ""
     from smart_home import _frigate_cookies
+
     try:
-        resp = requests.get(f"{frigate_base}/api/stats", cookies=_frigate_cookies, verify=False, timeout=5)
+        resp = requests.get(
+            f"{frigate_base}/api/stats",
+            cookies=_frigate_cookies,
+            verify=False,
+            timeout=5,
+        )
         if resp.ok:
             stats = resp.json()
-            config_resp = requests.get(f"{frigate_base}/api/config", cookies=_frigate_cookies, verify=False, timeout=5)
+            config_resp = requests.get(
+                f"{frigate_base}/api/config",
+                cookies=_frigate_cookies,
+                verify=False,
+                timeout=5,
+            )
             cam_config = config_resp.json().get("cameras", {}) if config_resp.ok else {}
             for name, info in sorted(stats.get("cameras", {}).items()):
                 detect = cam_config.get(name, {}).get("detect", {})
-                cameras.append({
-                    "name": name,
-                    "camera_fps": round(info.get("camera_fps", 0), 1),
-                    "detection_fps": round(info.get("detection_fps", 0), 1),
-                    "width": detect.get("width", "?"),
-                    "height": detect.get("height", "?"),
-                    "fps": detect.get("fps", "?"),
-                })
+                cameras.append(
+                    {
+                        "name": name,
+                        "camera_fps": round(info.get("camera_fps", 0), 1),
+                        "detection_fps": round(info.get("detection_fps", 0), 1),
+                        "width": detect.get("width", "?"),
+                        "height": detect.get("height", "?"),
+                        "fps": detect.get("fps", "?"),
+                    }
+                )
             # Front door first, then tv_room, then rest alphabetically
             priority = {"front_door": 0, "tv_room": 1}
             cameras.sort(key=lambda c: (priority.get(c["name"], 99), c["name"]))
@@ -1414,26 +1666,32 @@ def admin_cameras():
                     ts = parts[-2] + "_" + parts[-1]
                     try:
                         from datetime import datetime as _dt
+
                         dt = _dt.strptime(ts, "%Y%m%d_%H%M%S")
                         time_str = dt.strftime("%b %d, %I:%M %p")
                     except Exception:
                         time_str = ts
-                    by_camera[cam_name].append({"file": f, "camera": cam_name, "time": time_str})
+                    by_camera[cam_name].append(
+                        {"file": f, "camera": cam_name, "time": time_str}
+                    )
         # Order: front_door first, tv_room second, rest alphabetically
         priority = {"front_door": 0, "tv_room": 1}
         for cam in sorted(by_camera, key=lambda c: (priority.get(c, 99), c)):
             saved_snaps.extend(by_camera[cam])
 
-    return render_template("admin/cameras.html", cameras=cameras, saved_snaps=saved_snaps)
+    return render_template(
+        "admin/cameras.html", cameras=cameras, saved_snaps=saved_snaps
+    )
 
 
 @app.route("/admin/cameras/snapshot/<camera_name>")
 def admin_camera_snapshot(camera_name):
     """Proxy camera snapshot from Frigate."""
-    if not re.match(r'^[a-z_]+$', camera_name):
+    if not re.match(r"^[a-z_]+$", camera_name):
         return "", 400
     frigate_base = get_setting_or_default("frigate_url") or ""
     from smart_home import _frigate_cookies
+
     try:
         resp = requests.get(
             f"{frigate_base}/api/{camera_name}/latest.jpg",
@@ -1443,8 +1701,11 @@ def admin_camera_snapshot(camera_name):
             timeout=5,
         )
         if resp.ok:
-            return Response(resp.content, mimetype="image/jpeg",
-                            headers={"Cache-Control": "no-cache"})
+            return Response(
+                resp.content,
+                mimetype="image/jpeg",
+                headers={"Cache-Control": "no-cache"},
+            )
     except Exception:
         pass
     return "", 404
@@ -1461,28 +1722,57 @@ def admin_services():
 
     services = []
     if jf_url:
-        services.append({"name": "Jellyfin", "icon": "🎬", "url": jf_url,
-                          "check": f"{jf_url}/System/Info/Public",
-                          "detail": "Media server — movies, shows, music"})
+        services.append(
+            {
+                "name": "Jellyfin",
+                "icon": "🎬",
+                "url": jf_url,
+                "check": f"{jf_url}/System/Info/Public",
+                "detail": "Media server — movies, shows, music",
+            }
+        )
     if im_url:
-        services.append({"name": "Immich", "icon": "📸", "url": im_url,
-                          "check": f"{im_url}/api/server/about",
-                          "detail": "Photo library — family photos"})
+        services.append(
+            {
+                "name": "Immich",
+                "icon": "📸",
+                "url": im_url,
+                "check": f"{im_url}/api/server/about",
+                "detail": "Photo library — family photos",
+            }
+        )
     if ha_url:
-        services.append({"name": "Home Assistant", "icon": "🏠", "url": ha_url,
-                          "check": f"{ha_url}/api/",
-                          "headers": {"Authorization": f"Bearer {ha_token}"},
-                          "detail": "Smart home — TV control, automations"})
+        services.append(
+            {
+                "name": "Home Assistant",
+                "icon": "🏠",
+                "url": ha_url,
+                "check": f"{ha_url}/api/",
+                "headers": {"Authorization": f"Bearer {ha_token}"},
+                "detail": "Smart home — TV control, automations",
+            }
+        )
     if frigate_url:
-        services.append({"name": "Frigate", "icon": "📷", "url": frigate_url,
-                          "check": f"{frigate_url}/api/stats",
-                          "detail": "Camera NVR — doorbell alerts, person detection"})
+        services.append(
+            {
+                "name": "Frigate",
+                "icon": "📷",
+                "url": frigate_url,
+                "check": f"{frigate_url}/api/stats",
+                "detail": "Camera NVR — doorbell alerts, person detection",
+            }
+        )
 
     for svc in services:
         try:
             hdrs = svc.pop("headers", {})
-            resp = requests.get(svc["check"], headers=hdrs, timeout=3,
-                                allow_redirects=True, verify=False)
+            resp = requests.get(
+                svc["check"],
+                headers=hdrs,
+                timeout=3,
+                allow_redirects=True,
+                verify=False,
+            )
             svc["ok"] = resp.status_code < 500
             if resp.ok:
                 try:
@@ -1511,6 +1801,7 @@ def admin_tv_view():
                 ts = f.replace("screen_", "").replace(".png", "")
                 try:
                     from datetime import datetime as _dt
+
                     dt = _dt.strptime(ts, "%Y%m%d_%H%M%S")
                     time_str = dt.strftime("%b %d, %I:%M %p")
                 except Exception:
@@ -1525,6 +1816,7 @@ def api_take_screenshot():
     import base64
     import urllib.request
     from datetime import datetime as _dt
+
     ss_dir = os.path.join(config.BASE_DIR, "static", "screenshots")
     os.makedirs(ss_dir, exist_ok=True)
     ts = _dt.now().strftime("%Y%m%d_%H%M%S")
@@ -1532,7 +1824,9 @@ def api_take_screenshot():
     filepath = os.path.join(ss_dir, filename)
     try:
         # Get the first page from Chrome DevTools
-        tabs_raw = urllib.request.urlopen("http://127.0.0.1:9222/json", timeout=5).read()
+        tabs_raw = urllib.request.urlopen(
+            "http://127.0.0.1:9222/json", timeout=5
+        ).read()
         tabs = json.loads(tabs_raw)
         ws_url = None
         for tab in tabs:
@@ -1540,12 +1834,23 @@ def api_take_screenshot():
                 ws_url = tab.get("webSocketDebuggerUrl")
                 break
         if not ws_url:
-            return jsonify({"ok": False, "error": "No Chrome page found on debug port"}), 500
+            return jsonify(
+                {"ok": False, "error": "No Chrome page found on debug port"}
+            ), 500
 
         # Use websocket to send CDP command
         import websocket
+
         ws = websocket.create_connection(ws_url, timeout=10)
-        ws.send(json.dumps({"id": 1, "method": "Page.captureScreenshot", "params": {"format": "png"}}))
+        ws.send(
+            json.dumps(
+                {
+                    "id": 1,
+                    "method": "Page.captureScreenshot",
+                    "params": {"format": "png"},
+                }
+            )
+        )
         result = json.loads(ws.recv())
         ws.close()
 
@@ -1562,12 +1867,15 @@ def api_take_screenshot():
 
 # --- Pills CRUD ---
 
+
 @app.route("/admin/pills")
 def admin_pills():
     pills = models.get_pills()
     for pill in pills:
         try:
-            pill["schedule_times_display"] = ", ".join(json.loads(pill["schedule_times"]))
+            pill["schedule_times_display"] = ", ".join(
+                json.loads(pill["schedule_times"])
+            )
             days = json.loads(pill["schedule_days"])
             pill["schedule_days_display"] = ", ".join(d.capitalize() for d in days)
         except (json.JSONDecodeError, TypeError):
@@ -1622,12 +1930,24 @@ def _parse_pill_form(req):
     times = [t.strip() for t in req.form.getlist("schedule_time") if t.strip()]
     # Also accept legacy comma-separated format
     if not times:
-        times = [t.strip() for t in req.form.get("schedule_times", "").split(",") if t.strip()]
+        times = [
+            t.strip()
+            for t in req.form.get("schedule_times", "").split(",")
+            if t.strip()
+        ]
     # Validate HH:MM format
     for t in times:
         if not re.match(r"^\d{2}:\d{2}$", t):
             return None, f"Invalid time format: '{t}'. Use HH:MM (e.g. 08:00)."
-    days = req.form.getlist("schedule_days") or ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+    days = req.form.getlist("schedule_days") or [
+        "mon",
+        "tue",
+        "wed",
+        "thu",
+        "fri",
+        "sat",
+        "sun",
+    ]
 
     data = {
         "name": req.form["name"],
@@ -1647,6 +1967,7 @@ def _parse_pill_form(req):
 
 
 # --- Calendar CRUD ---
+
 
 @app.route("/admin/calendar")
 def admin_calendar():
@@ -1695,6 +2016,7 @@ def admin_event_delete(event_id):
 
 # --- Jellyfin Setup ---
 
+
 @app.route("/admin/plex-setup", methods=["GET", "POST"])
 def admin_jellyfin_setup():
     message = None
@@ -1702,12 +2024,15 @@ def admin_jellyfin_setup():
         action = request.form.get("action")
 
         if action == "save_url":
-            models.set_setting("jellyfin_url", request.form.get("jellyfin_url", "").rstrip("/"))
+            models.set_setting(
+                "jellyfin_url", request.form.get("jellyfin_url", "").rstrip("/")
+            )
             cache.clear("setting_jellyfin_url")
             return redirect("/admin/plex-setup")
 
         elif action == "authenticate":
             from jellyfin_api import JellyfinAPI
+
             url = get_setting_or_default("jellyfin_url")
             username = request.form.get("username", "")
             password = request.form.get("password", "")
@@ -1740,12 +2065,19 @@ def admin_jellyfin_setup():
                 except Exception:
                     pass
 
-    return render_template("admin/plex_setup.html", jellyfin_url=jellyfin_url,
-                           api_key=api_key, user_id=user_id,
-                           connection=connection, libraries=libraries, message=message)
+    return render_template(
+        "admin/plex_setup.html",
+        jellyfin_url=jellyfin_url,
+        api_key=api_key,
+        user_id=user_id,
+        connection=connection,
+        libraries=libraries,
+        message=message,
+    )
 
 
 # --- Family Messages Admin ---
+
 
 @app.route("/admin/messages")
 def admin_messages():
@@ -1769,21 +2101,25 @@ def admin_message_send():
             elif ext in ("mp4", "webm", "mov"):
                 media_type = "video"
 
-        msg_id = models.create_message({
-            "sender": request.form.get("sender", "Family"),
-            "message": request.form.get("message", ""),
-            "media_type": media_type,
-            "media_file": media_filename,
-        })
+        msg_id = models.create_message(
+            {
+                "sender": request.form.get("sender", "Family"),
+                "message": request.form.get("message", ""),
+                "media_type": media_type,
+                "media_file": media_filename,
+            }
+        )
 
         # Push notification to TV via SSE
         try:
-            reminder_queue.put_nowait({
-                "type": "family_message",
-                "msg_id": msg_id,
-                "sender": request.form.get("sender", "Family"),
-                "message": request.form.get("message", "")[:100],
-            })
+            reminder_queue.put_nowait(
+                {
+                    "type": "family_message",
+                    "msg_id": msg_id,
+                    "sender": request.form.get("sender", "Family"),
+                    "message": request.form.get("message", "")[:100],
+                }
+            )
         except Exception:
             pass
 
@@ -1803,6 +2139,7 @@ def admin_message_delete(msg_id):
 
 
 # --- Birthdays ---
+
 
 @app.route("/admin/birthdays")
 def admin_birthdays():
@@ -1826,7 +2163,9 @@ def admin_birthday_new():
         data = {
             "name": request.form["name"],
             "birth_date": birth_date,
-            "birth_year": int(request.form["birth_year"]) if request.form.get("birth_year") else None,
+            "birth_year": int(request.form["birth_year"])
+            if request.form.get("birth_year")
+            else None,
             "relationship": request.form.get("relationship", ""),
         }
         models.create_birthday(data)
@@ -1841,6 +2180,7 @@ def admin_birthday_delete(b_id):
 
 
 # --- Favorite Shows ---
+
 
 @app.route("/admin/shows")
 def admin_shows():
@@ -1869,26 +2209,50 @@ def admin_show_delete(s_id):
 
 # --- Settings ---
 
+
 @app.route("/admin/settings", methods=["GET", "POST"])
 def admin_settings():
     if request.method == "POST":
-        for key in ["greeting_names", "weather_lat", "weather_lon", "weather_unit",
-                     "news_feeds", "jellyfin_url",
-                     "frigate_url", "frigate_user", "frigate_pass", "frigate_cameras",
-                     "ha_url", "ha_token", "ha_tv_entity",
-                     "photo_interval", "photo_nas_path",
-                     "immich_url", "immich_api_key", "immich_album_id",
-                     "admin_password",
-                     "classical_music_enabled", "classical_music_hour",
-                     "news_schedule", "news_channels", "auto_play_interrupt",
-                     "tts_enabled", "audio_processing", "voice_boost", "audio_target",
-                     "log_level",
-                     "quiet_hours_start", "quiet_hours_end", "presence_enabled"]:
+        for key in [
+            "greeting_names",
+            "weather_lat",
+            "weather_lon",
+            "weather_unit",
+            "news_feeds",
+            "jellyfin_url",
+            "frigate_url",
+            "frigate_user",
+            "frigate_pass",
+            "frigate_cameras",
+            "ha_url",
+            "ha_token",
+            "ha_tv_entity",
+            "photo_interval",
+            "photo_nas_path",
+            "immich_url",
+            "immich_api_key",
+            "immich_album_id",
+            "admin_password",
+            "classical_music_enabled",
+            "classical_music_hour",
+            "news_schedule",
+            "news_channels",
+            "auto_play_interrupt",
+            "tts_enabled",
+            "audio_processing",
+            "voice_boost",
+            "audio_target",
+            "log_level",
+            "quiet_hours_start",
+            "quiet_hours_end",
+            "presence_enabled",
+        ]:
             val = request.form.get(key)
             if val is not None:
                 # Hash the admin password before storing
                 if key == "admin_password" and val:
                     from werkzeug.security import generate_password_hash
+
                     val = generate_password_hash(val)
                 models.set_setting(key, val)
                 cache.clear(f"setting_{key}")
@@ -1897,12 +2261,24 @@ def admin_settings():
     for key in config.DEFAULTS:
         settings[key] = get_setting_or_default(key)
     # Also get non-default settings
-    for key in ["ha_tv_entity", "immich_album_id", "admin_password",
-                 "classical_music_enabled", "classical_music_hour",
-                 "news_schedule", "news_channels", "auto_play_interrupt",
-                 "tts_enabled", "audio_processing", "voice_boost", "audio_target",
-                 "log_level",
-                 "quiet_hours_start", "quiet_hours_end", "presence_enabled"]:
+    for key in [
+        "ha_tv_entity",
+        "immich_album_id",
+        "admin_password",
+        "classical_music_enabled",
+        "classical_music_hour",
+        "news_schedule",
+        "news_channels",
+        "auto_play_interrupt",
+        "tts_enabled",
+        "audio_processing",
+        "voice_boost",
+        "audio_target",
+        "log_level",
+        "quiet_hours_start",
+        "quiet_hours_end",
+        "presence_enabled",
+    ]:
         settings[key] = models.get_setting(key) or ""
 
     # Immich status and albums
@@ -1910,35 +2286,44 @@ def admin_settings():
     immich_albums = []
     immich_photo_count = 0
     import immich_api
+
     if immich_api.is_configured():
         ok, msg = immich_api.test_connection()
         immich_status = {"ok": ok, "message": msg}
         immich_photo_count = immich_api.get_photo_count()
         immich_albums = immich_api.get_albums()
 
-    return render_template("admin/settings.html", settings=settings,
-                           immich_status=immich_status, immich_albums=immich_albums,
-                           immich_photo_count=immich_photo_count)
+    return render_template(
+        "admin/settings.html",
+        settings=settings,
+        immich_status=immich_status,
+        immich_albums=immich_albums,
+        immich_photo_count=immich_photo_count,
+    )
 
 
 # --- API for TV UI ---
 
+
 @app.route("/api/home-data")
 def api_home_data():
     """AJAX endpoint so the TV home screen can refresh without full reload."""
-    return jsonify({
-        "greeting": get_greeting(),
-        "date": datetime.now().strftime("%A, %B %d"),
-        "weather": get_weather_summary(),
-        "next_pill": get_next_pill_info(),
-        "active_reminders": list(get_active_reminders().values()),
-    })
+    return jsonify(
+        {
+            "greeting": get_greeting(),
+            "date": datetime.now().strftime("%A, %B %d"),
+            "weather": get_weather_summary(),
+            "next_pill": get_next_pill_info(),
+            "active_reminders": list(get_active_reminders().values()),
+        }
+    )
 
 
 @app.route("/api/trigger-reminder/<int:pill_id>", methods=["POST"])
 def api_trigger_test_reminder(pill_id):
     """Admin: trigger a test reminder for a pill."""
     from scheduler import trigger_reminder
+
     pill = models.get_pill(pill_id)
     if pill:
         trigger_reminder(pill, "test")
@@ -1948,6 +2333,7 @@ def api_trigger_test_reminder(pill_id):
 
 # --- Frigate snapshot proxy ---
 
+
 @app.route("/api/frigate-snapshot/<path:path>")
 def frigate_snapshot_proxy(path):
     """Proxy Frigate snapshots to avoid CORS/HTTPS issues."""
@@ -1956,18 +2342,22 @@ def frigate_snapshot_proxy(path):
         return "", 404
     try:
         from smart_home import _frigate_cookies
+
         resp = requests.get(
             f"{frigate_url}/api/{path}",
             cookies=_frigate_cookies,
             verify=False,
             timeout=10,
         )
-        return Response(resp.content, mimetype=resp.headers.get("content-type", "image/jpeg"))
+        return Response(
+            resp.content, mimetype=resp.headers.get("content-type", "image/jpeg")
+        )
     except Exception:
         return "", 404
 
 
 # --- Photo Gallery ---
+
 
 @app.route("/tv/music")
 def tv_music():
@@ -1987,14 +2377,19 @@ def tv_music():
 def tv_photos():
     """Photo frame / gallery slideshow."""
     import immich_api
+
     photos = _get_all_photos()
     has_immich = immich_api.is_configured()
     if not photos and not has_immich and not request.args.get("screensaver"):
-        return render_template("tv/photos.html", photos=photos, has_immich=False, interval=10)
+        return render_template(
+            "tv/photos.html", photos=photos, has_immich=False, interval=10
+        )
     if not photos and not has_immich and request.args.get("screensaver"):
         return redirect("/")
     interval = int(get_setting_or_default("photo_interval") or 10)
-    return render_template("tv/photos.html", photos=photos, has_immich=has_immich, interval=interval)
+    return render_template(
+        "tv/photos.html", photos=photos, has_immich=has_immich, interval=interval
+    )
 
 
 @app.route("/admin/photos", methods=["GET", "POST"])
@@ -2023,6 +2418,7 @@ def admin_photos():
 
     # Immich data
     import immich_api
+
     immich_ok = False
     immich_albums = []
     immich_folders = []
@@ -2040,9 +2436,7 @@ def admin_photos():
         for album in immich_api.get_albums():
             album["selected"] = album["id"] in selected_album_ids
             immich_albums.append(album)
-        immich_albums.sort(
-            key=lambda x: (-x["selected"], -x["count"], x["name"])
-        )
+        immich_albums.sort(key=lambda x: (-x["selected"], -x["count"], x["name"]))
 
         # Discover folder structure
         immich_folders = immich_api.search_folders(sample_size=500)
@@ -2050,49 +2444,62 @@ def admin_photos():
             f["selected"] = f["name"] in selected_folders
 
         # Preview: get sample photos from selected albums/folders or random
+        im_url, im_key = immich_api._get_config()
         cache.set("immich_preview", None, ttl=0)
         if selected_album_ids:
             for aid in list(selected_album_ids)[:3]:
                 try:
-                    resp = requests.get(f"{im_url}/api/albums/{aid}",
-                                        headers={"x-api-key": im_key}, timeout=5)
+                    resp = requests.get(
+                        f"{im_url}/api/albums/{aid}",
+                        headers={"x-api-key": im_key},
+                        timeout=5,
+                    )
                     if resp.ok:
                         assets = resp.json().get("assets", [])[:8]
                         for asset in assets:
                             if asset.get("type") == "IMAGE":
-                                immich_preview.append({
-                                    "id": asset["id"],
-                                    "url": f"/api/immich-photo/{asset['id']}?size=thumbnail",
-                                    "name": asset.get("originalFileName", ""),
-                                })
+                                immich_preview.append(
+                                    {
+                                        "id": asset["id"],
+                                        "url": f"/api/immich-photo/{asset['id']}?size=thumbnail",
+                                        "name": asset.get("originalFileName", ""),
+                                    }
+                                )
                 except Exception:
                     pass
         if selected_folders:
             for folder in list(selected_folders)[:3]:
                 folder_photos = immich_api.get_folder_photos(folder, count=6)
                 for p in folder_photos:
-                    immich_preview.append({"id": p["id"], "url": p["thumb"], "name": p["name"]})
+                    immich_preview.append(
+                        {"id": p["id"], "url": p["thumb"], "name": p["name"]}
+                    )
         if not immich_preview:
             # Show random sample
             sample = immich_api.get_random_photos(count=12)
-            immich_preview = [{"id": p["id"], "url": p["thumb"], "name": p["name"]} for p in sample]
+            immich_preview = [
+                {"id": p["id"], "url": p["thumb"], "name": p["name"]} for p in sample
+            ]
 
     # Local uploaded photos
     uploaded = []
     photo_dir = os.path.join(config.MEDIA_DIR, "photos")
     os.makedirs(photo_dir, exist_ok=True)
     for f in sorted(os.listdir(photo_dir)):
-        if f.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp')):
+        if f.lower().endswith((".jpg", ".jpeg", ".png", ".gif", ".webp")):
             uploaded.append({"url": f"/static/media/photos/{f}", "name": f})
 
-    return render_template("admin/photos.html",
-                           immich_ok=immich_ok, immich_albums=immich_albums,
-                           immich_folders=immich_folders if immich_ok else [],
-                           immich_photo_count=immich_photo_count,
-                           immich_preview=immich_preview,
-                           selected_album_ids=selected_album_ids,
-                           selected_folders=selected_folders,
-                           uploaded=uploaded)
+    return render_template(
+        "admin/photos.html",
+        immich_ok=immich_ok,
+        immich_albums=immich_albums,
+        immich_folders=immich_folders if immich_ok else [],
+        immich_photo_count=immich_photo_count,
+        immich_preview=immich_preview,
+        selected_album_ids=selected_album_ids,
+        selected_folders=selected_folders,
+        uploaded=uploaded,
+    )
 
 
 @app.route("/admin/photos/delete/<filename>", methods=["POST"])
@@ -2111,18 +2518,23 @@ def _get_all_photos():
     photo_dir = os.path.join(config.MEDIA_DIR, "photos")
     os.makedirs(photo_dir, exist_ok=True)
     for f in sorted(os.listdir(photo_dir)):
-        if f.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp')):
-            photos.append({"url": f"/static/media/photos/{f}", "name": f, "source": "upload"})
+        if f.lower().endswith((".jpg", ".jpeg", ".png", ".gif", ".webp")):
+            photos.append(
+                {"url": f"/static/media/photos/{f}", "name": f, "source": "upload"}
+            )
 
     # NAS photos
     nas_path = get_setting_or_default("photo_nas_path")
     if nas_path and os.path.isdir(nas_path):
         for f in sorted(os.listdir(nas_path))[:200]:  # Limit to 200
-            if f.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp')):
-                photos.append({"url": f"/api/nas-photo/{f}", "name": f, "source": "nas"})
+            if f.lower().endswith((".jpg", ".jpeg", ".png", ".gif", ".webp")):
+                photos.append(
+                    {"url": f"/api/nas-photo/{f}", "name": f, "source": "nas"}
+                )
 
     # Immich photos
     import immich_api
+
     if immich_api.is_configured():
         photos.extend(immich_api.get_random_photos(count=30))
 
@@ -2133,20 +2545,26 @@ def _get_all_photos():
 def api_tv_state():
     """Returns quiet hours and presence status for tv.js decision-making."""
     from smart_home import get_presence
+
     presence = get_presence()
     presence_enabled = get_setting_or_default("presence_enabled") == "1"
-    return jsonify({
-        "quiet_hours": is_quiet_hours(),
-        "quiet_hours_start": get_setting_or_default("quiet_hours_start"),
-        "quiet_hours_end": get_setting_or_default("quiet_hours_end"),
-        "presence_enabled": presence_enabled,
-        "room_occupied": presence.get("occupied", True) if presence_enabled else True,
-    })
+    return jsonify(
+        {
+            "quiet_hours": is_quiet_hours(),
+            "quiet_hours_start": get_setting_or_default("quiet_hours_start"),
+            "quiet_hours_end": get_setting_or_default("quiet_hours_end"),
+            "presence_enabled": presence_enabled,
+            "room_occupied": presence.get("occupied", True)
+            if presence_enabled
+            else True,
+        }
+    )
 
 
 @app.route("/api/has-photos")
 def api_has_photos():
     import immich_api
+
     photos = _get_all_photos()
     has = len(photos) > 0 or immich_api.get_photo_count() > 0
     return jsonify({"has_photos": has})
@@ -2165,7 +2583,7 @@ def nas_photo(filename):
 @app.route("/api/jellyfin-stream/<item_id>/<path:rest>")
 def jellyfin_stream_proxy(item_id, rest):
     """Proxy Jellyfin video/audio/subtitle streams for remote access."""
-    if not re.match(r'^[a-f0-9]+$', item_id):
+    if not re.match(r"^[a-f0-9]+$", item_id):
         return "", 400
     jf_url = get_setting_or_default("jellyfin_url")
     jf_key = get_setting_or_default("jellyfin_api_key")
@@ -2184,7 +2602,9 @@ def jellyfin_stream_proxy(item_id, rest):
             headers["Range"] = request.headers["Range"]
 
         # Stream the response (don't buffer entire video in memory)
-        upstream_resp = requests.get(upstream, params=params, stream=True, timeout=30, headers=headers)
+        upstream_resp = requests.get(
+            upstream, params=params, stream=True, timeout=30, headers=headers
+        )
         if not upstream_resp.ok:
             return "", upstream_resp.status_code
 
@@ -2198,8 +2618,12 @@ def jellyfin_stream_proxy(item_id, rest):
             if h in upstream_resp.headers:
                 resp_headers[h] = upstream_resp.headers[h]
 
-        return Response(generate(), status=upstream_resp.status_code,
-                        mimetype=content_type, headers=resp_headers)
+        return Response(
+            generate(),
+            status=upstream_resp.status_code,
+            mimetype=content_type,
+            headers=resp_headers,
+        )
     except Exception:
         return "", 502
 
@@ -2207,7 +2631,12 @@ def jellyfin_stream_proxy(item_id, rest):
 @app.route("/api/jellyfin-image/<item_id>/<image_type>")
 def jellyfin_image_proxy(item_id, image_type):
     """Proxy Jellyfin images so they work from remote access."""
-    if not re.match(r'^[a-f0-9]+$', item_id) or image_type not in ("Primary", "Backdrop", "Thumb", "Banner"):
+    if not re.match(r"^[a-f0-9]+$", item_id) or image_type not in (
+        "Primary",
+        "Backdrop",
+        "Thumb",
+        "Banner",
+    ):
         return "", 400
     jf_url = get_setting_or_default("jellyfin_url")
     jf_key = get_setting_or_default("jellyfin_api_key")
@@ -2222,7 +2651,9 @@ def jellyfin_image_proxy(item_id, image_type):
             timeout=10,
         )
         if resp.ok:
-            r = Response(resp.content, mimetype=resp.headers.get("Content-Type", "image/jpeg"))
+            r = Response(
+                resp.content, mimetype=resp.headers.get("Content-Type", "image/jpeg")
+            )
             r.headers["Cache-Control"] = "public, max-age=86400"
             return r
     except Exception:
@@ -2233,13 +2664,14 @@ def jellyfin_image_proxy(item_id, image_type):
 @app.route("/api/immich-photo/<asset_id>")
 def immich_photo_proxy(asset_id):
     """Proxy an Immich photo to avoid exposing the API key to the browser."""
-    if not re.match(r'^[a-f0-9-]{36}$', asset_id):
+    if not re.match(r"^[a-f0-9-]{36}$", asset_id):
         return "", 400
     size = request.args.get("size", "preview")
     if size not in ("preview", "thumbnail"):
         size = "preview"
 
     import immich_api
+
     data, content_type = immich_api.get_photo_data(asset_id, size=size)
     if data is None:
         return "", 404
@@ -2257,8 +2689,10 @@ def api_next_video():
     Tries up to 5 candidates to find one that works.
     """
     import random as _random
+
     hour = datetime.now().hour
     from services.content import get_time_period
+
     preferred = get_time_period(hour)["jellyfin_genres"]
 
     jf = _get_jellyfin()
@@ -2270,8 +2704,12 @@ def api_next_video():
         if item.get("type") == "series":
             # Series use shuffle — always valid (picks random episode server-side)
             url = f"/tv/plex/shuffle/{item['id']}"
-            result = {"id": item["id"], "title": item.get("title", ""),
-                      "type": item.get("type", ""), "url": url}
+            result = {
+                "id": item["id"],
+                "title": item.get("title", ""),
+                "type": item.get("type", ""),
+                "url": url,
+            }
             if genre:
                 result["genre"] = genre
             return result
@@ -2284,8 +2722,12 @@ def api_next_video():
             resp = requests.head(stream_url, timeout=5, allow_redirects=True)
             if resp.status_code < 400:
                 url = f"/tv/plex/play/{item['id']}"
-                result = {"id": item["id"], "title": item.get("title", ""),
-                          "type": item.get("type", ""), "url": url}
+                result = {
+                    "id": item["id"],
+                    "title": item.get("title", ""),
+                    "type": item.get("type", ""),
+                    "url": url,
+                }
                 if genre:
                     result["genre"] = genre
                 return result
@@ -2303,7 +2745,8 @@ def api_next_video():
 
             for lib in libs:
                 items = jf.get_library_items(
-                    lib["id"], sort="Random", genre=genre, limit=5)
+                    lib["id"], sort="Random", genre=genre, limit=5
+                )
                 for item in items:
                     if item["id"] in _excluded_ids:
                         continue
@@ -2320,19 +2763,23 @@ def api_next_video():
     try:
         yt_movies = models.get_random_youtube_movies(
             genre=_random.choice(preferred) if _random.random() < 0.5 else None,
-            limit=5, exclude_ids=set(str(v) for v in _recently_played))
+            limit=5,
+            exclude_ids=set(str(v) for v in _recently_played),
+        )
         if not yt_movies:
             yt_movies = models.get_random_youtube_movies(limit=5)
         if yt_movies:
             m = yt_movies[0]
             _recently_played.append(m["video_id"])
-            return jsonify({
-                "id": m["video_id"],
-                "title": m["title"],
-                "type": "youtube_movie",
-                "genre": m.get("genre", ""),
-                "url": f"/tv/youtube/watch/{m['video_id']}",
-            })
+            return jsonify(
+                {
+                    "id": m["video_id"],
+                    "title": m["title"],
+                    "type": "youtube_movie",
+                    "genre": m.get("genre", ""),
+                    "url": f"/tv/youtube/watch/{m['video_id']}",
+                }
+            )
     except Exception:
         pass
 
@@ -2348,8 +2795,10 @@ def api_next_channel():
     and short-form content that creates rapid cycling.
     """
     import random as _random
+
     hour = datetime.now().hour
     from services.content import get_time_period
+
     preferred = get_time_period(hour)["channel_categories"]
 
     try:
@@ -2372,22 +2821,25 @@ def api_next_channel():
         for ch in candidates[:10]:
             try:
                 feed = feedparser.parse(
-                    f"https://www.youtube.com/feeds/videos.xml?channel_id={ch['channel_id']}")
+                    f"https://www.youtube.com/feeds/videos.xml?channel_id={ch['channel_id']}"
+                )
                 for entry in feed.entries[:10]:
                     vid_id = entry.get("yt_videoid", "")
-                    if not vid_id or not re.match(r'^[a-zA-Z0-9_-]{11}$', vid_id):
+                    if not vid_id or not re.match(r"^[a-zA-Z0-9_-]{11}$", vid_id):
                         continue
 
                     duration = _get_youtube_duration(vid_id)
                     if duration < 600:  # under 10 min OR scrape failed (0) — skip
                         continue
 
-                    return jsonify({
-                        "id": ch["channel_id"],
-                        "name": ch["name"],
-                        "category": ch.get("category", ""),
-                        "url": f"/tv/youtube/watch/{vid_id}?channel={ch['channel_id']}",
-                    })
+                    return jsonify(
+                        {
+                            "id": ch["channel_id"],
+                            "name": ch["name"],
+                            "category": ch.get("category", ""),
+                            "url": f"/tv/youtube/watch/{vid_id}?channel={ch['channel_id']}",
+                        }
+                    )
             except Exception:
                 continue
 
@@ -2400,6 +2852,7 @@ def api_next_channel():
 def api_immich_slideshow():
     """Get a batch of random Immich photos for the slideshow."""
     import immich_api
+
     try:
         count = min(int(request.args.get("count", 20)), 50)
     except (ValueError, TypeError):
@@ -2411,6 +2864,7 @@ def api_immich_slideshow():
 
 
 # --- Daily Digest API ---
+
 
 @app.route("/api/daily-digest")
 def api_daily_digest():
@@ -2429,6 +2883,7 @@ def api_daily_digest():
             events = resp.json().get("selected", [])
             if events:
                 import random
+
                 event = random.choice(events[:10])
                 digest["history"] = {
                     "year": event.get("year", ""),
@@ -2440,7 +2895,11 @@ def api_daily_digest():
     # Daily quote — use /api/random for rotation, /api/today for daily
     try:
         fresh = request.args.get("fresh", "0") == "1"
-        quote_url = "https://zenquotes.io/api/random" if fresh else "https://zenquotes.io/api/today"
+        quote_url = (
+            "https://zenquotes.io/api/random"
+            if fresh
+            else "https://zenquotes.io/api/today"
+        )
         resp = requests.get(quote_url, timeout=5)
         if resp.status_code == 200:
             quotes = resp.json()
@@ -2458,12 +2917,14 @@ def api_daily_digest():
 @app.route("/api/tv-settings")
 def api_tv_settings():
     """Settings needed by the TV client (fetched once on page load)."""
-    return jsonify({
-        "tts_enabled": get_setting_or_default("tts_enabled") != "0",
-        "audio_processing": get_setting_or_default("audio_processing") == "1",
-        "voice_boost": get_setting_or_default("voice_boost") or "mild",
-        "audio_target": _safe_int(get_setting_or_default("audio_target"), -14),
-    })
+    return jsonify(
+        {
+            "tts_enabled": get_setting_or_default("tts_enabled") != "0",
+            "audio_processing": get_setting_or_default("audio_processing") == "1",
+            "voice_boost": get_setting_or_default("voice_boost") or "mild",
+            "audio_target": _safe_int(get_setting_or_default("audio_target"), -14),
+        }
+    )
 
 
 @app.route("/api/volume-history")
@@ -2504,11 +2965,13 @@ def api_volume_stats():
         result = []
         for i in range(len(values)):
             start = max(0, i - window_size + 1)
-            window = values[start:i + 1]
-            result.append({
-                "logged_at": timestamps[i],
-                "db_level": round(sum(window) / len(window), 1),
-            })
+            window = values[start : i + 1]
+            result.append(
+                {
+                    "logged_at": timestamps[i],
+                    "db_level": round(sum(window) / len(window), 1),
+                }
+            )
         return result
 
     timestamps = [r["logged_at"] for r in data]
@@ -2518,6 +2981,7 @@ def api_volume_stats():
 
     # Spike detection: readings > 2 std devs above the rolling 5min average
     import statistics
+
     spikes = []
     if len(dbs) > 30:
         mean = statistics.mean(dbs)
@@ -2525,12 +2989,14 @@ def api_volume_stats():
         threshold = mean + (2 * stdev)
         for i, r in enumerate(data):
             if r["db_level"] > threshold:
-                spikes.append({
-                    "logged_at": r["logged_at"],
-                    "db_level": r["db_level"],
-                    "sonos_volume": r["sonos_volume"],
-                    "threshold": round(threshold, 1),
-                })
+                spikes.append(
+                    {
+                        "logged_at": r["logged_at"],
+                        "db_level": r["db_level"],
+                        "sonos_volume": r["sonos_volume"],
+                        "threshold": round(threshold, 1),
+                    }
+                )
 
     # Summary stats
     summary = {
@@ -2544,13 +3010,15 @@ def api_volume_stats():
         "sonos_mean": round(statistics.mean(sonos) * 100) if sonos else None,
     }
 
-    return jsonify({
-        "avg_1m": avg_1m,
-        "avg_5m": avg_5m,
-        "avg_10m": avg_10m,
-        "spikes": spikes,
-        "summary": summary,
-    })
+    return jsonify(
+        {
+            "avg_1m": avg_1m,
+            "avg_5m": avg_5m,
+            "avg_10m": avg_10m,
+            "spikes": spikes,
+            "summary": summary,
+        }
+    )
 
 
 @app.route("/admin/volume")
@@ -2563,6 +3031,7 @@ def admin_volume():
 def api_health():
     """System health check for monitoring and watchdog."""
     from services.health import check_all
+
     return jsonify(check_all(app_start_time))
 
 
@@ -2571,6 +3040,7 @@ def api_health():
 # ========================================
 
 _smart_home_monitor = None
+
 
 def _start_smart_home():
     """Start the Frigate doorbell monitor if configured."""
@@ -2581,14 +3051,20 @@ def _start_smart_home():
 
     if frigate_url:
         from smart_home import SmartHomeMonitor
+
         ha_url = get_setting_or_default("ha_url")
         ha_token = get_setting_or_default("ha_token")
         cameras_str = get_setting_or_default("frigate_cameras") or "front_door"
         cameras = [c.strip() for c in cameras_str.split(",")]
 
         _smart_home_monitor = SmartHomeMonitor(
-            frigate_url, frigate_user or "", frigate_pass or "",
-            ha_url, ha_token, reminder_queue, cameras,
+            frigate_url,
+            frigate_user or "",
+            frigate_pass or "",
+            ha_url,
+            ha_token,
+            reminder_queue,
+            cameras,
         )
         _smart_home_monitor.start()
         print(f"Smart home monitor started (cameras: {cameras})")
@@ -2596,6 +3072,7 @@ def _start_smart_home():
 
 if __name__ == "__main__":
     import warnings
+
     warnings.filterwarnings("ignore", message="Unverified HTTPS request")
 
     models.init_db()
@@ -2607,6 +3084,7 @@ if __name__ == "__main__":
     # Start TV room presence monitor (if enabled)
     if get_setting_or_default("presence_enabled") == "1":
         from smart_home import start_presence_monitor
+
         start_presence_monitor(alert_queue=reminder_queue)
     print("Presence monitor started (tv_room webcam)")
     try:

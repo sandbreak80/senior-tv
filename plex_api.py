@@ -5,7 +5,7 @@ get metadata, and construct streaming URLs.
 """
 
 import requests
-from urllib.parse import urljoin, quote
+from urllib.parse import quote
 
 
 class PlexAPI:
@@ -37,12 +37,14 @@ class PlexAPI:
         data = self._get("/library/sections")
         libraries = []
         for lib in data.get("MediaContainer", {}).get("Directory", []):
-            libraries.append({
-                "id": lib["key"],
-                "title": lib["title"],
-                "type": lib["type"],  # movie, show, artist, photo
-                "icon": _lib_icon(lib["type"]),
-            })
+            libraries.append(
+                {
+                    "id": lib["key"],
+                    "title": lib["title"],
+                    "type": lib["type"],  # movie, show, artist, photo
+                    "icon": _lib_icon(lib["type"]),
+                }
+            )
         return libraries
 
     def get_library_items(self, library_id, sort="titleSort"):
@@ -56,11 +58,15 @@ class PlexAPI:
     def get_recently_added(self, library_id=None, count=20):
         """Get recently added items, optionally filtered by library."""
         if library_id:
-            data = self._get(f"/library/sections/{library_id}/recentlyAdded",
-                             params={"X-Plex-Container-Start": 0, "X-Plex-Container-Size": count})
+            data = self._get(
+                f"/library/sections/{library_id}/recentlyAdded",
+                params={"X-Plex-Container-Start": 0, "X-Plex-Container-Size": count},
+            )
         else:
-            data = self._get("/library/recentlyAdded",
-                             params={"X-Plex-Container-Start": 0, "X-Plex-Container-Size": count})
+            data = self._get(
+                "/library/recentlyAdded",
+                params={"X-Plex-Container-Start": 0, "X-Plex-Container-Size": count},
+            )
         items = []
         for item in data.get("MediaContainer", {}).get("Metadata", []):
             items.append(_parse_item(item, self.base_url, self.token))
@@ -79,13 +85,15 @@ class PlexAPI:
         data = self._get(f"/library/metadata/{show_key}/children")
         seasons = []
         for item in data.get("MediaContainer", {}).get("Metadata", []):
-            seasons.append({
-                "key": item["ratingKey"],
-                "title": item.get("title", ""),
-                "index": item.get("index", 0),
-                "episode_count": item.get("leafCount", 0),
-                "thumb": _thumb_url(item.get("thumb"), self.base_url, self.token),
-            })
+            seasons.append(
+                {
+                    "key": item["ratingKey"],
+                    "title": item.get("title", ""),
+                    "index": item.get("index", 0),
+                    "episode_count": item.get("leafCount", 0),
+                    "thumb": _thumb_url(item.get("thumb"), self.base_url, self.token),
+                }
+            )
         return seasons
 
     def get_episodes(self, season_key):
@@ -93,14 +101,16 @@ class PlexAPI:
         data = self._get(f"/library/metadata/{season_key}/children")
         episodes = []
         for item in data.get("MediaContainer", {}).get("Metadata", []):
-            episodes.append({
-                "key": item["ratingKey"],
-                "title": item.get("title", ""),
-                "index": item.get("index", 0),
-                "summary": item.get("summary", "")[:200],
-                "duration": _format_duration(item.get("duration", 0)),
-                "thumb": _thumb_url(item.get("thumb"), self.base_url, self.token),
-            })
+            episodes.append(
+                {
+                    "key": item["ratingKey"],
+                    "title": item.get("title", ""),
+                    "index": item.get("index", 0),
+                    "summary": item.get("summary", "")[:200],
+                    "duration": _format_duration(item.get("duration", 0)),
+                    "thumb": _thumb_url(item.get("thumb"), self.base_url, self.token),
+                }
+            )
         return episodes
 
     def get_stream_url(self, rating_key):
@@ -127,7 +137,7 @@ class PlexAPI:
     def get_transcode_url(self, rating_key):
         """Get a transcode/stream URL suitable for HTML5 video."""
         # Universal transcode endpoint for HLS
-        path = f"/video/:/transcode/universal/start.m3u8"
+        path = "/video/:/transcode/universal/start.m3u8"
         params = {
             "path": f"/library/metadata/{rating_key}",
             "mediaIndex": "0",
@@ -152,8 +162,7 @@ class PlexAPI:
     def get_on_deck(self, count=20):
         """Get on-deck (continue watching) items."""
         try:
-            data = self._get("/library/onDeck",
-                             params={"X-Plex-Container-Size": count})
+            data = self._get("/library/onDeck", params={"X-Plex-Container-Size": count})
             items = []
             for item in data.get("MediaContainer", {}).get("Metadata", []):
                 items.append(_parse_item(item, self.base_url, self.token))
@@ -163,6 +172,7 @@ class PlexAPI:
 
 
 # --- Helpers ---
+
 
 def _parse_item(item, base_url, token):
     """Parse a Plex metadata item into our standard format."""

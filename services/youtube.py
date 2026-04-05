@@ -18,23 +18,22 @@ NEWS_CHANNELS = [
     ("ABC News", "https://www.youtube.com/@ABCNews/live"),
     ("NBC News NOW", "https://www.youtube.com/@NBCNews/live"),
     ("CBS News", "https://www.youtube.com/@CBSNews/live"),
-    ("FOX 11 Los Angeles",
-     "https://www.youtube.com/@FOX11LosAngeles/live"),
+    ("FOX 11 Los Angeles", "https://www.youtube.com/@FOX11LosAngeles/live"),
 ]
 
 LOCAL_CHANNELS = [
     ("ABC 7 Los Angeles", "https://www.youtube.com/@abc7/live"),
-    ("FOX 11 Los Angeles",
-     "https://www.youtube.com/@FOX11LosAngeles/live"),
+    ("FOX 11 Los Angeles", "https://www.youtube.com/@FOX11LosAngeles/live"),
     ("NBC Los Angeles", "https://www.youtube.com/@ABORABLE/live"),
     ("CBS 8 San Diego", "https://www.youtube.com/@CBS8/live"),
 ]
 
 _VIDEO_ID_RE = re.compile(r'"videoId":"([a-zA-Z0-9_-]{11})"')
-_VID_PARAM_RE = re.compile(r'[?&]v=([a-zA-Z0-9_-]{11})')
+_VID_PARAM_RE = re.compile(r"[?&]v=([a-zA-Z0-9_-]{11})")
 
 
 # --- Live Stream Scraping ---
+
 
 def scrape_live_video_id(channel_url, require_live=True):
     """Scrape a YouTube channel /live page for current video ID.
@@ -45,7 +44,8 @@ def scrape_live_video_id(channel_url, require_live=True):
         return cached if cached != "" else None
     try:
         r = requests.get(
-            channel_url, timeout=4,
+            channel_url,
+            timeout=4,
             headers={"User-Agent": "Mozilla/5.0"},
         )
         match = _VIDEO_ID_RE.search(r.text)
@@ -74,15 +74,18 @@ def get_live_streams(channel_list, require_live=False):
     for name, url in channel_list:
         vid = scrape_live_video_id(url, require_live=require_live)
         if vid:
-            streams.append({
-                "name": name,
-                "video_id": vid,
-                "type": "youtube",
-            })
+            streams.append(
+                {
+                    "name": name,
+                    "video_id": vid,
+                    "type": "youtube",
+                }
+            )
     return streams
 
 
 # --- RSS Feed Parsing ---
+
 
 def get_channel_videos(channel_id, limit=20):
     """Fetch recent videos from a channel via RSS feed.
@@ -90,10 +93,7 @@ def get_channel_videos(channel_id, limit=20):
     """
     videos = []
     try:
-        feed_url = (
-            "https://www.youtube.com/feeds/videos.xml"
-            f"?channel_id={channel_id}"
-        )
+        feed_url = f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
         feed = feedparser.parse(feed_url)
         for entry in feed.entries[:limit]:
             vid_id = entry.get("yt_videoid", "")
@@ -102,15 +102,15 @@ def get_channel_videos(channel_id, limit=20):
                 vid_id = m.group(1) if m else ""
             thumb = ""
             if vid_id:
-                thumb = (
-                    f"https://i.ytimg.com/vi/{vid_id}/mqdefault.jpg"
-                )
-            videos.append({
-                "title": entry.get("title", ""),
-                "video_id": vid_id,
-                "thumbnail": thumb,
-                "published": entry.get("published", ""),
-            })
+                thumb = f"https://i.ytimg.com/vi/{vid_id}/mqdefault.jpg"
+            videos.append(
+                {
+                    "title": entry.get("title", ""),
+                    "video_id": vid_id,
+                    "thumbnail": thumb,
+                    "published": entry.get("published", ""),
+                }
+            )
     except Exception:
         pass
     return videos
@@ -120,14 +120,11 @@ def get_channel_video_ids(channel_id, limit=20):
     """Fetch just valid video IDs from a channel RSS feed."""
     ids = []
     try:
-        feed_url = (
-            "https://www.youtube.com/feeds/videos.xml"
-            f"?channel_id={channel_id}"
-        )
+        feed_url = f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
         feed = feedparser.parse(feed_url)
         for entry in feed.entries[:limit]:
             vid = entry.get("yt_videoid", "")
-            if vid and re.match(r'^[a-zA-Z0-9_-]{11}$', vid):
+            if vid and re.match(r"^[a-zA-Z0-9_-]{11}$", vid):
                 ids.append(vid)
     except Exception:
         pass
@@ -135,6 +132,7 @@ def get_channel_video_ids(channel_id, limit=20):
 
 
 # --- Wind Down Video ---
+
 
 def pick_random_wind_down_video(get_channels_fn):
     """Pick a random video from Wind Down category. Cached 1 hour.
@@ -152,8 +150,7 @@ def pick_random_wind_down_video(get_channels_fn):
             return None
         ch = random.choice(channels)
         feed_url = (
-            "https://www.youtube.com/feeds/videos.xml"
-            f"?channel_id={ch['channel_id']}"
+            f"https://www.youtube.com/feeds/videos.xml?channel_id={ch['channel_id']}"
         )
         feed = feedparser.parse(feed_url)
         if feed.entries:

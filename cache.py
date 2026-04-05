@@ -13,7 +13,7 @@ _breakers = {}
 _breaker_lock = threading.Lock()
 
 # Circuit breaker defaults
-BREAKER_FAILURE_THRESHOLD = 3   # consecutive failures before opening
+BREAKER_FAILURE_THRESHOLD = 3  # consecutive failures before opening
 BREAKER_RECOVERY_SECONDS = 120  # how long to stay open (2 minutes)
 
 
@@ -55,6 +55,7 @@ def cleanup():
 
 # --- Circuit Breaker ---
 
+
 def is_circuit_open(service):
     """Check if a service's circuit breaker is open (should skip calls).
     Returns True if the service has failed too many times recently."""
@@ -79,14 +80,10 @@ def record_success(service):
 def record_failure(service):
     """Record a failed call. Opens breaker after threshold."""
     with _breaker_lock:
-        state = _breakers.get(
-            service, {"failures": 0, "open_until": 0}
-        )
+        state = _breakers.get(service, {"failures": 0, "open_until": 0})
         state["failures"] += 1
         if state["failures"] >= BREAKER_FAILURE_THRESHOLD:
-            state["open_until"] = (
-                time.time() + BREAKER_RECOVERY_SECONDS
-            )
+            state["open_until"] = time.time() + BREAKER_RECOVERY_SECONDS
         _breakers[service] = state
 
 
@@ -97,8 +94,7 @@ def breaker_status():
         result = {}
         for svc, s in _breakers.items():
             is_open = (
-                s["failures"] >= BREAKER_FAILURE_THRESHOLD
-                and now < s["open_until"]
+                s["failures"] >= BREAKER_FAILURE_THRESHOLD and now < s["open_until"]
             )
             recover = 0
             if s["failures"] >= BREAKER_FAILURE_THRESHOLD:

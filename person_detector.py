@@ -27,11 +27,14 @@ POLL_INTERVAL = 10  # seconds
 def detect_video_device():
     """Auto-detect the first USB webcam video device."""
     import glob
+
     for dev in sorted(glob.glob("/dev/video*")):
         try:
             result = subprocess.run(
                 ["v4l2-ctl", "--device", dev, "--info"],
-                capture_output=True, text=True, timeout=3,
+                capture_output=True,
+                text=True,
+                timeout=3,
             )
             if result.returncode == 0 and "usb" in result.stdout.lower():
                 return dev
@@ -54,10 +57,25 @@ def capture_frame(device, output_path):
     """
     try:
         proc = subprocess.Popen(
-            ["ffmpeg", "-f", "v4l2", "-input_format", "mjpeg",
-             "-i", device, "-frames:v", "1",
-             "-y", "-loglevel", "error", "-update", "1", output_path],
-            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+            [
+                "ffmpeg",
+                "-f",
+                "v4l2",
+                "-input_format",
+                "mjpeg",
+                "-i",
+                device,
+                "-frames:v",
+                "1",
+                "-y",
+                "-loglevel",
+                "error",
+                "-update",
+                "1",
+                output_path,
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
         )
         proc.wait(timeout=5)
         return proc.returncode == 0
@@ -107,7 +125,10 @@ def main():
 
     print(f"Person detector starting (camera: {DETECTED_DEVICE})...", file=sys.stderr)
     net = cv2.dnn.readNetFromCaffe(PROTOTXT, CAFFEMODEL)
-    print(f"Model loaded ({os.path.getsize(CAFFEMODEL) // 1024 // 1024}MB)", file=sys.stderr)
+    print(
+        f"Model loaded ({os.path.getsize(CAFFEMODEL) // 1024 // 1024}MB)",
+        file=sys.stderr,
+    )
 
     # Use a persistent temp file for frames
     frame_path = os.path.join(tempfile.gettempdir(), "person_detect_frame.jpg")
@@ -127,6 +148,7 @@ def main():
                 # Update presence state in smart_home module
                 try:
                     from smart_home import _update_presence
+
                     _update_presence(person)
                 except ImportError:
                     pass

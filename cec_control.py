@@ -20,13 +20,17 @@ def _cec_cmd(*args):
     """Run a cec-ctl command with standard options."""
     return subprocess.run(
         ["cec-ctl", "--to", "0", *args],
-        timeout=5, check=False, capture_output=True, text=True,
+        timeout=5,
+        check=False,
+        capture_output=True,
+        text=True,
     )
 
 
 def _get_ha_config():
     """Read HA config from settings DB."""
     from models import get_setting
+
     return {
         "url": (get_setting("ha_url") or "").rstrip("/"),
         "token": get_setting("ha_token") or "",
@@ -57,8 +61,7 @@ def tv_power_on():
         _cec_cmd("--image-view-on")
         return True
     cfg = _get_ha_config()
-    return _ha_call_service("media_player", "turn_on",
-                            {"entity_id": cfg["entity"]})
+    return _ha_call_service("media_player", "turn_on", {"entity_id": cfg["entity"]})
 
 
 def tv_power_off():
@@ -67,8 +70,7 @@ def tv_power_off():
         _cec_cmd("--standby")
         return True
     cfg = _get_ha_config()
-    return _ha_call_service("media_player", "turn_off",
-                            {"entity_id": cfg["entity"]})
+    return _ha_call_service("media_player", "turn_off", {"entity_id": cfg["entity"]})
 
 
 def tv_set_input():
@@ -77,8 +79,9 @@ def tv_set_input():
         _cec_cmd("--active-source", "phys-addr=0x1000")
         return True
     cfg = _get_ha_config()
-    return _ha_call_service("media_player", "select_source",
-                            {"entity_id": cfg["entity"], "source": "HDMI"})
+    return _ha_call_service(
+        "media_player", "select_source", {"entity_id": cfg["entity"], "source": "HDMI"}
+    )
 
 
 def tv_get_power_status():

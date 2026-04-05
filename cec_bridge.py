@@ -19,34 +19,34 @@ import time
 
 # CEC key code to X keyboard key mapping
 CEC_KEY_MAP = {
-    "00": "Return",      # Select -> OK
-    "01": "Up",          # Up
-    "02": "Down",        # Down
-    "03": "Left",        # Left
-    "04": "Right",       # Right
-    "09": "Escape",      # Root Menu -> go back
-    "0a": "Escape",      # Setup Menu -> go back
-    "0b": "Escape",      # Contents Menu -> go back
-    "0d": "Escape",      # Exit -> go back
-    "20": "0",           # Number 0
-    "21": "1",           # Number 1
-    "22": "2",           # Number 2
-    "23": "3",           # Number 3
-    "24": "4",           # Number 4
-    "25": "5",           # Number 5
-    "26": "6",           # Number 6
-    "27": "7",           # Number 7
-    "28": "8",           # Number 8
-    "29": "9",           # Number 9
-    "30": "Page_Up",     # Channel Up
-    "31": "Page_Down",   # Channel Down
-    "41": "space",       # Play
-    "44": "Return",      # Play (Samsung)
-    "45": "space",       # Pause
-    "46": "space",       # Pause (Samsung)
-    "43": "Escape",      # Rewind -> Back
-    "49": "Escape",      # Fast Forward -> ignore
-    "91": "Escape",      # Return/Back (Samsung)
+    "00": "Return",  # Select -> OK
+    "01": "Up",  # Up
+    "02": "Down",  # Down
+    "03": "Left",  # Left
+    "04": "Right",  # Right
+    "09": "Escape",  # Root Menu -> go back
+    "0a": "Escape",  # Setup Menu -> go back
+    "0b": "Escape",  # Contents Menu -> go back
+    "0d": "Escape",  # Exit -> go back
+    "20": "0",  # Number 0
+    "21": "1",  # Number 1
+    "22": "2",  # Number 2
+    "23": "3",  # Number 3
+    "24": "4",  # Number 4
+    "25": "5",  # Number 5
+    "26": "6",  # Number 6
+    "27": "7",  # Number 7
+    "28": "8",  # Number 8
+    "29": "9",  # Number 9
+    "30": "Page_Up",  # Channel Up
+    "31": "Page_Down",  # Channel Down
+    "41": "space",  # Play
+    "44": "Return",  # Play (Samsung)
+    "45": "space",  # Pause
+    "46": "space",  # Pause (Samsung)
+    "43": "Escape",  # Rewind -> Back
+    "49": "Escape",  # Fast Forward -> ignore
+    "91": "Escape",  # Return/Back (Samsung)
 }
 
 
@@ -60,9 +60,16 @@ def send_key(key_name, cec_code=None, description=""):
     if cec_code:
         try:
             import requests as _req
-            _req.post(f"http://localhost:{os.environ.get('SENIOR_TV_PORT', '5000')}/api/log-remote",
-                      json={"cec_code": cec_code, "key": key_name, "description": description},
-                      timeout=1)
+
+            _req.post(
+                f"http://localhost:{os.environ.get('SENIOR_TV_PORT', '5000')}/api/log-remote",
+                json={
+                    "cec_code": cec_code,
+                    "key": key_name,
+                    "description": description,
+                },
+                timeout=1,
+            )
         except Exception:
             pass
 
@@ -75,24 +82,38 @@ def try_kernel_cec():
     print("Using kernel CEC (/dev/cec0)...")
 
     # On startup: wake TV and set input
-    subprocess.run(["cec-ctl", "--to", "0", "--image-view-on"],
-                   timeout=5, check=False, capture_output=True)
+    subprocess.run(
+        ["cec-ctl", "--to", "0", "--image-view-on"],
+        timeout=5,
+        check=False,
+        capture_output=True,
+    )
     time.sleep(1)
-    subprocess.run(["cec-ctl", "--to", "0", "--active-source", "phys-addr=0x1000"],
-                   timeout=5, check=False, capture_output=True)
+    subprocess.run(
+        ["cec-ctl", "--to", "0", "--active-source", "phys-addr=0x1000"],
+        timeout=5,
+        check=False,
+        capture_output=True,
+    )
 
     # Monitor for key events
     # cec-ctl --monitor outputs lines like: "Received from TV to Playback 1: USER_CONTROL_PRESSED (0x44): ..."
-    key_pattern = re.compile(r"USER_CONTROL_PRESSED.*?ui-cmd: (.+?) \(0x([0-9a-f]{2})\)")
+    key_pattern = re.compile(
+        r"USER_CONTROL_PRESSED.*?ui-cmd: (.+?) \(0x([0-9a-f]{2})\)"
+    )
 
     proc = subprocess.Popen(
         ["cec-ctl", "--monitor"],
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
     )
 
     def cleanup(sig, frame):
         proc.terminate()
         sys.exit(0)
+
     signal.signal(signal.SIGINT, cleanup)
     signal.signal(signal.SIGTERM, cleanup)
 
@@ -118,7 +139,10 @@ def try_libcec():
     try:
         proc = subprocess.Popen(
             ["cec-client", "-d", "8", "-t", "r"],
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
         )
     except FileNotFoundError:
         print("cec-client not found", file=sys.stderr)
@@ -133,6 +157,7 @@ def try_libcec():
     def cleanup(sig, frame):
         proc.terminate()
         sys.exit(0)
+
     signal.signal(signal.SIGINT, cleanup)
     signal.signal(signal.SIGTERM, cleanup)
 

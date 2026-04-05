@@ -1,5 +1,4 @@
 import json
-import re
 import sys
 import queue
 import threading
@@ -69,6 +68,7 @@ DAY_MAP = {"mon": 0, "tue": 1, "wed": 2, "thu": 3, "fri": 4, "sat": 5, "sun": 6}
 def _is_quiet_hours():
     """Check if current time falls within configured quiet hours."""
     from models import is_quiet_hours
+
     return is_quiet_hours()
 
 
@@ -98,7 +98,10 @@ def check_pills():
         if current_day_num in day_nums and current_time in times:
             # Dedup: only fire once per pill per time slot
             dedup_key = f"{pill['id']}_{current_time}"
-            if dedup_key in _last_fired and (now - _last_fired[dedup_key]).total_seconds() < 120:
+            if (
+                dedup_key in _last_fired
+                and (now - _last_fired[dedup_key]).total_seconds() < 120
+            ):
                 continue
             _last_fired[dedup_key] = now
             trigger_reminder(pill, current_time)
@@ -131,7 +134,8 @@ def trigger_reminder(pill, scheduled_time):
         "instructions": pill["instructions"] or "",
         "reminder_type": pill["reminder_type"],
         "reminder_media": pill["reminder_media"],
-        "reminder_message": pill["reminder_message"] or f"Time to take your {pill['name']}!",
+        "reminder_message": pill["reminder_message"]
+        or f"Time to take your {pill['name']}!",
         "block_minutes": 15 if is_blocking else 0,
         "icon": "🚿" if is_shower else ("🧘" if "stretch" in name_lower else "💊"),
     }
@@ -163,9 +167,13 @@ def _gc_active_reminders(now):
                 if "shower" not in name and "stretch" not in name:
                     try:
                         from models import log_missed_pill
+
                         log_missed_pill(pill["id"], data["scheduled_time"])
                     except Exception as e:
-                        print(f"Scheduler: failed to log missed pill: {e}", file=sys.stderr)
+                        print(
+                            f"Scheduler: failed to log missed pill: {e}",
+                            file=sys.stderr,
+                        )
 
 
 def acknowledge_reminder(reminder_id):
@@ -223,6 +231,7 @@ def get_next_pill_info():
 def check_birthdays():
     """Called once per hour. Check if today is someone's birthday."""
     from models import get_todays_birthdays
+
     now = datetime.now()
 
     # Only trigger at 9 AM
@@ -303,6 +312,7 @@ def check_favorite_shows():
 
                 # Skip Shorts and short clips — 90-year-olds need long-form content
                 from youtube_utils import get_youtube_duration
+
                 duration = get_youtube_duration(vid_id)
                 if duration < 600:
                     continue  # Skip Shorts or unknown duration
@@ -316,6 +326,7 @@ def check_favorite_shows():
                 auto_tune = "jeopardy" in search
 
                 from models import get_setting
+
                 interrupt = get_setting("auto_play_interrupt") or "always"
 
                 event_data = {
@@ -339,6 +350,7 @@ def check_favorite_shows():
 
 def _cache_cleanup():
     import cache
+
     cache.cleanup()
 
 
@@ -363,7 +375,9 @@ def trigger_classical_music():
     # Get a random classical video (must be >= 15 minutes)
     channel_id = get_setting("classical_music_channel", "UClScm1QV2xecmZrAuADnP9g")
     try:
-        feed = feedparser.parse(f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}")
+        feed = feedparser.parse(
+            f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
+        )
         if feed.entries:
             candidates = list(feed.entries[:15])
             _random.shuffle(candidates)
@@ -374,9 +388,13 @@ def trigger_classical_music():
                     continue
                 # Check duration — skip short videos
                 from youtube_utils import get_youtube_duration
+
                 dur = get_youtube_duration(vid_id)
                 if dur and dur < 900:  # 15 minutes
-                    print(f"Scheduler: skipping short video {vid_id} ({dur}s)", file=sys.stderr)
+                    print(
+                        f"Scheduler: skipping short video {vid_id} ({dur}s)",
+                        file=sys.stderr,
+                    )
                     vid_id = ""
                     continue
                 break
@@ -418,7 +436,9 @@ def trigger_exercise():
 
     channel_id = get_setting("exercise_channel", "UCLgvL3aGzMByecNYtMcyK_g")
     try:
-        feed = feedparser.parse(f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}")
+        feed = feedparser.parse(
+            f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
+        )
         if feed.entries:
             # Pick a random video that's at least 10 minutes (skip Shorts)
             candidates = list(feed.entries[:15])
@@ -429,6 +449,7 @@ def trigger_exercise():
                 if not vid_id:
                     continue
                 from youtube_utils import get_youtube_duration
+
                 dur = get_youtube_duration(vid_id)
                 if dur and dur < 600:
                     vid_id = ""
@@ -513,7 +534,8 @@ def trigger_news_block():
         vid_id = ""
         try:
             feed = feedparser.parse(
-                f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}")
+                f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
+            )
             for entry in feed.entries[:5]:
                 vid_id = entry.get("yt_videoid", "")
                 if vid_id:
@@ -521,8 +543,11 @@ def trigger_news_block():
         except Exception:
             pass
 
-        play_url = (f"/tv/youtube/watch/{vid_id}?channel={channel_id}"
-                    if vid_id else f"/tv/youtube/channel/{channel_id}")
+        play_url = (
+            f"/tv/youtube/watch/{vid_id}?channel={channel_id}"
+            if vid_id
+            else f"/tv/youtube/channel/{channel_id}"
+        )
 
         event_data = {
             "type": "auto_play",
@@ -545,6 +570,7 @@ def _validate_pluto_channels():
     """Periodically scan Pluto TV channels for dead/placeholder streams."""
     try:
         from pluto_tv import validate_channels
+
         validate_channels()
     except Exception as e:
         print(f"Scheduler: Pluto validation error: {e}", file=sys.stderr)
@@ -554,6 +580,7 @@ def _daily_maintenance():
     """Daily database cleanup — runs at 3 AM."""
     try:
         from models import prune_old_logs
+
         prune_old_logs(activity_days=30, remote_days=7)
     except Exception as e:
         print(f"Scheduler: daily maintenance error: {e}", file=sys.stderr)

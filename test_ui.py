@@ -6,7 +6,7 @@ across all pages.
 
 import sys
 import json
-from playwright.sync_api import sync_playwright, expect
+from playwright.sync_api import sync_playwright
 
 BASE = "http://localhost:5000"
 RESULTS = {"pass": 0, "fail": 0, "errors": []}
@@ -37,8 +37,11 @@ def run_tests():
         test("Home loads", page.title() == "Senior TV")
         test("Greeting visible", page.locator(".greeting").is_visible())
         greeting_text = page.locator(".greeting").text_content()
-        test("Greeting visible and non-empty", len(greeting_text.strip()) > 0,
-             f"Got: {greeting_text}")
+        test(
+            "Greeting visible and non-empty",
+            len(greeting_text.strip()) > 0,
+            f"Got: {greeting_text}",
+        )
         test("Time visible", page.locator(".home-time").is_visible())
         test("Weather visible", page.locator(".home-date-weather").is_visible())
         weather = page.locator(".home-date-weather").text_content()
@@ -49,9 +52,24 @@ def run_tests():
         test("Menu has items", menu_count >= 8, f"Got: {menu_count}")
 
         # Check menu labels
-        menu_labels = [menu_items.nth(i).text_content().strip() for i in range(menu_count)]
-        for label in ["Live TV", "Movies & Shows", "YouTube", "Messages", "News", "Weather", "Calendar", "Photo Frame"]:
-            test(f"Menu has '{label}'", any(label in m for m in menu_labels), f"Labels: {menu_labels}")
+        menu_labels = [
+            menu_items.nth(i).text_content().strip() for i in range(menu_count)
+        ]
+        for label in [
+            "Live TV",
+            "Movies & Shows",
+            "YouTube",
+            "Messages",
+            "News",
+            "Weather",
+            "Calendar",
+            "Photo Frame",
+        ]:
+            test(
+                f"Menu has '{label}'",
+                any(label in m for m in menu_labels),
+                f"Labels: {menu_labels}",
+            )
 
         # Keyboard navigation
         page.keyboard.press("ArrowDown")
@@ -62,8 +80,11 @@ def run_tests():
         # Quote loads (async fetch)
         page.wait_for_timeout(4000)
         quote = page.locator("#home-quote").text_content() or ""
-        test("Quote loads", len(quote.strip()) > 10 or True,
-             f"Content length: {len(quote.strip())} (async, OK if 0 in headless)")
+        test(
+            "Quote loads",
+            len(quote.strip()) > 10 or True,
+            f"Content length: {len(quote.strip())} (async, OK if 0 in headless)",
+        )
 
         # ============================================================
         print("\n=== LIVE TV (redirects to YouTube) ===")
@@ -71,7 +92,10 @@ def run_tests():
         page.goto(f"{BASE}/tv/live")
         page.wait_for_load_state("domcontentloaded")
         # Live TV now redirects to YouTube page
-        test("Live TV redirects to YouTube", "/tv/youtube" in page.url or page.locator(".poster-card").count() > 0)
+        test(
+            "Live TV redirects to YouTube",
+            "/tv/youtube" in page.url or page.locator(".poster-card").count() > 0,
+        )
 
         # ============================================================
         print("\n=== MOVIES & SHOWS ===")
@@ -100,7 +124,9 @@ def run_tests():
         # Get movie library
         page.goto(f"{BASE}/tv/plex")
         page.wait_for_load_state("domcontentloaded")
-        lib_link = page.locator("a.menu-item.navigable[href*='/tv/plex/library/']").first.get_attribute("href")
+        lib_link = page.locator(
+            "a.menu-item.navigable[href*='/tv/plex/library/']"
+        ).first.get_attribute("href")
         if lib_link:
             page.goto(f"{BASE}{lib_link}")
             page.wait_for_load_state("domcontentloaded")
@@ -108,12 +134,18 @@ def run_tests():
             test("Genre tabs present", page.locator(".category-tab").count() > 5)
             test("Sort options present", page.locator(".sort-option").count() >= 5)
             test("Movie posters loaded", page.locator(".poster-card").count() > 10)
-            test("Has pagination or all shown", page.locator(".pagination-btn").count() > 0 or page.locator(".poster-card").count() > 0)
+            test(
+                "Has pagination or all shown",
+                page.locator(".pagination-btn").count() > 0
+                or page.locator(".poster-card").count() > 0,
+            )
 
             # Test genre filter
             page.goto(f"{BASE}{lib_link}?genre=Western")
             page.wait_for_load_state("domcontentloaded")
-            test("Western filter shows results", page.locator(".poster-card").count() > 0)
+            test(
+                "Western filter shows results", page.locator(".poster-card").count() > 0
+            )
 
             # Test sort
             page.goto(f"{BASE}{lib_link}?sort=CommunityRating&order=Descending")
@@ -125,7 +157,9 @@ def run_tests():
         # ============================================================
         page.goto(f"{BASE}/tv/plex")
         page.wait_for_load_state("domcontentloaded")
-        show_link = page.locator("a.menu-item.navigable[href*='/tv/plex/library/']").last.get_attribute("href")
+        show_link = page.locator(
+            "a.menu-item.navigable[href*='/tv/plex/library/']"
+        ).last.get_attribute("href")
         if show_link:
             page.goto(f"{BASE}{show_link}")
             page.wait_for_load_state("domcontentloaded")
@@ -136,10 +170,16 @@ def run_tests():
                 page.goto(f"{BASE}{show_url}")
                 page.wait_for_load_state("domcontentloaded")
 
-                test("Show page has title", page.locator(".page-title").first.is_visible())
+                test(
+                    "Show page has title",
+                    page.locator(".page-title").first.is_visible(),
+                )
                 test("Has Shuffle Play", "Shuffle Play" in page.content())
                 test("Has season tabs", page.locator(".season-tab").count() > 0)
-                test("Has episodes or content", page.locator(".episode-item, .navigable").count() > 0)
+                test(
+                    "Has episodes or content",
+                    page.locator(".episode-item, .navigable").count() > 0,
+                )
                 test("Has back hint", "BACK" in page.content())
 
         # ============================================================
@@ -154,9 +194,16 @@ def run_tests():
 
             test("Player page loaded", page.locator("#video-player").count() > 0)
             test("Has player.js", page.locator("script[src*='player.js']").count() > 0)
-            test("Persistent title visible", page.locator(".player-now-playing").is_visible())
+            test(
+                "Persistent title visible",
+                page.locator(".player-now-playing").is_visible(),
+            )
             title_text = page.locator(".player-now-playing").text_content()
-            test("Title has movie name", len(title_text.strip()) > 0, f"Got: '{title_text.strip()}'")
+            test(
+                "Title has movie name",
+                len(title_text.strip()) > 0,
+                f"Got: '{title_text.strip()}'",
+            )
 
             # Test player controls
             page.keyboard.press("Space")
@@ -167,7 +214,10 @@ def run_tests():
             # Back navigation
             page.keyboard.press("Escape")
             page.wait_for_timeout(500)
-            test("Escape exits player", "/tv/plex" in page.url or page.url.endswith(":5000/"))
+            test(
+                "Escape exits player",
+                "/tv/plex" in page.url or page.url.endswith(":5000/"),
+            )
 
         # ============================================================
         print("\n=== YOUTUBE ===")
@@ -176,10 +226,16 @@ def run_tests():
         page.wait_for_load_state("domcontentloaded")
 
         yt_cards = page.locator(".poster-card")
-        test("YouTube page loads", page.locator("h1, .page-title, .section-label, .empty-state").count() > 0)
+        test(
+            "YouTube page loads",
+            page.locator("h1, .page-title, .section-label, .empty-state").count() > 0,
+        )
         yt_count = yt_cards.count()
-        test("YouTube channels present or empty", yt_count >= 0,
-             f"Count: {yt_count} (add channels via admin)")
+        test(
+            "YouTube channels present or empty",
+            yt_count >= 0,
+            f"Count: {yt_count} (add channels via admin)",
+        )
 
         # Test channel browsing — use a channel from the DB
         yt_link = page.locator("a.poster-card[href*='/tv/youtube/channel/']").first
@@ -189,7 +245,11 @@ def run_tests():
             page.wait_for_load_state("domcontentloaded")
             page.wait_for_timeout(2000)
             vids = page.locator(".poster-card, .video-item, .navigable")
-            test("Channel page loaded", vids.count() >= 0, f"Videos: {vids.count()} (RSS may be slow)")
+            test(
+                "Channel page loaded",
+                vids.count() >= 0,
+                f"Videos: {vids.count()} (RSS may be slow)",
+            )
         else:
             test("Channel page loaded (skipped — no channels)", True)
 
@@ -199,7 +259,10 @@ def run_tests():
             vid_url = vid_link.get_attribute("href")
             page.goto(f"{BASE}{vid_url}")
             page.wait_for_timeout(2000)
-            test("YouTube player has iframe", page.locator("iframe[src*='youtube.com']").count() > 0)
+            test(
+                "YouTube player has iframe",
+                page.locator("iframe[src*='youtube.com']").count() > 0,
+            )
             test("Has persistent back bar", page.locator(".yt-back-bar").count() > 0)
 
         # ============================================================
@@ -208,8 +271,10 @@ def run_tests():
         page.goto(f"{BASE}/tv/news")
         page.wait_for_load_state("domcontentloaded")
 
-        test("Has live streams or channels",
-             page.locator(".menu-item.navigable, .channel-item.navigable").count() > 0)
+        test(
+            "Has live streams or channels",
+            page.locator(".menu-item.navigable, .channel-item.navigable").count() > 0,
+        )
         test("Has headlines", page.locator(".news-article").count() > 0)
 
         # ============================================================
@@ -220,8 +285,11 @@ def run_tests():
 
         test("Weather loads", not page.locator(".error-state").is_visible())
         test("Has current temp", page.locator(".temp").is_visible())
-        test("Has forecast", page.locator(".forecast-day").count() == 5,
-             f"Days: {page.locator('.forecast-day').count()}")
+        test(
+            "Has forecast",
+            page.locator(".forecast-day").count() == 5,
+            f"Days: {page.locator('.forecast-day').count()}",
+        )
 
         # Verify back handler is present in JS
         has_escape = page.evaluate("!!document.querySelector('script[src*=\"tv.js\"]')")
@@ -240,12 +308,18 @@ def run_tests():
         page.goto(f"{BASE}/tv/calendar?view=monthly")
         page.wait_for_load_state("domcontentloaded")
         test("Monthly view: has grid", page.locator(".month-day").count() > 28)
-        test("Monthly view: today highlighted", page.locator(".month-day.today").count() > 0)
+        test(
+            "Monthly view: today highlighted",
+            page.locator(".month-day.today").count() > 0,
+        )
 
         # Upcoming view
         page.goto(f"{BASE}/tv/calendar?view=upcoming")
         page.wait_for_load_state("domcontentloaded")
-        test("Upcoming view loads", page.locator(".calendar-event, .empty, h1").count() > 0)
+        test(
+            "Upcoming view loads",
+            page.locator(".calendar-event, .empty, h1").count() > 0,
+        )
 
         # ============================================================
         print("\n=== PHOTO FRAME ===")
@@ -256,7 +330,10 @@ def run_tests():
         has_no_photos = page.locator(".no-photos").count() > 0
         test("Photo page loads", has_photos or has_no_photos)
         if has_photos:
-            test("Has back instruction", "Press any key" in page.content() or "return home" in page.content())
+            test(
+                "Has back instruction",
+                "Press any key" in page.content() or "return home" in page.content(),
+            )
         else:
             test("Shows no-photos message", has_no_photos)
             test("No photos state is correct (upload via admin)", True)
@@ -268,10 +345,22 @@ def run_tests():
         page.wait_for_load_state("domcontentloaded")
         test("Admin loads", page.locator(".container").count() > 0)
         test("Has nav links", page.locator("a[href*='/admin/']").count() >= 5)
-        test("Has dashboard content", page.locator(".card, .stat-card, h1, h2").count() >= 2)
+        test(
+            "Has dashboard content",
+            page.locator(".card, .stat-card, h1, h2").count() >= 2,
+        )
 
         # Check all admin pages load
-        admin_pages = ["pills", "calendar", "birthdays", "shows", "youtube", "photos", "plex-setup", "settings"]
+        admin_pages = [
+            "pills",
+            "calendar",
+            "birthdays",
+            "shows",
+            "youtube",
+            "photos",
+            "plex-setup",
+            "settings",
+        ]
         for pg in admin_pages:
             page.goto(f"{BASE}/admin/{pg}")
             page.wait_for_load_state("domcontentloaded")
@@ -296,27 +385,38 @@ def run_tests():
         page.goto(BASE)
         page.wait_for_load_state("domcontentloaded")
         test("Reminder overlay exists", page.locator("#reminder-overlay").count() > 0)
-        test("Overlay hidden by default",
-             "active" not in (page.locator("#reminder-overlay").get_attribute("class") or ""))
+        test(
+            "Overlay hidden by default",
+            "active"
+            not in (page.locator("#reminder-overlay").get_attribute("class") or ""),
+        )
 
         # Trigger a test reminder via API — give SSE time to connect first
         page.wait_for_timeout(2000)
         response = page.request.post(f"{BASE}/api/trigger-reminder/1")
-        test("Trigger reminder API responds", response.status in (200, 404),
-             f"Status {response.status} (404 if no pills configured)")
+        test(
+            "Trigger reminder API responds",
+            response.status in (200, 404),
+            f"Status {response.status} (404 if no pills configured)",
+        )
         # SSE delivery in headless mode with Flask debug is unreliable — verify API works
         page.wait_for_timeout(3000)
         overlay_class = page.locator("#reminder-overlay").get_attribute("class") or ""
         # In headless, SSE may not connect to Flask's streaming endpoint
-        test("Reminder overlay appears (or SSE not available in headless)",
-             "active" in overlay_class or True,
-             f"Class: '{overlay_class}' — SSE tested via API above")
+        test(
+            "Reminder overlay appears (or SSE not available in headless)",
+            "active" in overlay_class or True,
+            f"Class: '{overlay_class}' — SSE tested via API above",
+        )
 
         # Dismiss with Enter
         page.keyboard.press("Enter")
         page.wait_for_timeout(500)
-        test("Enter dismisses reminder",
-             "active" not in (page.locator("#reminder-overlay").get_attribute("class") or ""))
+        test(
+            "Enter dismisses reminder",
+            "active"
+            not in (page.locator("#reminder-overlay").get_attribute("class") or ""),
+        )
 
         # ============================================================
         print("\n=== HEALTH API ===")
@@ -324,18 +424,34 @@ def run_tests():
         resp = page.request.get(f"{BASE}/api/health")
         test("Health endpoint responds", resp.status == 200)
         health = resp.json()
-        test("Health status ok", health.get("status") == "ok", f"Got: {health.get('status')}")
+        test(
+            "Health status ok",
+            health.get("status") == "ok",
+            f"Got: {health.get('status')}",
+        )
         for check in ["audio", "chrome", "disk", "memory", "scheduler", "tailscale"]:
-            test(f"Health check: {check}", health.get("checks", {}).get(check, {}).get("ok", False))
+            test(
+                f"Health check: {check}",
+                health.get("checks", {}).get(check, {}).get("ok", False),
+            )
         test("Health has uptime", health.get("uptime_seconds", 0) > 0)
 
         # ============================================================
         print("\n=== ACTIVITY LOGGING ===")
         # ============================================================
         # Log an activity
-        resp = page.request.post(f"{BASE}/api/log-activity", data=json.dumps({
-            "type": "test_playback", "title": "Test Movie", "item_type": "video", "duration": 120
-        }), headers={"Content-Type": "application/json"})
+        resp = page.request.post(
+            f"{BASE}/api/log-activity",
+            data=json.dumps(
+                {
+                    "type": "test_playback",
+                    "title": "Test Movie",
+                    "item_type": "video",
+                    "duration": 120,
+                }
+            ),
+            headers={"Content-Type": "application/json"},
+        )
         test("Activity log POST works", resp.status == 200)
         test("Activity log returns logged", resp.json().get("status") == "logged")
 
@@ -348,9 +464,13 @@ def run_tests():
         # ============================================================
         print("\n=== REMOTE BUTTON LOGGING ===")
         # ============================================================
-        resp = page.request.post(f"{BASE}/api/log-remote", data=json.dumps({
-            "cec_code": "00", "key": "Return", "description": "Select"
-        }), headers={"Content-Type": "application/json"})
+        resp = page.request.post(
+            f"{BASE}/api/log-remote",
+            data=json.dumps(
+                {"cec_code": "00", "key": "Return", "description": "Select"}
+            ),
+            headers={"Content-Type": "application/json"},
+        )
         test("Remote log POST works", resp.status == 200)
 
         # ============================================================
@@ -360,21 +480,28 @@ def run_tests():
         test("Next video API responds", resp.status == 200)
         data = resp.json()
         test("Next video has title", bool(data.get("title")), f"Got: {data}")
-        test("Next video has URL", data.get("url", "").startswith("/tv/plex/"), f"Got: {data.get('url')}")
+        test(
+            "Next video has URL",
+            data.get("url", "").startswith("/tv/plex/"),
+            f"Got: {data.get('url')}",
+        )
 
         # ============================================================
         print("\n=== IMMICH INTEGRATION ===")
         # ============================================================
         resp = page.request.get(f"{BASE}/api/has-photos")
         test("Has-photos API works", resp.status == 200)
-        test("Has photos", resp.json().get("has_photos") == True)
+        test("Has photos", resp.json().get("has_photos") is True)
 
         resp = page.request.get(f"{BASE}/api/immich-slideshow?count=2")
         test("Immich slideshow API works", resp.status == 200)
         photos = resp.json()
         test("Immich returns photos", len(photos) > 0, f"Got {len(photos)}")
         if photos:
-            test("Photo has URL", photos[0].get("url", "").startswith("/api/immich-photo/"))
+            test(
+                "Photo has URL",
+                photos[0].get("url", "").startswith("/api/immich-photo/"),
+            )
             # Test photo proxy
             resp = page.request.get(f"{BASE}{photos[0]['url']}")
             test("Immich photo proxy works", resp.status == 200)
@@ -386,7 +513,11 @@ def run_tests():
         page.goto(f"{BASE}/")
         page.wait_for_load_state("domcontentloaded")
         jf_imgs = page.locator("img[src*='jellyfin-image']")
-        test("Home has Jellyfin proxy images", jf_imgs.count() > 0, f"Count: {jf_imgs.count()}")
+        test(
+            "Home has Jellyfin proxy images",
+            jf_imgs.count() > 0,
+            f"Count: {jf_imgs.count()}",
+        )
         if jf_imgs.count() > 0:
             src = jf_imgs.first.get_attribute("src")
             resp = page.request.get(f"{BASE}{src}")
@@ -399,9 +530,15 @@ def run_tests():
         if resp.status == 200:
             vid_id = resp.json().get("id")
             if vid_id:
-                resp = page.request.get(f"{BASE}/api/jellyfin-stream/{vid_id}/stream?Static=true",
-                                        headers={"Range": "bytes=0-1023"})
-                test("Jellyfin stream proxy works", resp.status in (200, 206), f"Got: {resp.status}")
+                resp = page.request.get(
+                    f"{BASE}/api/jellyfin-stream/{vid_id}/stream?Static=true",
+                    headers={"Range": "bytes=0-1023"},
+                )
+                test(
+                    "Jellyfin stream proxy works",
+                    resp.status in (200, 206),
+                    f"Got: {resp.status}",
+                )
 
         # ============================================================
         print("\n=== PLUTO TV API ===")
@@ -425,8 +562,11 @@ def run_tests():
 
         # Stream or content area (depends on time of day)
         stream = page.locator(".home-stream-frame, .home-stream, iframe")
-        test("Stream or content area exists", stream.count() > 0 or True,
-             "Stream may not show depending on time of day")
+        test(
+            "Stream or content area exists",
+            stream.count() > 0 or True,
+            "Stream may not show depending on time of day",
+        )
 
         # Family photo widget
         photo = page.locator("#home-family-photo")
@@ -434,7 +574,11 @@ def run_tests():
 
         # Quick menu has all items
         menu_btns = page.locator(".home-quick-btn")
-        test("Quick menu has items", menu_btns.count() >= 8, f"Count: {menu_btns.count()}")
+        test(
+            "Quick menu has items",
+            menu_btns.count() >= 8,
+            f"Count: {menu_btns.count()}",
+        )
 
         # ============================================================
         print("\n=== ROW-AWARE NAVIGATION ===")
@@ -475,7 +619,10 @@ def run_tests():
         test("YouTube sandbox set", "allow-scripts" in sandbox)
         test("YouTube no popups", "allow-popups" not in sandbox)
         overlay = page.locator("#yt-overlay, .yt-overlay, .click-overlay")
-        test("YouTube click overlay exists", overlay.count() > 0 or "overlay" in page.content().lower())
+        test(
+            "YouTube click overlay exists",
+            overlay.count() > 0 or "overlay" in page.content().lower(),
+        )
         src = iframe.get_attribute("src") or ""
         test("YouTube disablekb", "disablekb=1" in src)
         test("YouTube player configured", "disablekb=1" in src)
@@ -484,12 +631,19 @@ def run_tests():
         print("\n=== REMOTE AUTH ===")
         # ============================================================
         # Simulate remote request
-        resp = page.request.get(f"{BASE}/admin", headers={"CF-Connecting-IP": "1.2.3.4"})
+        resp = page.request.get(
+            f"{BASE}/admin", headers={"CF-Connecting-IP": "1.2.3.4"}
+        )
         # Should redirect to login
-        test("Remote admin redirects to login", resp.status == 200 and "Family password" in resp.text())
+        test(
+            "Remote admin redirects to login",
+            resp.status == 200 and "Family password" in resp.text(),
+        )
 
         # API endpoints should be accessible without auth
-        resp = page.request.get(f"{BASE}/api/health", headers={"CF-Connecting-IP": "1.2.3.4"})
+        resp = page.request.get(
+            f"{BASE}/api/health", headers={"CF-Connecting-IP": "1.2.3.4"}
+        )
         test("API accessible without auth", resp.status == 200)
 
         # ============================================================
@@ -511,8 +665,19 @@ def run_tests():
         page.goto(f"{BASE}/admin")
         page.wait_for_load_state("domcontentloaded")
         content = page.content()
-        test("Dashboard has system info", "CPU" in content or "RAM" in content or "Disk" in content or "System" in content)
-        test("Dashboard has care info", "pill" in content.lower() or "reminder" in content.lower() or "activity" in content.lower())
+        test(
+            "Dashboard has system info",
+            "CPU" in content
+            or "RAM" in content
+            or "Disk" in content
+            or "System" in content,
+        )
+        test(
+            "Dashboard has care info",
+            "pill" in content.lower()
+            or "reminder" in content.lower()
+            or "activity" in content.lower(),
+        )
 
         # ============================================================
         print("\n=== CALENDAR UPCOMING DAYS ===")
@@ -542,7 +707,9 @@ def run_tests():
         page.goto(f"{BASE}/")
         page.wait_for_load_state("domcontentloaded")
         # Check network banner code exists
-        has_banner = page.evaluate("typeof updateNetworkBanner === 'function' || document.getElementById('network-banner') !== null || true")
+        has_banner = page.evaluate(
+            "typeof updateNetworkBanner === 'function' || document.getElementById('network-banner') !== null || true"
+        )
         test("Offline detection code loaded", has_banner)
 
         # ============================================================
@@ -570,41 +737,63 @@ def run_tests():
             page.goto(f"{BASE}{path}")
             page.wait_for_load_state("domcontentloaded")
             page.wait_for_timeout(1000)
-            test(f"No JS errors on {name}", len(js_errors) == 0,
-                 f"Errors: {js_errors[:3]}")
+            test(
+                f"No JS errors on {name}",
+                len(js_errors) == 0,
+                f"Errors: {js_errors[:3]}",
+            )
 
         # Also check admin pages
-        admin_err_pages = ["/admin", "/admin/settings", "/admin/activity",
-                           "/admin/messages", "/admin/volume"]
+        admin_err_pages = [
+            "/admin",
+            "/admin/settings",
+            "/admin/activity",
+            "/admin/messages",
+            "/admin/volume",
+        ]
         for path in admin_err_pages:
             js_errors.clear()
             page.goto(f"{BASE}{path}")
             page.wait_for_load_state("domcontentloaded")
             page.wait_for_timeout(500)
-            test(f"No JS errors on {path}", len(js_errors) == 0,
-                 f"Errors: {js_errors[:3]}")
+            test(
+                f"No JS errors on {path}",
+                len(js_errors) == 0,
+                f"Errors: {js_errors[:3]}",
+            )
 
         # ============================================================
         print("\n=== MESSAGES ===")
         # ============================================================
         page.goto(f"{BASE}/tv/messages")
         page.wait_for_load_state("domcontentloaded")
-        test("Messages page loads", page.locator("h1, .page-title, .messages-list, .empty-state").count() > 0)
+        test(
+            "Messages page loads",
+            page.locator("h1, .page-title, .messages-list, .empty-state").count() > 0,
+        )
         test("Messages has tv.js", page.locator("script[src*='tv.js']").count() > 0)
 
         # Send a test message via admin
-        resp = page.request.post(f"{BASE}/admin/messages/send", data={
-            "sender": "Test Family",
-            "message": "Hello from Playwright!",
-            "media_type": "text",
-        }, headers={"Content-Type": "application/x-www-form-urlencoded"})
+        resp = page.request.post(
+            f"{BASE}/admin/messages/send",
+            data={
+                "sender": "Test Family",
+                "message": "Hello from Playwright!",
+                "media_type": "text",
+            },
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
         test("Send message works", resp.status == 200)
 
         # Check messages list has entries (send may redirect differently)
         page.goto(f"{BASE}/admin/messages")
         page.wait_for_load_state("domcontentloaded")
-        test("Admin messages has entries", page.locator("table tr, .message-item").count() > 0 or
-             "Test Family" in page.content() or "Hello" in page.content())
+        test(
+            "Admin messages has entries",
+            page.locator("table tr, .message-item").count() > 0
+            or "Test Family" in page.content()
+            or "Hello" in page.content(),
+        )
 
         # View individual message
         msg_links = page.locator("a[href*='/tv/messages/']")
@@ -620,7 +809,10 @@ def run_tests():
         # ============================================================
         page.goto(f"{BASE}/tv/free-movies")
         page.wait_for_load_state("domcontentloaded")
-        test("Free movies page loads", page.locator(".poster-card, .empty-state, h1").count() > 0)
+        test(
+            "Free movies page loads",
+            page.locator(".poster-card, .empty-state, h1").count() > 0,
+        )
 
         # Admin free movies
         page.goto(f"{BASE}/admin/free-movies")
@@ -632,7 +824,10 @@ def run_tests():
         # ============================================================
         page.goto(f"{BASE}/tv/music")
         page.wait_for_load_state("domcontentloaded")
-        test("Music page loads", page.locator("h1, .page-title, .poster-card, .empty-state").count() > 0)
+        test(
+            "Music page loads",
+            page.locator("h1, .page-title, .poster-card, .empty-state").count() > 0,
+        )
 
         # ============================================================
         print("\n=== API: TV STATE (QUIET HOURS) ===")
@@ -653,7 +848,10 @@ def run_tests():
         if resp.status == 200:
             ch = resp.json()
             test("next-channel has name", bool(ch.get("name")))
-            test("next-channel has URL", ch.get("url", "").startswith("/tv/youtube/watch/"))
+            test(
+                "next-channel has URL",
+                ch.get("url", "").startswith("/tv/youtube/watch/"),
+            )
 
         # ============================================================
         print("\n=== API: HOME DATA ===")
@@ -674,16 +872,23 @@ def run_tests():
         # ============================================================
         print("\n=== API: ACKNOWLEDGE ===")
         # ============================================================
-        resp = page.request.post(f"{BASE}/api/acknowledge",
+        resp = page.request.post(
+            f"{BASE}/api/acknowledge",
             data=json.dumps({"reminder_id": "nonexistent_123"}),
-            headers={"Content-Type": "application/json"})
+            headers={"Content-Type": "application/json"},
+        )
         test("acknowledge API handles missing", resp.status == 404)
         # Test with empty body (was a crash bug — should not 500)
-        resp = page.request.post(f"{BASE}/api/acknowledge",
+        resp = page.request.post(
+            f"{BASE}/api/acknowledge",
             data="not json",
-            headers={"Content-Type": "text/plain"})
-        test("acknowledge handles non-JSON body", resp.status != 500,
-             f"Got {resp.status}")
+            headers={"Content-Type": "text/plain"},
+        )
+        test(
+            "acknowledge handles non-JSON body",
+            resp.status != 500,
+            f"Got {resp.status}",
+        )
 
         # ============================================================
         print("\n=== API: RANDOM FREE MOVIE ===")
@@ -696,15 +901,28 @@ def run_tests():
         # ============================================================
         page.goto(f"{BASE}/admin/messages")
         page.wait_for_load_state("domcontentloaded")
-        test("Admin messages loads", page.locator("table, .empty-state, h1").count() > 0)
-        test("Admin messages has send link", page.locator("a[href*='send']").count() > 0)
+        test(
+            "Admin messages loads", page.locator("table, .empty-state, h1").count() > 0
+        )
+        test(
+            "Admin messages has send link", page.locator("a[href*='send']").count() > 0
+        )
 
         # Send form
         page.goto(f"{BASE}/admin/messages/send")
         page.wait_for_load_state("domcontentloaded")
-        test("Message send form has sender field", page.locator("input[name='sender']").count() > 0)
-        test("Message send form has message field", page.locator("textarea[name='message']").count() > 0)
-        test("Message send form has submit", page.locator("button[type='submit']").count() > 0)
+        test(
+            "Message send form has sender field",
+            page.locator("input[name='sender']").count() > 0,
+        )
+        test(
+            "Message send form has message field",
+            page.locator("textarea[name='message']").count() > 0,
+        )
+        test(
+            "Message send form has submit",
+            page.locator("button[type='submit']").count() > 0,
+        )
 
         # ============================================================
         print("\n=== ADMIN: VOLUME ===")
@@ -724,13 +942,19 @@ def run_tests():
         page.fill("input[name='event_time']", "10:00")
         page.click("button[type='submit']")
         page.wait_for_load_state("domcontentloaded")
-        test("Create calendar event", "Playwright Test Event" in page.content() or "/admin/calendar" in page.url)
+        test(
+            "Create calendar event",
+            "Playwright Test Event" in page.content() or "/admin/calendar" in page.url,
+        )
 
         # Verify birthday form loads (CRUD via form uses selects, hard to automate)
         page.goto(f"{BASE}/admin/birthdays/new")
         page.wait_for_load_state("domcontentloaded")
         test("Birthday form loads", page.locator("input[name='name']").count() > 0)
-        test("Birthday form has month", page.locator("select[name='birth_month']").count() > 0)
+        test(
+            "Birthday form has month",
+            page.locator("select[name='birth_month']").count() > 0,
+        )
 
         # ============================================================
         print("\n=== ADMIN: SETTINGS SAVE ===")
@@ -738,10 +962,21 @@ def run_tests():
         page.goto(f"{BASE}/admin/settings")
         page.wait_for_load_state("domcontentloaded")
         # Verify quiet hours and presence fields exist
-        test("Settings has quiet hours start", page.locator("#quiet_hours_start").count() > 0)
-        test("Settings has quiet hours end", page.locator("#quiet_hours_end").count() > 0)
-        test("Settings has presence toggle", page.locator("#presence_enabled").count() > 0)
-        test("Settings has auto-play interrupt", page.locator("#auto_play_interrupt").count() > 0)
+        test(
+            "Settings has quiet hours start",
+            page.locator("#quiet_hours_start").count() > 0,
+        )
+        test(
+            "Settings has quiet hours end", page.locator("#quiet_hours_end").count() > 0
+        )
+        test(
+            "Settings has presence toggle",
+            page.locator("#presence_enabled").count() > 0,
+        )
+        test(
+            "Settings has auto-play interrupt",
+            page.locator("#auto_play_interrupt").count() > 0,
+        )
         test("Settings has TTS toggle", page.locator("#tts_enabled").count() > 0)
         test("Settings has log level", page.locator("#log_level").count() > 0)
 
@@ -773,8 +1008,11 @@ def run_tests():
             });
             return issues.slice(0, 5);
         }""")
-        test("No horizontal overflow on home", len(overflow) == 0,
-             f"Overflow: {overflow}")
+        test(
+            "No horizontal overflow on home",
+            len(overflow) == 0,
+            f"Overflow: {overflow}",
+        )
 
         # Check font sizes meet 36px minimum on TV pages
         small_fonts = page.evaluate("""() => {
@@ -787,16 +1025,24 @@ def run_tests():
             });
             return issues.slice(0, 5);
         }""")
-        test("TV UI fonts >= 24px", len(small_fonts) == 0,
-             f"Small: {small_fonts}")
+        test("TV UI fonts >= 24px", len(small_fonts) == 0, f"Small: {small_fonts}")
 
         # Check dark theme (background should be dark)
         bg = page.evaluate("getComputedStyle(document.body).backgroundColor")
         # Dark theme: any dark background (R,G,B each < 50)
-        test("Dark theme active",
-             any(x in bg for x in ["0, 0, 0", "rgb(0", "rgb(10", "rgb(17", "rgb(26", "rgb(30"]) or
-             all(int(c) < 50 for c in bg.replace("rgb(","").replace(")","").split(",") if c.strip().isdigit()),
-             f"BG: {bg}")
+        test(
+            "Dark theme active",
+            any(
+                x in bg
+                for x in ["0, 0, 0", "rgb(0", "rgb(10", "rgb(17", "rgb(26", "rgb(30"]
+            )
+            or all(
+                int(c) < 50
+                for c in bg.replace("rgb(", "").replace(")", "").split(",")
+                if c.strip().isdigit()
+            ),
+            f"BG: {bg}",
+        )
 
         # Check poster cards aren't zero-height
         page.goto(f"{BASE}/tv/plex/daily")
@@ -808,7 +1054,11 @@ def run_tests():
             });
             return count;
         }""")
-        test("No zero-height poster cards", zero_cards == 0, f"Got {zero_cards} zero-height")
+        test(
+            "No zero-height poster cards",
+            zero_cards == 0,
+            f"Got {zero_cards} zero-height",
+        )
 
         # ============================================================
         print("\n=== REMOTE AUTH: API LOCKDOWN ===")
@@ -818,10 +1068,15 @@ def run_tests():
             ("/api/trigger-reminder/1", "trigger reminder"),
             ("/api/screenshot", "screenshot"),
         ]:
-            resp = page.request.post(f"{BASE}{path}", headers={"CF-Connecting-IP": "1.2.3.4"})
+            resp = page.request.post(
+                f"{BASE}{path}", headers={"CF-Connecting-IP": "1.2.3.4"}
+            )
             blocked = resp.status in (302, 401, 403) or "login" in resp.url
-            test(f"Remote blocked: {name}", blocked,
-                 f"Status {resp.status} (needs restart if failing)")
+            test(
+                f"Remote blocked: {name}",
+                blocked,
+                f"Status {resp.status} (needs restart if failing)",
+            )
 
         # These should be ALLOWED for remote users
         for path, name in [
@@ -829,7 +1084,9 @@ def run_tests():
             ("/api/tv-state", "tv-state"),
             ("/api/has-photos", "has-photos"),
         ]:
-            resp = page.request.get(f"{BASE}{path}", headers={"CF-Connecting-IP": "1.2.3.4"})
+            resp = page.request.get(
+                f"{BASE}{path}", headers={"CF-Connecting-IP": "1.2.3.4"}
+            )
             test(f"Remote allowed: {name}", resp.status == 200)
 
         # ============================================================
@@ -837,19 +1094,24 @@ def run_tests():
         # ============================================================
         # Test Escape returns to previous page from each section
         nav_tests = [
-            "/tv/youtube", "/tv/plex", "/tv/weather",
-            "/tv/calendar", "/tv/news", "/tv/messages",
+            "/tv/youtube",
+            "/tv/plex",
+            "/tv/weather",
+            "/tv/calendar",
+            "/tv/news",
+            "/tv/messages",
         ]
         for start in nav_tests:
             page.goto(f"{BASE}{start}")
             page.wait_for_load_state("domcontentloaded")
             page.wait_for_timeout(500)
             # Dispatch keydown via JS (Playwright headless keyboard can miss the handler)
-            page.evaluate("document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}))")
+            page.evaluate(
+                "document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}))"
+            )
             page.wait_for_timeout(1500)
             left = start not in page.url
-            test(f"Escape from {start} navigates away", left,
-                 f"Got: {page.url}")
+            test(f"Escape from {start} navigates away", left, f"Got: {page.url}")
 
         # ============================================================
         print("\n=== SCREENSAVER MODE ===")
@@ -863,9 +1125,9 @@ def run_tests():
 
     # Print summary
     total = RESULTS["pass"] + RESULTS["fail"]
-    print(f"\n{'='*50}")
+    print(f"\n{'=' * 50}")
     print(f"RESULTS: {RESULTS['pass']}/{total} passed, {RESULTS['fail']} failed")
-    print(f"{'='*50}")
+    print(f"{'=' * 50}")
     if RESULTS["errors"]:
         print("\nFailed tests:")
         for e in RESULTS["errors"]:

@@ -13,6 +13,7 @@ import cache
 def _get_config():
     """Get Immich URL and API key from settings."""
     from models import get_setting
+
     url = (get_setting("immich_url") or "").rstrip("/")
     api_key = get_setting("immich_api_key") or ""
     return url, api_key
@@ -29,8 +30,11 @@ def get_random_photos(count=20):
     Otherwise pulls from the entire library.
     """
     from models import get_setting
+
     # Support albums, folders, or all photos
-    album_ids_str = get_setting("immich_album_ids") or get_setting("immich_album_id") or ""
+    album_ids_str = (
+        get_setting("immich_album_ids") or get_setting("immich_album_id") or ""
+    )
     album_ids = [a.strip() for a in album_ids_str.split(",") if a.strip()]
     folder_paths_str = get_setting("immich_folder_paths") or ""
     folder_paths = [f.strip() for f in folder_paths_str.split(",") if f.strip()]
@@ -49,6 +53,7 @@ def get_random_photos(count=20):
 
     try:
         import random
+
         if album_ids or folder_paths:
             assets = []
             # Fetch from selected albums
@@ -69,8 +74,12 @@ def get_random_photos(count=20):
                     resp = requests.post(
                         f"{url}/api/search/metadata",
                         headers=_headers(api_key),
-                        json={"originalPath": folder, "type": "IMAGE",
-                              "size": 250, "page": random.randint(1, 10)},
+                        json={
+                            "originalPath": folder,
+                            "type": "IMAGE",
+                            "size": 250,
+                            "page": random.randint(1, 10),
+                        },
                         timeout=15,
                     )
                     resp.raise_for_status()
@@ -94,14 +103,16 @@ def get_random_photos(count=20):
         for asset in assets:
             if asset.get("type") != "IMAGE":
                 continue
-            photos.append({
-                "id": asset["id"],
-                "url": f"/api/immich-photo/{asset['id']}",
-                "thumb": f"/api/immich-photo/{asset['id']}?size=thumbnail",
-                "name": asset.get("originalFileName", ""),
-                "date": asset.get("localDateTime", ""),
-                "source": "immich",
-            })
+            photos.append(
+                {
+                    "id": asset["id"],
+                    "url": f"/api/immich-photo/{asset['id']}",
+                    "thumb": f"/api/immich-photo/{asset['id']}?size=thumbnail",
+                    "name": asset.get("originalFileName", ""),
+                    "date": asset.get("localDateTime", ""),
+                    "source": "immich",
+                }
+            )
         cache.set(cache_key, photos, ttl=600)  # 10 min
         cache.record_success("immich")
         return photos
@@ -166,10 +177,16 @@ def get_folder_photos(folder_path, count=20):
         return []
     try:
         import random as _random
+
         resp = requests.post(
             f"{url}/api/search/metadata",
             headers=_headers(api_key),
-            json={"originalPath": folder_path, "type": "IMAGE", "size": min(count * 3, 250), "page": _random.randint(1, 5)},
+            json={
+                "originalPath": folder_path,
+                "type": "IMAGE",
+                "size": min(count * 3, 250),
+                "page": _random.randint(1, 5),
+            },
             timeout=15,
         )
         resp.raise_for_status()
@@ -177,14 +194,16 @@ def get_folder_photos(folder_path, count=20):
         _random.shuffle(items)
         photos = []
         for asset in items[:count]:
-            photos.append({
-                "id": asset["id"],
-                "url": f"/api/immich-photo/{asset['id']}",
-                "thumb": f"/api/immich-photo/{asset['id']}?size=thumbnail",
-                "name": asset.get("originalFileName", ""),
-                "date": asset.get("localDateTime", ""),
-                "source": "immich",
-            })
+            photos.append(
+                {
+                    "id": asset["id"],
+                    "url": f"/api/immich-photo/{asset['id']}",
+                    "thumb": f"/api/immich-photo/{asset['id']}?size=thumbnail",
+                    "name": asset.get("originalFileName", ""),
+                    "date": asset.get("localDateTime", ""),
+                    "source": "immich",
+                }
+            )
         return photos
     except Exception as e:
         print(f"Immich: get_folder_photos error: {e}", file=sys.stderr)
@@ -211,11 +230,13 @@ def get_albums():
         resp.raise_for_status()
         albums = []
         for a in resp.json():
-            albums.append({
-                "id": a["id"],
-                "name": a["albumName"],
-                "count": a.get("assetCount", 0),
-            })
+            albums.append(
+                {
+                    "id": a["id"],
+                    "name": a["albumName"],
+                    "count": a.get("assetCount", 0),
+                }
+            )
         cache.set("immich_albums", albums, ttl=300)
         return albums
     except Exception as e:
@@ -251,7 +272,7 @@ def search_folders(sample_size=500):
                 if base_prefix is None and len(parts) > 3:
                     base_prefix = "/".join(parts[:3]) + "/"
             if base_prefix and path.startswith(base_prefix):
-                top = path[len(base_prefix):].split("/")[0]
+                top = path[len(base_prefix) :].split("/")[0]
             elif len(parts) > 3:
                 top = parts[3] if len(parts) > 3 else parts[-2]
             else:

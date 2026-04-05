@@ -91,25 +91,42 @@ class JellyfinAPI:
         for item in data.get("Items", []):
             ctype = item.get("CollectionType", "")
             if ctype in ("movies", "tvshows", "mixed"):
-                libraries.append({
-                    "id": item["Id"],
-                    "title": item["Name"],
-                    "type": ctype,
-                    "icon": "🎬" if ctype == "movies" else "📺" if ctype == "tvshows" else "📁",
-                })
+                libraries.append(
+                    {
+                        "id": item["Id"],
+                        "title": item["Name"],
+                        "type": ctype,
+                        "icon": "🎬"
+                        if ctype == "movies"
+                        else "📺"
+                        if ctype == "tvshows"
+                        else "📁",
+                    }
+                )
         return libraries
 
     def get_genres(self, library_id):
         """Get genres available in a library."""
-        data = self._get("/Genres", params={
-            "ParentId": library_id,
-            "SortBy": "SortName",
-        })
+        data = self._get(
+            "/Genres",
+            params={
+                "ParentId": library_id,
+                "SortBy": "SortName",
+            },
+        )
         return [g["Name"] for g in data.get("Items", [])]
 
-    def get_library_items(self, library_id, sort="SortName", sort_order="Ascending",
-                          item_type=None, genre=None, limit=100, start=0,
-                          exclude_tags=None):
+    def get_library_items(
+        self,
+        library_id,
+        sort="SortName",
+        sort_order="Ascending",
+        item_type=None,
+        genre=None,
+        limit=100,
+        start=0,
+        exclude_tags=None,
+    ):
         """Get items in a library with optional genre filter and pagination."""
         params = {
             "ParentId": library_id,
@@ -128,7 +145,10 @@ class JellyfinAPI:
             params["ExcludeTags"] = ",".join(exclude_tags)
 
         data = self._get(f"/Users/{self.user_id}/Items", params=params)
-        return [_parse_item(item, self.base_url, self.api_key) for item in data.get("Items", [])]
+        return [
+            _parse_item(item, self.base_url, self.api_key)
+            for item in data.get("Items", [])
+        ]
 
     def get_latest(self, library_id=None, limit=20):
         """Get recently added items."""
@@ -136,7 +156,13 @@ class JellyfinAPI:
         if library_id:
             params["ParentId"] = library_id
         data = self._get(f"/Users/{self.user_id}/Items/Latest", params=params)
-        items = data if isinstance(data, list) else data.get("Items", []) if isinstance(data, dict) else []
+        items = (
+            data
+            if isinstance(data, list)
+            else data.get("Items", [])
+            if isinstance(data, dict)
+            else []
+        )
         return [_parse_item(item, self.base_url, self.api_key) for item in items]
 
     def get_resume(self, limit=10):
@@ -158,38 +184,52 @@ class JellyfinAPI:
 
     def get_seasons(self, show_id):
         """Get seasons for a TV show."""
-        data = self._get(f"/Shows/{show_id}/Seasons", params={
-            "UserId": self.user_id,
-            "Fields": "Overview",
-        })
+        data = self._get(
+            f"/Shows/{show_id}/Seasons",
+            params={
+                "UserId": self.user_id,
+                "Fields": "Overview",
+            },
+        )
         seasons = []
         for item in data.get("Items", []):
-            seasons.append({
-                "id": item["Id"],
-                "title": item.get("Name", ""),
-                "index": item.get("IndexNumber", 0),
-                "episode_count": item.get("ChildCount", 0),
-                "thumb": _image_url(item, self.base_url, self.api_key, "Primary", 400),
-            })
+            seasons.append(
+                {
+                    "id": item["Id"],
+                    "title": item.get("Name", ""),
+                    "index": item.get("IndexNumber", 0),
+                    "episode_count": item.get("ChildCount", 0),
+                    "thumb": _image_url(
+                        item, self.base_url, self.api_key, "Primary", 400
+                    ),
+                }
+            )
         return seasons
 
     def get_episodes(self, show_id, season_id):
         """Get episodes for a season."""
-        data = self._get(f"/Shows/{show_id}/Episodes", params={
-            "SeasonId": season_id,
-            "UserId": self.user_id,
-            "Fields": "Overview",
-        })
+        data = self._get(
+            f"/Shows/{show_id}/Episodes",
+            params={
+                "SeasonId": season_id,
+                "UserId": self.user_id,
+                "Fields": "Overview",
+            },
+        )
         episodes = []
         for item in data.get("Items", []):
-            episodes.append({
-                "id": item["Id"],
-                "title": item.get("Name", ""),
-                "index": item.get("IndexNumber", 0),
-                "summary": (item.get("Overview") or "")[:200],
-                "duration": _format_duration(item.get("RunTimeTicks")),
-                "thumb": _image_url(item, self.base_url, self.api_key, "Primary", 400),
-            })
+            episodes.append(
+                {
+                    "id": item["Id"],
+                    "title": item.get("Name", ""),
+                    "index": item.get("IndexNumber", 0),
+                    "summary": (item.get("Overview") or "")[:200],
+                    "duration": _format_duration(item.get("RunTimeTicks")),
+                    "thumb": _image_url(
+                        item, self.base_url, self.api_key, "Primary", 400
+                    ),
+                }
+            )
         return episodes
 
     def get_music_tracks(self, genre=None, limit=20):
@@ -206,15 +246,19 @@ class JellyfinAPI:
         data = self._get(f"/Users/{self.user_id}/Items", params=params)
         tracks = []
         for item in data.get("Items", []):
-            tracks.append({
-                "id": item.get("Id", ""),
-                "title": item.get("Name", ""),
-                "artist": ", ".join(item.get("Artists", []) or ["Unknown"]),
-                "album": item.get("Album", ""),
-                "duration": _format_duration(item.get("RunTimeTicks")),
-                "stream_url": f"/api/jellyfin-stream/{item.get('Id', '')}/stream?Static=true",
-                "thumb": _image_url(item, self.base_url, self.api_key, "Primary", 200),
-            })
+            tracks.append(
+                {
+                    "id": item.get("Id", ""),
+                    "title": item.get("Name", ""),
+                    "artist": ", ".join(item.get("Artists", []) or ["Unknown"]),
+                    "album": item.get("Album", ""),
+                    "duration": _format_duration(item.get("RunTimeTicks")),
+                    "stream_url": f"/api/jellyfin-stream/{item.get('Id', '')}/stream?Static=true",
+                    "thumb": _image_url(
+                        item, self.base_url, self.api_key, "Primary", 200
+                    ),
+                }
+            )
         return tracks
 
     def get_english_audio_index(self, item_id):
@@ -239,7 +283,11 @@ class JellyfinAPI:
                 if lang in ("eng", "en", "english") and english_audio is None:
                     english_audio = s
             # If default is already English, no override needed
-            if default_audio and (default_audio.get("Language") or "").lower() in ("eng", "en", "english"):
+            if default_audio and (default_audio.get("Language") or "").lower() in (
+                "eng",
+                "en",
+                "english",
+            ):
                 return None
             # If we found an English track, return its index
             if english_audio:
@@ -318,14 +366,20 @@ class JellyfinAPI:
         """Get a daily rotation of movies — same all day, different tomorrow.
         Uses the date as a seed offset into the full library."""
         from datetime import date
+
         today = date.today()
         day_seed = today.year * 10000 + today.month * 100 + today.day
 
         # Get total count
-        data = self._get(f"/Users/{self.user_id}/Items", params={
-            "ParentId": library_id, "Recursive": "true",
-            "IncludeItemTypes": "Movie", "Limit": 0,
-        })
+        data = self._get(
+            f"/Users/{self.user_id}/Items",
+            params={
+                "ParentId": library_id,
+                "Recursive": "true",
+                "IncludeItemTypes": "Movie",
+                "Limit": 0,
+            },
+        )
         total = data.get("TotalRecordCount", 0)
         if total == 0:
             return []
@@ -333,31 +387,40 @@ class JellyfinAPI:
         # Use date as offset into the library, wrapping around
         start_index = (day_seed * 7) % max(1, total - count)
 
-        data = self._get(f"/Users/{self.user_id}/Items", params={
-            "ParentId": library_id,
-            "SortBy": "SortName",
-            "SortOrder": "Ascending",
-            "Fields": "Overview,PrimaryImageAspectRatio,Genres",
-            "ImageTypeLimit": 1,
-            "Limit": count,
-            "StartIndex": start_index,
-            "Recursive": "true",
-            "IncludeItemTypes": "Movie",
-        })
-        return [_parse_item(item, self.base_url, self.api_key) for item in data.get("Items", [])]
+        data = self._get(
+            f"/Users/{self.user_id}/Items",
+            params={
+                "ParentId": library_id,
+                "SortBy": "SortName",
+                "SortOrder": "Ascending",
+                "Fields": "Overview,PrimaryImageAspectRatio,Genres",
+                "ImageTypeLimit": 1,
+                "Limit": count,
+                "StartIndex": start_index,
+                "Recursive": "true",
+                "IncludeItemTypes": "Movie",
+            },
+        )
+        return [
+            _parse_item(item, self.base_url, self.api_key)
+            for item in data.get("Items", [])
+        ]
 
     def get_random_episode(self, show_id):
         """Get a random episode from a TV show."""
         # Get all episodes
-        data = self._get(f"/Users/{self.user_id}/Items", params={
-            "ParentId": show_id,
-            "Recursive": "true",
-            "IncludeItemTypes": "Episode",
-            "SortBy": "Random",
-            "SortOrder": "Ascending",
-            "Fields": "Overview",
-            "Limit": 1,
-        })
+        data = self._get(
+            f"/Users/{self.user_id}/Items",
+            params={
+                "ParentId": show_id,
+                "Recursive": "true",
+                "IncludeItemTypes": "Episode",
+                "SortBy": "Random",
+                "SortOrder": "Ascending",
+                "Fields": "Overview",
+                "Limit": 1,
+            },
+        )
         items = data.get("Items", [])
         if items:
             return _parse_item(items[0], self.base_url, self.api_key)
@@ -365,14 +428,20 @@ class JellyfinAPI:
 
     def search(self, query, limit=20):
         """Search across all libraries."""
-        data = self._get(f"/Users/{self.user_id}/Items", params={
-            "SearchTerm": query,
-            "Limit": limit,
-            "Fields": "Overview",
-            "Recursive": "true",
-            "IncludeItemTypes": "Movie,Series,Episode",
-        })
-        return [_parse_item(item, self.base_url, self.api_key) for item in data.get("Items", [])]
+        data = self._get(
+            f"/Users/{self.user_id}/Items",
+            params={
+                "SearchTerm": query,
+                "Limit": limit,
+                "Fields": "Overview",
+                "Recursive": "true",
+                "IncludeItemTypes": "Movie,Series,Episode",
+            },
+        )
+        return [
+            _parse_item(item, self.base_url, self.api_key)
+            for item in data.get("Items", [])
+        ]
 
     def report_playback_start(self, item_id):
         """Tell Jellyfin we started playing (updates "Now Playing")."""
@@ -400,6 +469,7 @@ class JellyfinAPI:
 
 
 # --- Helpers ---
+
 
 def _parse_item(item, base_url, api_key):
     item_type = item.get("Type", "Unknown").lower()

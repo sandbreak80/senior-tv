@@ -18,7 +18,9 @@ def get_youtube_duration(video_id):
     try:
         resp = requests.get(
             f"https://www.youtube.com/watch?v={video_id}",
-            headers={"User-Agent": "Mozilla/5.0"}, timeout=8)
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=8,
+        )
         m = re.search(r'"lengthSeconds":"(\d+)"', resp.text)
         if m:
             duration = int(m.group(1))

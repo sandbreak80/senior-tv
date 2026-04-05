@@ -23,36 +23,54 @@ def get_time_period(hour=None):
         return {
             "period": "morning",
             "youtube_categories": [
-                "Game Shows", "Morning Shows", "Classic TV",
+                "Game Shows",
+                "Morning Shows",
+                "Classic TV",
             ],
             "pluto_categories": [
-                "News + Opinion", "Daytime + Game Shows",
+                "News + Opinion",
+                "Daytime + Game Shows",
                 "Classic TV",
             ],
             "jellyfin_genres": [
-                "Comedy", "Family", "Western",
+                "Comedy",
+                "Family",
+                "Western",
             ],
             "channel_categories": [
-                "Game Shows", "Morning Shows",
-                "Local News", "Classic TV",
+                "Game Shows",
+                "Morning Shows",
+                "Local News",
+                "Classic TV",
             ],
         }
     elif hour < 17:  # Afternoon: 2-5 PM
         return {
             "period": "afternoon",
             "youtube_categories": [
-                "Westerns", "Classic TV", "Comedy",
-                "Crime & Drama", "Music & Variety",
+                "Westerns",
+                "Classic TV",
+                "Comedy",
+                "Crime & Drama",
+                "Music & Variety",
             ],
             "pluto_categories": [
-                "Westerns", "Classic TV", "Comedy",
-                "Drama", "True Crime",
+                "Westerns",
+                "Classic TV",
+                "Comedy",
+                "Drama",
+                "True Crime",
             ],
             "jellyfin_genres": [
-                "Western", "Comedy", "Drama", "Crime",
+                "Western",
+                "Comedy",
+                "Drama",
+                "Crime",
             ],
             "channel_categories": [
-                "Westerns", "Classic TV", "Comedy",
+                "Westerns",
+                "Classic TV",
+                "Comedy",
                 "Crime & Drama",
             ],
         }
@@ -60,18 +78,30 @@ def get_time_period(hour=None):
         return {
             "period": "evening",
             "youtube_categories": [
-                "Comedy", "Crime & Drama", "Wind Down",
-                "Westerns", "Music & Variety", "Nature",
+                "Comedy",
+                "Crime & Drama",
+                "Wind Down",
+                "Westerns",
+                "Music & Variety",
+                "Nature",
             ],
             "pluto_categories": [
-                "Comedy", "Classic TV", "Drama",
-                "True Crime", "Westerns",
+                "Comedy",
+                "Classic TV",
+                "Drama",
+                "True Crime",
+                "Westerns",
             ],
             "jellyfin_genres": [
-                "Western", "Family", "Comedy", "Crime",
+                "Western",
+                "Family",
+                "Comedy",
+                "Crime",
             ],
             "channel_categories": [
-                "Wind Down", "Comedy", "Classic TV",
+                "Wind Down",
+                "Comedy",
+                "Classic TV",
                 "Westerns",
             ],
         }

@@ -166,10 +166,13 @@ def init_db():
 
     # Generate random admin password on first boot if not set
     # Passwords are stored as werkzeug hashes
-    row = db.execute("SELECT value FROM settings WHERE key = 'admin_password'").fetchone()
+    row = db.execute(
+        "SELECT value FROM settings WHERE key = 'admin_password'"
+    ).fetchone()
     if not row or not row[0]:
         import secrets as _secrets
         from werkzeug.security import generate_password_hash
+
         pin = f"{_secrets.randbelow(1000000):06d}"
         db.execute(
             "INSERT OR REPLACE INTO settings (key, value) VALUES ('admin_password', ?)",
@@ -184,7 +187,9 @@ def init_db():
     db.close()
 
 
-def log_activity(activity_type, item_id=None, item_title=None, item_type=None, duration_seconds=None):
+def log_activity(
+    activity_type, item_id=None, item_title=None, item_type=None, duration_seconds=None
+):
     with get_db_safe() as db:
         db.execute(
             """INSERT INTO activity_logs (activity_type, item_id, item_title, item_type, duration_seconds)
@@ -257,6 +262,7 @@ def get_remote_log_count(hours=1):
 
 # --- Settings helpers ---
 
+
 def get_setting(key, default=None):
     with get_db_safe() as db:
         row = db.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
@@ -289,12 +295,14 @@ def get_setting_or_default(key):
     """Get setting from DB, falling back to config.py DEFAULTS.
     Cached for 60 seconds to reduce DB reads."""
     import cache
+
     cached = cache.get(f"setting_{key}")
     if cached is not None:
         return cached
     val = get_setting(key)
     if val is None:
         from config import DEFAULTS
+
         default = DEFAULTS.get(key)
         result = str(default) if default is not None else ""
     else:
@@ -319,6 +327,7 @@ def get_all_settings():
 
 
 # --- Pills helpers ---
+
 
 def get_pills(enabled_only=False):
     with get_db_safe() as db:
@@ -347,7 +356,12 @@ def create_pill(data):
                 data.get("dosage", ""),
                 data.get("instructions", ""),
                 json.dumps(data.get("schedule_times", [])),
-                json.dumps(data.get("schedule_days", ["mon", "tue", "wed", "thu", "fri", "sat", "sun"])),
+                json.dumps(
+                    data.get(
+                        "schedule_days",
+                        ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+                    )
+                ),
                 data.get("reminder_type", "text"),
                 data.get("reminder_media"),
                 data.get("reminder_message", ""),
@@ -362,7 +376,15 @@ def update_pill(pill_id, data):
     with get_db_safe() as db:
         fields = []
         values = []
-        for key in ["name", "dosage", "instructions", "reminder_type", "reminder_media", "reminder_message", "enabled"]:
+        for key in [
+            "name",
+            "dosage",
+            "instructions",
+            "reminder_type",
+            "reminder_media",
+            "reminder_message",
+            "enabled",
+        ]:
             if key in data:
                 fields.append(f"{key} = ?")
                 values.append(data[key])
@@ -410,6 +432,7 @@ def get_pill_adherence_today():
     """
     import json
     from datetime import datetime
+
     now = datetime.now()
     current_day = now.strftime("%a").lower()[:3]  # mon, tue, etc.
     current_time = now.strftime("%H:%M")
@@ -453,13 +476,15 @@ def get_pill_adherence_today():
                 h_int = int(h)
                 display_time = f"{h_int % 12 or 12}:{m} {'AM' if h_int < 12 else 'PM'}"
 
-                results.append({
-                    "pill_name": pill["name"],
-                    "scheduled_time": t,
-                    "display_time": display_time,
-                    "status": status,
-                    "acknowledged_at": log["acknowledged_at"] if log else None,
-                })
+                results.append(
+                    {
+                        "pill_name": pill["name"],
+                        "scheduled_time": t,
+                        "display_time": display_time,
+                        "status": status,
+                        "acknowledged_at": log["acknowledged_at"] if log else None,
+                    }
+                )
 
     return results
 
@@ -491,6 +516,7 @@ def prune_old_logs(activity_days=30, remote_days=7):
 
 # --- Calendar helpers ---
 
+
 def get_upcoming_events(days=14):
     with get_db_safe() as db:
         rows = db.execute(
@@ -504,13 +530,17 @@ def get_upcoming_events(days=14):
 
 def get_all_events():
     with get_db_safe() as db:
-        rows = db.execute("SELECT * FROM calendar_events ORDER BY event_date DESC, event_time").fetchall()
+        rows = db.execute(
+            "SELECT * FROM calendar_events ORDER BY event_date DESC, event_time"
+        ).fetchall()
         return [dict(r) for r in rows]
 
 
 def get_event(event_id):
     with get_db_safe() as db:
-        row = db.execute("SELECT * FROM calendar_events WHERE id = ?", (event_id,)).fetchone()
+        row = db.execute(
+            "SELECT * FROM calendar_events WHERE id = ?", (event_id,)
+        ).fetchone()
         return dict(row) if row else None
 
 
@@ -519,7 +549,13 @@ def create_event(data):
         cursor = db.execute(
             """INSERT INTO calendar_events (title, description, event_date, event_time, recurring)
                VALUES (?, ?, ?, ?, ?)""",
-            (data["title"], data.get("description", ""), data["event_date"], data.get("event_time"), data.get("recurring")),
+            (
+                data["title"],
+                data.get("description", ""),
+                data["event_date"],
+                data.get("event_time"),
+                data.get("recurring"),
+            ),
         )
         db.commit()
         return cursor.lastrowid
@@ -535,7 +571,9 @@ def update_event(event_id, data):
                 values.append(data[key])
         if fields:
             values.append(event_id)
-            db.execute(f"UPDATE calendar_events SET {', '.join(fields)} WHERE id = ?", values)
+            db.execute(
+                f"UPDATE calendar_events SET {', '.join(fields)} WHERE id = ?", values
+            )
             db.commit()
 
 
@@ -547,6 +585,7 @@ def delete_event(event_id):
 
 # --- Favorites helpers ---
 
+
 def get_favorites(platform=None):
     with get_db_safe() as db:
         if platform:
@@ -555,7 +594,9 @@ def get_favorites(platform=None):
                 (platform,),
             ).fetchall()
         else:
-            rows = db.execute("SELECT * FROM favorites ORDER BY platform, category, sort_order, title").fetchall()
+            rows = db.execute(
+                "SELECT * FROM favorites ORDER BY platform, category, sort_order, title"
+            ).fetchall()
         return [dict(r) for r in rows]
 
 
@@ -588,7 +629,15 @@ def update_favorite(fav_id, data):
     with get_db_safe() as db:
         fields = []
         values = []
-        for key in ["platform", "title", "description", "thumbnail_url", "url", "category", "sort_order"]:
+        for key in [
+            "platform",
+            "title",
+            "description",
+            "thumbnail_url",
+            "url",
+            "category",
+            "sort_order",
+        ]:
             if key in data:
                 fields.append(f"{key} = ?")
                 values.append(data[key])
@@ -600,6 +649,7 @@ def update_favorite(fav_id, data):
 
 # --- YouTube channel helpers ---
 
+
 def get_youtube_channels(category=None):
     with get_db_safe() as db:
         if category:
@@ -608,13 +658,17 @@ def get_youtube_channels(category=None):
                 (category,),
             ).fetchall()
         else:
-            rows = db.execute("SELECT * FROM youtube_channels ORDER BY category, sort_order, name").fetchall()
+            rows = db.execute(
+                "SELECT * FROM youtube_channels ORDER BY category, sort_order, name"
+            ).fetchall()
         return [dict(r) for r in rows]
 
 
 def get_youtube_channel(ch_id):
     with get_db_safe() as db:
-        row = db.execute("SELECT * FROM youtube_channels WHERE id = ?", (ch_id,)).fetchone()
+        row = db.execute(
+            "SELECT * FROM youtube_channels WHERE id = ?", (ch_id,)
+        ).fetchone()
         return dict(row) if row else None
 
 
@@ -623,9 +677,14 @@ def create_youtube_channel(data):
         cursor = db.execute(
             """INSERT INTO youtube_channels (name, channel_id, description, thumbnail_url, category, sort_order)
                VALUES (?, ?, ?, ?, ?, ?)""",
-            (data["name"], data["channel_id"], data.get("description", ""),
-             data.get("thumbnail_url", ""), data.get("category", "Entertainment"),
-             data.get("sort_order", 0)),
+            (
+                data["name"],
+                data["channel_id"],
+                data.get("description", ""),
+                data.get("thumbnail_url", ""),
+                data.get("category", "Entertainment"),
+                data.get("sort_order", 0),
+            ),
         )
         db.commit()
         return cursor.lastrowid
@@ -635,17 +694,27 @@ def update_youtube_channel(ch_id, data):
     with get_db_safe() as db:
         fields = []
         values = []
-        for key in ["name", "channel_id", "description", "thumbnail_url", "category", "sort_order"]:
+        for key in [
+            "name",
+            "channel_id",
+            "description",
+            "thumbnail_url",
+            "category",
+            "sort_order",
+        ]:
             if key in data:
                 fields.append(f"{key} = ?")
                 values.append(data[key])
         if fields:
             values.append(ch_id)
-            db.execute(f"UPDATE youtube_channels SET {', '.join(fields)} WHERE id = ?", values)
+            db.execute(
+                f"UPDATE youtube_channels SET {', '.join(fields)} WHERE id = ?", values
+            )
             db.commit()
 
 
 # --- Family message helpers ---
+
 
 def get_messages(unread_only=False, limit=50):
     with get_db_safe() as db:
@@ -659,13 +728,17 @@ def get_messages(unread_only=False, limit=50):
 
 def get_unread_count():
     with get_db_safe() as db:
-        row = db.execute("SELECT COUNT(*) as c FROM family_messages WHERE read_at IS NULL").fetchone()
+        row = db.execute(
+            "SELECT COUNT(*) as c FROM family_messages WHERE read_at IS NULL"
+        ).fetchone()
         return row["c"] if row else 0
 
 
 def get_message(msg_id):
     with get_db_safe() as db:
-        row = db.execute("SELECT * FROM family_messages WHERE id = ?", (msg_id,)).fetchone()
+        row = db.execute(
+            "SELECT * FROM family_messages WHERE id = ?", (msg_id,)
+        ).fetchone()
         return dict(row) if row else None
 
 
@@ -673,7 +746,12 @@ def create_message(data):
     with get_db_safe() as db:
         cursor = db.execute(
             "INSERT INTO family_messages (sender, message, media_type, media_file) VALUES (?, ?, ?, ?)",
-            (data["sender"], data.get("message", ""), data.get("media_type", "text"), data.get("media_file")),
+            (
+                data["sender"],
+                data.get("message", ""),
+                data.get("media_type", "text"),
+                data.get("media_file"),
+            ),
         )
         db.commit()
         return cursor.lastrowid
@@ -681,7 +759,10 @@ def create_message(data):
 
 def mark_message_read(msg_id):
     with get_db_safe() as db:
-        db.execute("UPDATE family_messages SET read_at = CURRENT_TIMESTAMP WHERE id = ?", (msg_id,))
+        db.execute(
+            "UPDATE family_messages SET read_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (msg_id,),
+        )
         db.commit()
 
 
@@ -693,6 +774,7 @@ def delete_message(msg_id):
 
 # --- Birthday helpers ---
 
+
 def get_birthdays():
     with get_db_safe() as db:
         rows = db.execute("SELECT * FROM birthdays ORDER BY birth_date").fetchall()
@@ -701,9 +783,12 @@ def get_birthdays():
 
 def get_todays_birthdays():
     from datetime import datetime
+
     today_mmdd = datetime.now().strftime("%m-%d")
     with get_db_safe() as db:
-        rows = db.execute("SELECT * FROM birthdays WHERE birth_date = ?", (today_mmdd,)).fetchall()
+        rows = db.execute(
+            "SELECT * FROM birthdays WHERE birth_date = ?", (today_mmdd,)
+        ).fetchall()
         return [dict(r) for r in rows]
 
 
@@ -711,7 +796,12 @@ def create_birthday(data):
     with get_db_safe() as db:
         cursor = db.execute(
             "INSERT INTO birthdays (name, birth_date, birth_year, relationship) VALUES (?, ?, ?, ?)",
-            (data["name"], data["birth_date"], data.get("birth_year"), data.get("relationship", "")),
+            (
+                data["name"],
+                data["birth_date"],
+                data.get("birth_year"),
+                data.get("relationship", ""),
+            ),
         )
         db.commit()
         return cursor.lastrowid
@@ -724,6 +814,7 @@ def delete_birthday(b_id):
 
 
 # --- Favorite shows helpers ---
+
 
 def get_favorite_shows(enabled_only=False):
     with get_db_safe() as db:
@@ -764,6 +855,7 @@ def delete_favorite(fav_id):
 
 
 # --- YouTube free movies helpers ---
+
 
 def get_youtube_movies(genre=None, limit=100):
     with get_db_safe() as db:
@@ -812,10 +904,18 @@ def create_youtube_movie(data):
             """INSERT OR IGNORE INTO youtube_movies
                (video_id, title, year, genre, duration_minutes, thumbnail_url, added_by)
                VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (data["video_id"], data["title"], data.get("year"),
-             data.get("genre", "Drama"), data.get("duration_minutes"),
-             data.get("thumbnail_url", f"https://i.ytimg.com/vi/{data['video_id']}/hqdefault.jpg"),
-             data.get("added_by", "manual")),
+            (
+                data["video_id"],
+                data["title"],
+                data.get("year"),
+                data.get("genre", "Drama"),
+                data.get("duration_minutes"),
+                data.get(
+                    "thumbnail_url",
+                    f"https://i.ytimg.com/vi/{data['video_id']}/hqdefault.jpg",
+                ),
+                data.get("added_by", "manual"),
+            ),
         )
         db.commit()
         return cursor.lastrowid
@@ -829,19 +929,25 @@ def delete_youtube_movie(movie_id):
 
 def get_youtube_movie_count():
     with get_db_safe() as db:
-        row = db.execute("SELECT COUNT(*) as c FROM youtube_movies WHERE enabled = 1").fetchone()
+        row = db.execute(
+            "SELECT COUNT(*) as c FROM youtube_movies WHERE enabled = 1"
+        ).fetchone()
         return row["c"] if row else 0
 
 
 def get_youtube_movie(movie_id):
     with get_db_safe() as db:
-        row = db.execute("SELECT * FROM youtube_movies WHERE id = ?", (movie_id,)).fetchone()
+        row = db.execute(
+            "SELECT * FROM youtube_movies WHERE id = ?", (movie_id,)
+        ).fetchone()
         return dict(row) if row else None
 
 
 def get_youtube_movie_by_video_id(video_id):
     with get_db_safe() as db:
-        row = db.execute("SELECT * FROM youtube_movies WHERE video_id = ?", (video_id,)).fetchone()
+        row = db.execute(
+            "SELECT * FROM youtube_movies WHERE video_id = ?", (video_id,)
+        ).fetchone()
         return dict(row) if row else None
 
 
@@ -849,14 +955,23 @@ def update_youtube_movie(movie_id, data):
     with get_db_safe() as db:
         fields = []
         values = []
-        for key in ["title", "video_id", "year", "genre", "duration_minutes",
-                     "thumbnail_url", "enabled"]:
+        for key in [
+            "title",
+            "video_id",
+            "year",
+            "genre",
+            "duration_minutes",
+            "thumbnail_url",
+            "enabled",
+        ]:
             if key in data:
                 fields.append(f"{key} = ?")
                 values.append(data[key])
         if fields:
             values.append(movie_id)
-            db.execute(f"UPDATE youtube_movies SET {', '.join(fields)} WHERE id = ?", values)
+            db.execute(
+                f"UPDATE youtube_movies SET {', '.join(fields)} WHERE id = ?", values
+            )
             db.commit()
 
 
@@ -875,8 +990,12 @@ def get_youtube_movie_stats():
     """Get aggregate stats for the free movies catalog."""
     with get_db_safe() as db:
         total = db.execute("SELECT COUNT(*) as c FROM youtube_movies").fetchone()["c"]
-        enabled = db.execute("SELECT COUNT(*) as c FROM youtube_movies WHERE enabled = 1").fetchone()["c"]
-        total_plays = db.execute("SELECT COALESCE(SUM(play_count), 0) as c FROM youtube_movies").fetchone()["c"]
+        enabled = db.execute(
+            "SELECT COUNT(*) as c FROM youtube_movies WHERE enabled = 1"
+        ).fetchone()["c"]
+        total_plays = db.execute(
+            "SELECT COALESCE(SUM(play_count), 0) as c FROM youtube_movies"
+        ).fetchone()["c"]
         total_minutes = db.execute(
             "SELECT COALESCE(SUM(duration_minutes), 0) as c FROM youtube_movies WHERE enabled = 1"
         ).fetchone()["c"]

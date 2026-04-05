@@ -9,12 +9,24 @@ from models import get_setting_or_default
 
 
 _CODE_TEXT = {
-    0: "Clear", 1: "Mostly Clear", 2: "Partly Cloudy",
-    3: "Overcast", 45: "Foggy", 48: "Foggy",
-    51: "Light Drizzle", 53: "Drizzle", 55: "Heavy Drizzle",
-    61: "Light Rain", 63: "Rain", 65: "Heavy Rain",
-    71: "Light Snow", 73: "Snow", 75: "Heavy Snow",
-    80: "Rain Showers", 81: "Rain Showers", 82: "Heavy Showers",
+    0: "Clear",
+    1: "Mostly Clear",
+    2: "Partly Cloudy",
+    3: "Overcast",
+    45: "Foggy",
+    48: "Foggy",
+    51: "Light Drizzle",
+    53: "Drizzle",
+    55: "Heavy Drizzle",
+    61: "Light Rain",
+    63: "Rain",
+    65: "Heavy Rain",
+    71: "Light Snow",
+    73: "Snow",
+    75: "Heavy Snow",
+    80: "Rain Showers",
+    81: "Rain Showers",
+    82: "Heavy Showers",
     95: "Thunderstorm",
 }
 
@@ -71,7 +83,8 @@ def get_summary():
         resp = requests.get(
             "https://api.open-meteo.com/v1/forecast",
             params={
-                "latitude": lat, "longitude": lon,
+                "latitude": lat,
+                "longitude": lon,
                 "current": "temperature_2m,weather_code",
                 "temperature_unit": temp_unit,
             },
@@ -104,12 +117,9 @@ def get_forecast(days=5):
         resp = requests.get(
             "https://api.open-meteo.com/v1/forecast",
             params={
-                "latitude": lat, "longitude": lon,
-                "daily": (
-                    "weather_code,"
-                    "temperature_2m_max,"
-                    "temperature_2m_min"
-                ),
+                "latitude": lat,
+                "longitude": lon,
+                "daily": ("weather_code,temperature_2m_max,temperature_2m_min"),
                 "temperature_unit": temp_unit,
                 "timezone": "auto",
                 "forecast_days": days,
@@ -119,19 +129,19 @@ def get_forecast(days=5):
         data = resp.json()
         forecast = []
         for i in range(days):
-            day_name = datetime.strptime(
-                data["daily"]["time"][i], "%Y-%m-%d"
-            ).strftime("%a")
+            day_name = datetime.strptime(data["daily"]["time"][i], "%Y-%m-%d").strftime(
+                "%a"
+            )
             if i == 0:
                 day_name = "Today"
-            forecast.append({
-                "day": day_name,
-                "high": round(data["daily"]["temperature_2m_max"][i]),
-                "low": round(data["daily"]["temperature_2m_min"][i]),
-                "icon": code_to_icon(
-                    data["daily"]["weather_code"][i]
-                ),
-            })
+            forecast.append(
+                {
+                    "day": day_name,
+                    "high": round(data["daily"]["temperature_2m_max"][i]),
+                    "low": round(data["daily"]["temperature_2m_min"][i]),
+                    "icon": code_to_icon(data["daily"]["weather_code"][i]),
+                }
+            )
         cache.set("forecast_5day", forecast, ttl=1800)
         return forecast
     except Exception:
@@ -148,16 +158,12 @@ def get_detailed():
         resp = requests.get(
             "https://api.open-meteo.com/v1/forecast",
             params={
-                "latitude": lat, "longitude": lon,
+                "latitude": lat,
+                "longitude": lon,
                 "current": (
-                    "temperature_2m,weather_code,"
-                    "relative_humidity_2m,wind_speed_10m"
+                    "temperature_2m,weather_code,relative_humidity_2m,wind_speed_10m"
                 ),
-                "daily": (
-                    "weather_code,"
-                    "temperature_2m_max,"
-                    "temperature_2m_min"
-                ),
+                "daily": ("weather_code,temperature_2m_max,temperature_2m_min"),
                 "temperature_unit": temp_unit,
                 "wind_speed_unit": "mph",
                 "timezone": "auto",
@@ -177,20 +183,22 @@ def get_detailed():
         }
         forecast = []
         for i in range(5):
-            day_name = datetime.strptime(
-                data["daily"]["time"][i], "%Y-%m-%d"
-            ).strftime("%A")
+            day_name = datetime.strptime(data["daily"]["time"][i], "%Y-%m-%d").strftime(
+                "%A"
+            )
             if i == 0:
                 day_name = "Today"
             wc = data["daily"]["weather_code"][i]
-            forecast.append({
-                "day": day_name,
-                "high": round(data["daily"]["temperature_2m_max"][i]),
-                "low": round(data["daily"]["temperature_2m_min"][i]),
-                "icon": code_to_icon(wc),
-                "condition": code_to_text(wc),
-                "symbol": symbol,
-            })
+            forecast.append(
+                {
+                    "day": day_name,
+                    "high": round(data["daily"]["temperature_2m_max"][i]),
+                    "low": round(data["daily"]["temperature_2m_min"][i]),
+                    "icon": code_to_icon(wc),
+                    "condition": code_to_text(wc),
+                    "symbol": symbol,
+                }
+            )
         return current, forecast
     except Exception:
         return None, []

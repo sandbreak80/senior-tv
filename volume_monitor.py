@@ -22,7 +22,9 @@ def _detect_mic_device():
     since webcams pick up room audio while USB HID devices may be silent.
     """
     try:
-        result = subprocess.run(["arecord", "-l"], capture_output=True, text=True, timeout=5)
+        result = subprocess.run(
+            ["arecord", "-l"], capture_output=True, text=True, timeout=5
+        )
         usb_cards = []
         for line in result.stdout.splitlines():
             if "card" not in line:
@@ -43,9 +45,24 @@ def _detect_mic_device():
 def measure_volume(device):
     """Record 1 second from the webcam mic and return (rms, db_level)."""
     proc = subprocess.run(
-        ["arecord", "-D", device, "-f", "S16_LE", "-r", str(RATE), "-c", "1",
-         "-d", str(DURATION), "-t", "raw", "-q"],
-        capture_output=True, timeout=5,
+        [
+            "arecord",
+            "-D",
+            device,
+            "-f",
+            "S16_LE",
+            "-r",
+            str(RATE),
+            "-c",
+            "1",
+            "-d",
+            str(DURATION),
+            "-t",
+            "raw",
+            "-q",
+        ],
+        capture_output=True,
+        timeout=5,
     )
     if proc.returncode != 0:
         return None, None
@@ -55,7 +72,7 @@ def measure_volume(device):
         return None, None
 
     n_samples = len(raw) // 2
-    samples = struct.unpack(f"<{n_samples}h", raw[:n_samples * 2])
+    samples = struct.unpack(f"<{n_samples}h", raw[: n_samples * 2])
     rms = math.sqrt(sum(s * s for s in samples) / n_samples)
     db_level = 20 * math.log10(rms / 32768) if rms > 0 else -96.0
     return round(rms, 1), round(db_level, 1)
@@ -66,6 +83,7 @@ def get_speaker_volume():
     try:
         import requests
         from models import get_setting
+
         ha_url = get_setting("ha_url")
         ha_token = get_setting("ha_token")
         entity = get_setting("ha_speaker_entity") or ""
@@ -85,6 +103,7 @@ def get_speaker_volume():
 
 def store(rms, db_level, sonos_volume):
     from models import get_db_safe
+
     with get_db_safe() as db:
         db.execute(
             "INSERT INTO volume_logs (rms, db_level, sonos_volume) VALUES (?, ?, ?)",
@@ -95,6 +114,7 @@ def store(rms, db_level, sonos_volume):
 
 def main():
     from models import init_db
+
     init_db()
 
     mic_device = _detect_mic_device()
@@ -106,8 +126,13 @@ def main():
             if rms is not None:
                 speaker_vol = get_speaker_volume()
                 store(rms, db_level, speaker_vol)
-                vol_pct = f"{int(speaker_vol * 100)}%" if speaker_vol is not None else "?"
-                print(f"RMS: {rms:>8.1f}  dB: {db_level:>6.1f}  Speaker: {vol_pct}", file=sys.stderr)
+                vol_pct = (
+                    f"{int(speaker_vol * 100)}%" if speaker_vol is not None else "?"
+                )
+                print(
+                    f"RMS: {rms:>8.1f}  dB: {db_level:>6.1f}  Speaker: {vol_pct}",
+                    file=sys.stderr,
+                )
         except Exception as e:
             print(f"Volume monitor error: {e}", file=sys.stderr)
         time.sleep(INTERVAL - DURATION)

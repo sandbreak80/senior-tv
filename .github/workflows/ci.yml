@@ -28,8 +28,14 @@ jobs:
           python -m py_compile jellyfin_api.py
           python -m py_compile pluto_tv.py
           python -m py_compile immich_api.py
+          python -m py_compile youtube_utils.py
+          python -m py_compile services/weather.py
+          python -m py_compile services/youtube.py
+          python -m py_compile services/content.py
+          python -m py_compile services/health.py
+          python -m py_compile services/home.py
       - name: Lint
-        run: ruff check *.py --select E,F,W
+        run: ruff check *.py services/*.py --select E,F,W --ignore E501,E402
       - name: Template syntax
         run: |
           python -c "
