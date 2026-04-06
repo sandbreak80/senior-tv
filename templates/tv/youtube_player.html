@@ -101,6 +101,7 @@
             // Video/playlist ended — go home, auto-play will pick next content
             if (navigatingAway) return;
             navigatingAway = true;
+            _ytStopReason = "video_ended";
             window.quickNav('/');
         }
 
@@ -109,6 +110,7 @@
             if (e.key === 'Escape' || e.key === 'Backspace' || e.key === 'BrowserBack') {
                 e.preventDefault();
                 e.stopPropagation();
+                _ytStopReason = "user_back";
                 window.quickNav('back');
             } else {
                 showBar();
@@ -118,12 +120,12 @@
         showBar();
 
         // Log YouTube video start
-        window.logActivity("playback_start", document.title.replace(" - Senior TV", ""), "youtube", {item_id: "{{ video_id }}"});
+        var _ytStopReason = "unknown";
+        window.logActivity("playback_start", document.title.replace(" - Senior TV", ""), "youtube", {item_id: "{{ video_id }}", source: "youtube"});
         window.addEventListener("beforeunload", function() {
             var dur = Math.floor((Date.now() - window._pageLoadTime) / 1000);
-            navigator.sendBeacon("/api/log-activity", new Blob([JSON.stringify({
-                type: "playback_stop", title: document.title.replace(" - Senior TV", ""),
-                item_type: "youtube", item_id: "{{ video_id }}", duration: dur
+            navigator.sendBeacon("/api/log-activity-stop", new Blob([JSON.stringify({
+                item_id: "{{ video_id }}", duration: dur, trigger: _ytStopReason
             })], {type: "application/json"}));
         });
 

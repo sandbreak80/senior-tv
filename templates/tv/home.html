@@ -114,27 +114,7 @@
                 {% endfor %}
             </div>
 
-            <!-- CONTENT ROWS -->
-
-            <!-- Free Movies from YouTube -->
-            {% if free_movies %}
-            <div class="home-content-section">
-                <div class="home-section-label">🍿 Free Movies</div>
-                <div class="home-poster-row">
-                    {% for movie in free_movies %}
-                    <a class="poster-card navigable" href="/tv/youtube/watch/{{ movie.video_id }}">
-                        <img class="poster-img" src="{{ movie.thumbnail_url or 'https://i.ytimg.com/vi/' + movie.video_id + '/hqdefault.jpg' }}" alt="{{ movie.title }}" loading="lazy" style="aspect-ratio:16/9;object-fit:cover;">
-                        <div class="poster-title">{{ movie.title }}</div>
-                        <div class="poster-subtitle">{{ movie.genre }} · {{ movie.duration_minutes }} min</div>
-                    </a>
-                    {% endfor %}
-                    <a class="poster-card navigable" href="/tv/free-movies">
-                        <div class="poster-img poster-placeholder">🎬</div>
-                        <div class="poster-title">Browse All</div>
-                    </a>
-                </div>
-            </div>
-            {% endif %}
+            <!-- CONTENT ROWS — Jellyfin is #1 source -->
 
             <!-- Movies from Jellyfin -->
             {% if jf_movies %}
@@ -176,6 +156,26 @@
                     {% endfor %}
                     <a class="poster-card navigable" href="/tv/plex">
                         <div class="poster-img poster-placeholder">📺</div>
+                        <div class="poster-title">Browse All</div>
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Free Classic Movies (YouTube fallback) -->
+            {% if free_movies %}
+            <div class="home-content-section">
+                <div class="home-section-label">🍿 Free Classic Movies</div>
+                <div class="home-poster-row">
+                    {% for movie in free_movies %}
+                    <a class="poster-card navigable" href="/tv/youtube/watch/{{ movie.video_id }}">
+                        <img class="poster-img" src="{{ movie.thumbnail_url or 'https://i.ytimg.com/vi/' + movie.video_id + '/hqdefault.jpg' }}" alt="{{ movie.title }}" loading="lazy" style="aspect-ratio:16/9;object-fit:cover;">
+                        <div class="poster-title">{{ movie.title }}</div>
+                        <div class="poster-subtitle">{{ movie.genre }} · {{ movie.duration_minutes }} min</div>
+                    </a>
+                    {% endfor %}
+                    <a class="poster-card navigable" href="/tv/free-movies">
+                        <div class="poster-img poster-placeholder">🎬</div>
                         <div class="poster-title">Browse All</div>
                     </a>
                 </div>

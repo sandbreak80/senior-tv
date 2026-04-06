@@ -98,24 +98,24 @@
     const logItemTitle = container ? container.dataset.itemTitle : "";
     const logItemType = container ? container.dataset.itemType : "video";
 
+    var _stopReason = "unknown";
     function logPlay() {
         fetch("/api/log-activity", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({type: "playback_start", item_id: logItemId, title: logItemTitle, item_type: logItemType})
+            body: JSON.stringify({type: "playback_start", item_id: logItemId, title: logItemTitle, item_type: logItemType, source: "jellyfin"})
         }).catch(function(){});
     }
-    function logStop() {
+    function logStop(reason) {
+        if (typeof reason === "string") _stopReason = reason;
         var dur = Math.floor(video.currentTime || 0);
-        fetch("/api/log-activity", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({type: "playback_stop", item_id: logItemId, title: logItemTitle, item_type: logItemType, duration: dur})
-        }).catch(function(){});
+        navigator.sendBeacon("/api/log-activity-stop", new Blob([JSON.stringify({
+            item_id: logItemId, duration: dur, trigger: _stopReason
+        })], {type: "application/json"}));
     }
     video.addEventListener("play", logPlay);
-    video.addEventListener("ended", logStop);
-    window.addEventListener("beforeunload", logStop);
+    video.addEventListener("ended", function() { logStop("video_ended"); });
+    window.addEventListener("beforeunload", function() { logStop(_stopReason); });
 
     // --- Controls ---
 
@@ -137,6 +137,7 @@
     }
 
     function goBack() {
+        _stopReason = "user_back";
         video.pause();
         window.quickNav("back");
     }
@@ -249,9 +250,9 @@
     var autoPlayCount = parseInt(new URLSearchParams(window.location.search).get("ap") || "0");
 
     video.addEventListener("ended", function () {
-        logStop();
+        logStop("video_ended");
         if (autoPlayCount >= 3) {
-            // Chain limit reached — go home, let screensaver take over
+            // Chain limit reached — go home
             showCenterIcon("Returning home...");
             setTimeout(function() { window.quickNav("/"); }, 3000);
             return;
@@ -283,8 +284,9 @@
             setTimeout(function() { video.load(); video.play().catch(function(){}); }, 2000);
         } else {
             // Dead stream — auto-skip to next video (never show error to seniors)
+            _stopReason = "error_recovery";
             showCenterIcon("Skipping...");
-            window.logActivity("dead_stream", logItemTitle, logItemType, {item_id: logItemId});
+            window.logActivity("dead_stream", logItemTitle, logItemType, {item_id: logItemId, source: "jellyfin", trigger: "error_recovery"});
             fetch("/api/next-video")
                 .then(function(r) { return r.ok ? r.json() : null; })
                 .then(function(data) {
@@ -329,8 +331,9 @@
         // After 2 consecutive stalls (20s), skip to next video
         if (_stallCount >= 2) {
             clearInterval(_safetyInterval);
+            _stopReason = "error_recovery";
             if (window._hls) { try { window._hls.destroy(); } catch(e) {} }
-            window.logActivity("dead_stream", logItemTitle, logItemType, {item_id: logItemId});
+            window.logActivity("dead_stream", logItemTitle, logItemType, {item_id: logItemId, source: "jellyfin", trigger: "error_recovery"});
             fetch("/api/next-video")
                 .then(function(r) { return r.ok ? r.json() : null; })
                 .then(function(data) {

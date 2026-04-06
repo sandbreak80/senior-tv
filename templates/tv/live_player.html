@@ -111,7 +111,7 @@
                             if (hlsRetries > 5) {
                                 // Dead stream — auto-skip to another channel (never show error)
                                 showCenterIcon('Switching channels...');
-                                window.logActivity("dead_stream", channelName, "live_tv", {item_id: channelId});
+                                window.logActivity("dead_stream", channelName, "live_tv", {item_id: channelId, source: "pluto_tv", trigger: "error_recovery"});
                                 fetch("/api/next-channel")
                                     .then(function(r) { return r.ok ? r.json() : null; })
                                     .then(function(ch) {
@@ -181,13 +181,13 @@
             var channelId = {{ channel.id | tojson }};
             video.addEventListener('playing', function() {
                 showCenterIcon('▶');
-                window.logActivity("playback_start", channelName, "live_tv", {item_id: channelId});
+                window.logActivity("playback_start", channelName, "live_tv", {item_id: channelId, source: "pluto_tv"});
             }, {once: true});
+            var _liveStopReason = "unknown";
             window.addEventListener('beforeunload', function() {
                 var dur = Math.floor(video.currentTime || 0);
-                navigator.sendBeacon("/api/log-activity", new Blob([JSON.stringify({
-                    type: "playback_stop", title: channelName,
-                    item_type: "live_tv", item_id: channelId, duration: dur
+                navigator.sendBeacon("/api/log-activity-stop", new Blob([JSON.stringify({
+                    item_id: channelId, duration: dur, trigger: _liveStopReason
                 })], {type: "application/json"}));
             });
             video.addEventListener('waiting', () => showCenterIcon('Buffering...'));
@@ -227,6 +227,7 @@
                     case 'BrowserBack':
                         e.preventDefault();
                         e.stopPropagation();
+                        _liveStopReason = "user_back";
                         if (hls) hls.destroy();
                         window.quickNav('/tv/live');
                         break;
@@ -250,9 +251,10 @@
             var _hashQueue = [];    // ordered list for expiry
 
             function _skipChannel(reason) {
+                _liveStopReason = "error_recovery";
                 if (hls) hls.destroy();
                 showCenterIcon('Switching channels...');
-                window.logActivity(reason, channelName, "live_tv", {item_id: channelId});
+                window.logActivity(reason, channelName, "live_tv", {item_id: channelId, source: "pluto_tv", trigger: "error_recovery"});
                 fetch("/api/next-channel")
                     .then(function(r) { return r.ok ? r.json() : null; })
                     .then(function(ch) {

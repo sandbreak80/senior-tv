@@ -12,8 +12,11 @@
             <div style="font-size: 18px; font-weight: 600;">{{ now_playing.item_title or 'Unknown' }}</div>
             <div style="font-size: 13px; color: var(--text-muted);">
                 Since {{ now_playing.started_at | localtime_short }}
-                {% if now_playing.item_type %}
-                    &middot; {{ now_playing.item_type | replace('_', ' ') | title }}
+                {% if now_playing.source %}
+                    &middot; <span class="source-badge source-{{ now_playing.source }}">{{ now_playing.source }}</span>
+                {% endif %}
+                {% if now_playing.trigger %}
+                    &middot; {{ now_playing.trigger | replace('_', ' ') }}
                 {% endif %}
             </div>
         </div>
@@ -21,21 +24,32 @@
 </div>
 {% endif %}
 
+<div style="margin-bottom: 12px; display: flex; gap: 8px; flex-wrap: wrap;">
+    <button class="btn btn-sm {% if not filter_type %}btn-active{% endif %}" onclick="filterLogs('')">All</button>
+    <button class="btn btn-sm {% if filter_type == 'playback' %}btn-active{% endif %}" onclick="filterLogs('playback')">Playback</button>
+    <button class="btn btn-sm {% if filter_type == 'auto_play' %}btn-active{% endif %}" onclick="filterLogs('auto_play')">Auto-Play</button>
+    <button class="btn btn-sm {% if filter_type == 'alert' %}btn-active{% endif %}" onclick="filterLogs('alert')">Alerts</button>
+    <button class="btn btn-sm {% if filter_type == 'page' %}btn-active{% endif %}" onclick="filterLogs('page')">Pages</button>
+    <button class="btn btn-sm {% if filter_type == 'error' %}btn-active{% endif %}" onclick="filterLogs('error')">Errors</button>
+</div>
+
 {% if logs %}
 <div class="card" style="padding: 12px;">
     {% for log in logs %}
-    <div class="activity-item">
+    <div class="activity-item" data-type="{{ log.activity_type or '' }}">
         <div class="activity-icon">
-            {% if 'play' in (log.activity_type or '') %}
+            {% if 'playback_start' in (log.activity_type or '') %}
                 <span style="font-size: 20px;">▶</span>
-            {% elif 'stop' in (log.activity_type or '') %}
+            {% elif 'playback_stop' in (log.activity_type or '') %}
                 <span style="font-size: 20px;">⏹</span>
-            {% elif 'visit' in (log.activity_type or '') or 'page' in (log.activity_type or '') %}
-                <span style="font-size: 20px;">🔗</span>
-            {% elif 'music' in (log.activity_type or '') %}
-                <span style="font-size: 20px;">🎵</span>
             {% elif 'auto_play' in (log.activity_type or '') %}
                 <span style="font-size: 20px;">📺</span>
+            {% elif 'dead_stream' in (log.activity_type or '') or 'frozen' in (log.activity_type or '') %}
+                <span style="font-size: 20px;">⚠️</span>
+            {% elif 'alert' in (log.activity_type or '') %}
+                <span style="font-size: 20px;">🔔</span>
+            {% elif 'page' in (log.activity_type or '') %}
+                <span style="font-size: 20px;">🔗</span>
             {% else %}
                 <span style="font-size: 20px;">📋</span>
             {% endif %}
@@ -43,19 +57,22 @@
         <div class="activity-info">
             <div class="activity-title">
                 {{ log.item_title or log.activity_type | replace('_', ' ') | title }}
-                {% if 'play' in (log.activity_type or '') %}
-                    <span class="badge badge-active" style="font-size: 11px; margin-left: 6px;">Play</span>
-                {% elif 'stop' in (log.activity_type or '') %}
-                    <span class="badge badge-inactive" style="font-size: 11px; margin-left: 6px;">Stop</span>
+                {% if log.source %}
+                    <span class="source-badge source-{{ log.source }}">{{ log.source }}</span>
                 {% endif %}
             </div>
             <div class="activity-meta">
                 {{ log.started_at | localtime }}
-                {% if log.item_type %}
-                    &middot; {{ log.item_type }}
+                {% if log.trigger %}
+                    &middot; <span class="trigger-badge">{{ log.trigger | replace('_', ' ') }}</span>
                 {% endif %}
                 {% if log.duration_seconds %}
-                    &middot; {{ (log.duration_seconds // 60) }}m {{ log.duration_seconds % 60 }}s
+                    &middot; {{ (log.duration_seconds // 3600) }}h {{ ((log.duration_seconds % 3600) // 60) }}m {{ log.duration_seconds % 60 }}s
+                {% elif log.stopped_at %}
+                    &middot; stopped {{ log.stopped_at | localtime_short }}
+                {% endif %}
+                {% if log.item_type and log.item_type != log.source %}
+                    &middot; {{ log.item_type }}
                 {% endif %}
             </div>
         </div>
@@ -67,4 +84,40 @@
     No activity recorded yet. Activity will appear here as the TV is used.
 </div>
 {% endif %}
+
+<style>
+.source-badge {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    vertical-align: middle;
+    margin-left: 4px;
+}
+.source-jellyfin { background: #6b4caf; color: #fff; }
+.source-youtube { background: #c33; color: #fff; }
+.source-pluto_tv { background: #1a6abf; color: #fff; }
+.source-unknown { background: #555; color: #ccc; }
+.trigger-badge {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 8px;
+    font-size: 11px;
+    background: #333;
+    color: #aaa;
+}
+.btn-sm { padding: 4px 12px; font-size: 13px; }
+.btn-active { background: var(--primary); color: #fff; }
+</style>
+
+<script>
+function filterLogs(type) {
+    var url = '/admin/activity';
+    if (type) url += '?filter=' + type;
+    window.location.href = url;
+}
+</script>
 {% endblock %}

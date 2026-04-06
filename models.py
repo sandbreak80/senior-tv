@@ -121,7 +121,9 @@ def init_db():
             item_type TEXT,
             duration_seconds INTEGER,
             started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            stopped_at TIMESTAMP
+            stopped_at TIMESTAMP,
+            trigger TEXT,
+            source TEXT
         );
 
         CREATE TABLE IF NOT EXISTS remote_logs (
@@ -155,13 +157,68 @@ def init_db():
             added_by TEXT DEFAULT 'seed',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+        CREATE TABLE IF NOT EXISTS presence_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            person_count INTEGER NOT NULL DEFAULT 0,
+            max_confidence REAL NOT NULL DEFAULT 0.0,
+            who_detected TEXT,
+            source TEXT,
+            sound_level REAL,
+            logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS movement_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            person TEXT NOT NULL,
+            from_room TEXT,
+            to_room TEXT NOT NULL,
+            logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS daily_activity (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            person TEXT NOT NULL,
+            day TEXT NOT NULL,
+            wake_time TEXT,
+            sleep_time TEXT,
+            active_minutes INTEGER DEFAULT 0,
+            transition_count INTEGER DEFAULT 0,
+            kitchen_trips INTEGER DEFAULT 0,
+            kitchen_minutes INTEGER DEFAULT 0,
+            bathroom_trips INTEGER DEFAULT 0,
+            bathroom_minutes INTEGER DEFAULT 0,
+            living_room_minutes INTEGER DEFAULT 0,
+            UNIQUE(person, day)
+        );
+
         -- Performance indexes for frequently-queried timestamp columns
         CREATE INDEX IF NOT EXISTS idx_activity_started ON activity_logs(started_at);
         CREATE INDEX IF NOT EXISTS idx_activity_type ON activity_logs(activity_type, started_at);
         CREATE INDEX IF NOT EXISTS idx_remote_logged ON remote_logs(logged_at);
         CREATE INDEX IF NOT EXISTS idx_volume_logged ON volume_logs(logged_at);
         CREATE INDEX IF NOT EXISTS idx_pill_logs_pill_date ON pill_logs(pill_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_presence_logged ON presence_logs(logged_at);
+        CREATE INDEX IF NOT EXISTS idx_movement_logged ON movement_logs(logged_at);
+        CREATE INDEX IF NOT EXISTS idx_movement_person ON movement_logs(person, logged_at);
+        CREATE INDEX IF NOT EXISTS idx_daily_activity_day ON daily_activity(person, day);
     """)
+    db.commit()
+
+    # Migrate: add trigger and source columns to activity_logs if missing
+    cols = [r[1] for r in db.execute("PRAGMA table_info(activity_logs)").fetchall()]
+    if "trigger" not in cols:
+        db.execute("ALTER TABLE activity_logs ADD COLUMN trigger TEXT")
+    if "source" not in cols:
+        db.execute("ALTER TABLE activity_logs ADD COLUMN source TEXT")
+
+    # Migrate: add who_detected, source, sound_level to presence_logs
+    pcols = [r[1] for r in db.execute("PRAGMA table_info(presence_logs)").fetchall()]
+    if "who_detected" not in pcols:
+        db.execute("ALTER TABLE presence_logs ADD COLUMN who_detected TEXT")
+    if "source" not in pcols:
+        db.execute("ALTER TABLE presence_logs ADD COLUMN source TEXT")
+    if "sound_level" not in pcols:
+        db.execute("ALTER TABLE presence_logs ADD COLUMN sound_level REAL")
     db.commit()
 
     # Generate random admin password on first boot if not set
@@ -188,25 +245,45 @@ def init_db():
 
 
 def log_activity(
-    activity_type, item_id=None, item_title=None, item_type=None, duration_seconds=None
+    activity_type,
+    item_id=None,
+    item_title=None,
+    item_type=None,
+    duration_seconds=None,
+    trigger=None,
+    source=None,
 ):
     with get_db_safe() as db:
         db.execute(
-            """INSERT INTO activity_logs (activity_type, item_id, item_title, item_type, duration_seconds)
-               VALUES (?, ?, ?, ?, ?)""",
-            (activity_type, item_id, item_title, item_type, duration_seconds),
+            """INSERT INTO activity_logs
+               (activity_type, item_id, item_title, item_type, duration_seconds, trigger, source)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (activity_type, item_id, item_title, item_type, duration_seconds, trigger, source),
         )
         db.commit()
 
 
-def log_activity_stop(item_id, duration_seconds):
+def log_activity_stop(item_id, duration_seconds, trigger=None):
+    """Update the most recent open activity for this item with stop time and duration."""
     with get_db_safe() as db:
-        db.execute(
-            """UPDATE activity_logs SET stopped_at = CURRENT_TIMESTAMP, duration_seconds = ?
-               WHERE item_id = ? AND stopped_at IS NULL
-               ORDER BY id DESC LIMIT 1""",
-            (duration_seconds, item_id),
-        )
+        if trigger:
+            db.execute(
+                """UPDATE activity_logs SET stopped_at = CURRENT_TIMESTAMP,
+                   duration_seconds = ?, trigger = ?
+                   WHERE item_id = ? AND activity_type = 'playback_start'
+                   AND stopped_at IS NULL
+                   ORDER BY id DESC LIMIT 1""",
+                (duration_seconds, trigger, item_id),
+            )
+        else:
+            db.execute(
+                """UPDATE activity_logs SET stopped_at = CURRENT_TIMESTAMP,
+                   duration_seconds = ?
+                   WHERE item_id = ? AND activity_type = 'playback_start'
+                   AND stopped_at IS NULL
+                   ORDER BY id DESC LIMIT 1""",
+                (duration_seconds, item_id),
+            )
         db.commit()
 
 
@@ -219,14 +296,23 @@ def log_remote_button(cec_code, x_key, description):
         db.commit()
 
 
-def get_activity_logs(days=7, limit=200):
+def get_activity_logs(days=7, limit=200, filter_type=""):
+    filter_map = {
+        "playback": "activity_type LIKE 'playback%'",
+        "auto_play": "activity_type = 'auto_play'",
+        "alert": "activity_type LIKE 'alert%'",
+        "page": "activity_type LIKE 'page%'",
+        "error": "activity_type IN ('dead_stream', 'frozen_stream')",
+    }
+    where = filter_map.get(filter_type, "")
     with get_db_safe() as db:
-        rows = db.execute(
-            """SELECT * FROM activity_logs
-               WHERE started_at >= datetime('now', ? || ' days')
-               ORDER BY started_at DESC LIMIT ?""",
-            (f"-{days}", limit),
-        ).fetchall()
+        sql = "SELECT * FROM activity_logs WHERE started_at >= datetime('now', ? || ' days')"
+        params = [f"-{days}"]
+        if where:
+            sql += " AND " + where
+        sql += " ORDER BY started_at DESC LIMIT ?"
+        params.append(limit)
+        rows = db.execute(sql, params).fetchall()
         return [dict(r) for r in rows]
 
 
@@ -1022,3 +1108,237 @@ def get_youtube_movie_stats():
             "recently_played": [dict(r) for r in recently_played],
             "never_played": never_played,
         }
+
+
+def log_presence(person_count, max_confidence, who_detected=None,
+                 source=None, sound_level=None):
+    """Log a presence detection reading."""
+    who_str = ",".join(who_detected) if who_detected else None
+    with get_db_safe() as db:
+        db.execute(
+            """INSERT INTO presence_logs
+               (person_count, max_confidence, who_detected, source, sound_level)
+               VALUES (?, ?, ?, ?, ?)""",
+            (person_count, round(max_confidence, 3), who_str, source,
+             round(sound_level, 1) if sound_level is not None else None),
+        )
+        db.commit()
+
+
+def get_presence_logs(days=7):
+    """Get presence logs for the last N days."""
+    with get_db_safe() as db:
+        rows = db.execute(
+            "SELECT * FROM presence_logs WHERE logged_at >= datetime('now', ?) ORDER BY logged_at DESC",
+            (f"-{days} days",),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_presence_summary(days=1):
+    """Get hourly summary of presence detection for the last N days."""
+    with get_db_safe() as db:
+        rows = db.execute("""
+            SELECT
+                date(logged_at, 'localtime') as day,
+                strftime('%H', logged_at, 'localtime') as hour,
+                COUNT(*) as readings,
+                SUM(CASE WHEN person_count = 0 THEN 1 ELSE 0 END) as empty,
+                SUM(CASE WHEN person_count = 1 THEN 1 ELSE 0 END) as one_person,
+                SUM(CASE WHEN person_count = 2 THEN 1 ELSE 0 END) as two_people,
+                SUM(CASE WHEN person_count > 2 THEN 1 ELSE 0 END) as more,
+                ROUND(AVG(max_confidence), 2) as avg_confidence
+            FROM presence_logs
+            WHERE logged_at >= datetime('now', ?)
+            GROUP BY day, hour
+            ORDER BY day DESC, hour DESC
+        """, (f"-{days} days",)).fetchall()
+        return [dict(r) for r in rows]
+
+
+def cleanup_presence_logs(keep_days=30):
+    """Delete presence logs older than N days."""
+    with get_db_safe() as db:
+        db.execute(
+            "DELETE FROM presence_logs WHERE logged_at < datetime('now', ?)",
+            (f"-{keep_days} days",),
+        )
+        db.commit()
+
+
+# --- Movement Tracking ---
+
+def log_movement(person, from_room, to_room):
+    """Log a room transition for a person."""
+    with get_db_safe() as db:
+        db.execute(
+            "INSERT INTO movement_logs (person, from_room, to_room) VALUES (?, ?, ?)",
+            (person, from_room, to_room),
+        )
+        db.commit()
+
+
+def get_movement_logs(person=None, days=1):
+    """Get movement logs, optionally filtered by person."""
+    with get_db_safe() as db:
+        if person:
+            rows = db.execute(
+                """SELECT * FROM movement_logs
+                   WHERE person = ? AND logged_at >= datetime('now', ?)
+                   ORDER BY logged_at DESC""",
+                (person, f"-{days} days"),
+            ).fetchall()
+        else:
+            rows = db.execute(
+                """SELECT * FROM movement_logs
+                   WHERE logged_at >= datetime('now', ?)
+                   ORDER BY logged_at DESC""",
+                (f"-{days} days",),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_daily_activity(person, day):
+    """Get or create daily activity summary for a person."""
+    with get_db_safe() as db:
+        row = db.execute(
+            "SELECT * FROM daily_activity WHERE person = ? AND day = ?",
+            (person, day),
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def upsert_daily_activity(person, day, **kwargs):
+    """Insert or update daily activity summary."""
+    with get_db_safe() as db:
+        existing = db.execute(
+            "SELECT id FROM daily_activity WHERE person = ? AND day = ?",
+            (person, day),
+        ).fetchone()
+        if existing:
+            sets = ", ".join(f"{k} = ?" for k in kwargs)
+            vals = list(kwargs.values()) + [person, day]
+            db.execute(
+                f"UPDATE daily_activity SET {sets} WHERE person = ? AND day = ?",
+                vals,
+            )
+        else:
+            cols = ["person", "day"] + list(kwargs.keys())
+            placeholders = ", ".join(["?"] * len(cols))
+            vals = [person, day] + list(kwargs.values())
+            db.execute(
+                f"INSERT INTO daily_activity ({', '.join(cols)}) VALUES ({placeholders})",
+                vals,
+            )
+        db.commit()
+
+
+def get_daily_activity_range(person, days=7):
+    """Get daily activity summaries for trending."""
+    with get_db_safe() as db:
+        rows = db.execute(
+            """SELECT * FROM daily_activity
+               WHERE person = ? AND day >= date('now', ?)
+               ORDER BY day DESC""",
+            (person, f"-{days} days"),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_all_daily_activity(days=7):
+    """Get daily activity summaries for all people."""
+    with get_db_safe() as db:
+        rows = db.execute(
+            """SELECT * FROM daily_activity
+               WHERE day >= date('now', ?)
+               ORDER BY day DESC, person""",
+            (f"-{days} days",),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def compute_daily_activity(person, day):
+    """Compute daily activity metrics from movement_logs for a given day."""
+    with get_db_safe() as db:
+        rows = db.execute(
+            """SELECT * FROM movement_logs
+               WHERE person = ? AND date(logged_at, 'localtime') = ?
+               ORDER BY logged_at ASC""",
+            (person, day),
+        ).fetchall()
+
+    if not rows:
+        return None
+
+    movements = [dict(r) for r in rows]
+    wake_time = movements[0]["logged_at"].split(" ")[1][:5] if movements else None
+    sleep_time = movements[-1]["logged_at"].split(" ")[1][:5] if movements else None
+
+    transition_count = len(movements)
+    kitchen_trips = 0
+    bathroom_trips = 0
+
+    # Estimate time in rooms from transitions
+    kitchen_minutes = 0
+    bathroom_minutes = 0
+    living_room_minutes = 0
+
+    for i, m in enumerate(movements):
+        to_room = (m["to_room"] or "").lower()
+
+        if "kitchen" in to_room:
+            kitchen_trips += 1
+        elif "bathroom" in to_room or "pantry" in to_room:
+            bathroom_trips += 1
+
+        # Estimate duration: time until next transition
+        if i + 1 < len(movements):
+            try:
+                from datetime import datetime as _dt
+                t1 = _dt.fromisoformat(m["logged_at"])
+                t2 = _dt.fromisoformat(movements[i + 1]["logged_at"])
+                mins = (t2 - t1).total_seconds() / 60
+                # Cap at 120 min to handle overnight gaps
+                mins = min(mins, 120)
+
+                if "kitchen" in to_room:
+                    kitchen_minutes += mins
+                elif "bathroom" in to_room or "pantry" in to_room:
+                    bathroom_minutes += mins
+                elif "living" in to_room:
+                    living_room_minutes += mins
+            except (ValueError, TypeError):
+                pass
+
+    # Active minutes = wake to sleep span (rough)
+    active_minutes = 0
+    if len(movements) >= 2:
+        try:
+            from datetime import datetime as _dt
+            t_first = _dt.fromisoformat(movements[0]["logged_at"])
+            t_last = _dt.fromisoformat(movements[-1]["logged_at"])
+            active_minutes = int((t_last - t_first).total_seconds() / 60)
+        except (ValueError, TypeError):
+            pass
+
+    return {
+        "wake_time": wake_time,
+        "sleep_time": sleep_time,
+        "active_minutes": active_minutes,
+        "transition_count": transition_count,
+        "kitchen_trips": kitchen_trips,
+        "kitchen_minutes": int(kitchen_minutes),
+        "bathroom_trips": bathroom_trips,
+        "bathroom_minutes": int(bathroom_minutes),
+        "living_room_minutes": int(living_room_minutes),
+    }
+
+
+def cleanup_movement_logs(keep_days=90):
+    """Delete movement logs older than N days. Keep longer than presence."""
+    with get_db_safe() as db:
+        db.execute(
+            "DELETE FROM movement_logs WHERE logged_at < datetime('now', ?)",
+            (f"-{keep_days} days",),
+        )
+        db.commit()

@@ -1071,6 +1071,7 @@ def tv_youtube_watch(video_id):
             item_id=video_id,
             item_title=yt_movie["title"],
             item_type="youtube_movie",
+            source="youtube",
         )
 
     return render_template(
@@ -1377,17 +1378,20 @@ def api_log_activity():
         item_title=data.get("title"),
         item_type=data.get("item_type"),
         duration_seconds=data.get("duration"),
+        trigger=data.get("trigger"),
+        source=data.get("source"),
     )
     return jsonify({"status": "logged"})
 
 
 @app.route("/api/log-activity-stop", methods=["POST"])
 def api_log_activity_stop():
-    """Log playback stop with duration."""
+    """Update original playback_start entry with stop time and duration."""
     data = request.get_json(force=True, silent=True) or {}
     models.log_activity_stop(
         item_id=data.get("item_id"),
         duration_seconds=data.get("duration"),
+        trigger=data.get("trigger"),
     )
     return jsonify({"status": "logged"})
 
@@ -1601,9 +1605,80 @@ def admin_dashboard():
 @app.route("/admin/activity")
 def admin_activity():
     """View activity and remote button logs."""
-    logs = models.get_activity_logs(days=7)
+    filter_type = request.args.get("filter", "")
+    logs = models.get_activity_logs(days=7, filter_type=filter_type)
     now_playing = models.get_now_playing()
-    return render_template("admin/activity.html", logs=logs, now_playing=now_playing)
+    return render_template(
+        "admin/activity.html",
+        logs=logs,
+        now_playing=now_playing,
+        filter_type=filter_type,
+    )
+
+
+@app.route("/admin/movement")
+def admin_movement():
+    """View movement tracking and daily activity trends."""
+    from smart_home import get_tracked_locations, get_tv_power
+
+    days = int(request.args.get("days", 7))
+    locations = get_tracked_locations()
+    tv_power = get_tv_power()
+    daily = models.get_all_daily_activity(days=days)
+    movements = models.get_movement_logs(days=2)
+    return render_template(
+        "admin/movement.html",
+        locations=locations,
+        tv_power=tv_power,
+        daily=daily,
+        movements=movements,
+        days=days,
+    )
+
+
+@app.route("/admin/presence")
+def admin_presence():
+    """View presence detection logs and summary."""
+    from smart_home import get_presence
+
+    summary = models.get_presence_summary(days=7)
+    logs = models.get_presence_logs(days=2)
+    live = get_presence()
+    return render_template(
+        "admin/presence.html", summary=summary, logs=logs, live=live,
+    )
+
+
+@app.route("/api/presence-snapshot")
+def api_presence_snapshot():
+    """Live presence reading from Frigate/HA or webcam fallback."""
+    from smart_home import _poll_frigate_presence, _poll_webcam
+
+    ha_url = (get_setting_or_default("ha_url") or "").rstrip("/")
+    ha_token = get_setting_or_default("ha_token") or ""
+
+    # Try Frigate/HA
+    result = _poll_frigate_presence(ha_url, ha_token)
+    if result is not None:
+        person_count, who, sound_level = result
+        return jsonify({
+            "person_count": person_count,
+            "who": who,
+            "sound_level": sound_level,
+            "source": "frigate",
+        })
+
+    # Fallback: webcam
+    webcam_result = _poll_webcam()
+    if webcam_result is not None:
+        person_count, confidence = webcam_result
+        return jsonify({
+            "person_count": person_count,
+            "max_confidence": round(confidence, 3),
+            "source": "webcam",
+        })
+
+    return jsonify({"error": "no presence source available"}), 500
 
 
 @app.route("/admin/cameras")
@@ -2380,12 +2455,10 @@ def tv_photos():
 
     photos = _get_all_photos()
     has_immich = immich_api.is_configured()
-    if not photos and not has_immich and not request.args.get("screensaver"):
+    if not photos and not has_immich:
         return render_template(
             "tv/photos.html", photos=photos, has_immich=False, interval=10
         )
-    if not photos and not has_immich and request.args.get("screensaver"):
-        return redirect("/")
     interval = int(get_setting_or_default("photo_interval") or 10)
     return render_template(
         "tv/photos.html", photos=photos, has_immich=has_immich, interval=interval
@@ -2682,11 +2755,11 @@ def immich_photo_proxy(asset_id):
 
 @app.route("/api/next-video")
 def api_next_video():
-    """Get a random video to auto-play. All genres welcome — the library was curated for them.
+    """Get a random video to auto-play. Jellyfin is the #1 source.
 
-    Tries a time-of-day preferred genre first (soft preference, not a filter).
-    Validates stream URL before recommending (prevents dead streams).
-    Tries up to 5 candidates to find one that works.
+    Strategy: Jellyfin first (3 rounds × 10 items each), genre-biased by time of day.
+    Alternates between movies and shows so they don't just watch one type.
+    YouTube free movies are a last-resort fallback only.
     """
     import random as _random
 
@@ -2699,67 +2772,79 @@ def api_next_video():
     if not jf:
         return jsonify({"error": "not configured"}), 400
 
-    def _validate_and_return(item, genre=None):
-        """Check stream URL is reachable before recommending."""
+    def _make_result(item, genre=None):
+        """Build result dict. Series use shuffle; movies play directly.
+        Trusts Jellyfin stream availability — no HEAD validation (Jellyfin is local,
+        the player handles errors gracefully with retry/skip).
+        """
         if item.get("type") == "series":
-            # Series use shuffle — always valid (picks random episode server-side)
             url = f"/tv/plex/shuffle/{item['id']}"
-            result = {
-                "id": item["id"],
-                "title": item.get("title", ""),
-                "type": item.get("type", ""),
-                "url": url,
-            }
-            if genre:
-                result["genre"] = genre
-            return result
-        # Movie — verify stream URL exists
-        try:
-            stream_url = jf.get_stream_url(item["id"])
-            # Stream URL is a local path — make absolute for validation
-            if stream_url.startswith("/"):
-                stream_url = f"http://localhost:5000{stream_url}"
-            resp = requests.head(stream_url, timeout=5, allow_redirects=True)
-            if resp.status_code < 400:
-                url = f"/tv/plex/play/{item['id']}"
-                result = {
-                    "id": item["id"],
-                    "title": item.get("title", ""),
-                    "type": item.get("type", ""),
-                    "url": url,
-                }
-                if genre:
-                    result["genre"] = genre
-                return result
-        except Exception:
-            pass
-        return None
+        else:
+            url = f"/tv/plex/play/{item['id']}"
+        result = {
+            "id": item["id"],
+            "title": item.get("title", ""),
+            "type": item.get("type", ""),
+            "url": url,
+            "source": "jellyfin",
+        }
+        if genre:
+            result["genre"] = genre
+        return result
 
     try:
         libs = jf.get_libraries()
-        # Try up to 5 random picks, validating each
-        for attempt in range(5):
-            genre = None
-            if attempt < 2 and _random.random() < 0.5:
-                genre = _random.choice(preferred)
+        if not libs:
+            raise ValueError("no libraries")
 
-            for lib in libs:
-                items = jf.get_library_items(
-                    lib["id"], sort="Random", genre=genre, limit=5
-                )
+        # Separate movie and show libraries for alternating picks
+        movie_libs = [l for l in libs if l.get("type") == "movies"]
+        show_libs = [l for l in libs if l.get("type") == "tvshows"]
+
+        # Alternate: even calls → movie bias, odd calls → show bias
+        # Use a simple counter based on recently_played length
+        prefer_shows = len(_recently_played) % 2 == 1 and show_libs
+
+        # Build query plan: 3 rounds, 10 items each, genre preference fades
+        query_plan = []
+        if prefer_shows and show_libs:
+            # Round 1: shows with genre
+            query_plan.append((show_libs, _random.choice(preferred), 10))
+            # Round 2: movies with genre
+            query_plan.append((movie_libs or libs, _random.choice(preferred), 10))
+            # Round 3: any library, no genre filter (wide net)
+            query_plan.append((libs, None, 10))
+        else:
+            # Round 1: movies with genre
+            query_plan.append((movie_libs or libs, _random.choice(preferred), 10))
+            # Round 2: shows with genre
+            if show_libs:
+                query_plan.append((show_libs, _random.choice(preferred), 10))
+            else:
+                query_plan.append((libs, _random.choice(preferred) if len(preferred) > 1 else None, 10))
+            # Round 3: any library, no genre filter (wide net)
+            query_plan.append((libs, None, 10))
+
+        for round_libs, genre, limit in query_plan:
+            for lib in round_libs:
+                try:
+                    items = jf.get_library_items(
+                        lib["id"], sort="Random", genre=genre, limit=limit
+                    )
+                except Exception:
+                    continue
                 for item in items:
                     if item["id"] in _excluded_ids:
                         continue
                     if item["id"] in _recently_played:
                         continue
-                    result = _validate_and_return(item, genre)
-                    if result:
-                        _recently_played.append(item["id"])
-                        return jsonify(result)
+                    _recently_played.append(item["id"])
+                    return jsonify(_make_result(item, genre))
+
     except Exception:
         pass
 
-    # Fallback: try a free YouTube movie
+    # Last-resort fallback: free YouTube movie (Jellyfin is down or empty)
     try:
         yt_movies = models.get_random_youtube_movies(
             genre=_random.choice(preferred) if _random.random() < 0.5 else None,
@@ -2778,6 +2863,7 @@ def api_next_video():
                     "type": "youtube_movie",
                     "genre": m.get("genre", ""),
                     "url": f"/tv/youtube/watch/{m['video_id']}",
+                    "source": "youtube",
                 }
             )
     except Exception:
@@ -3086,7 +3172,10 @@ if __name__ == "__main__":
         from smart_home import start_presence_monitor
 
         start_presence_monitor(alert_queue=reminder_queue)
-    print("Presence monitor started (tv_room webcam)")
+    # Start movement tracker (Frigate face recognition → room transitions)
+    from smart_home import start_movement_tracker
+
+    start_movement_tracker()
     try:
         debug_mode = os.environ.get("SENIOR_TV_DEBUG", "0") == "1"
         app.run(host="0.0.0.0", port=5000, debug=debug_mode, threaded=True)

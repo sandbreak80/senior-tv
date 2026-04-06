@@ -33,11 +33,11 @@ DEFAULTS = {
     "admin_password": "",
     # Scheduled news blocks — 1 hour of live news, 3 times daily
     # Times are 24h format, comma-separated. Empty = disabled.
-    "news_schedule": "07:00,12:00,18:00",
+    "news_schedule": "08:00,13:00,18:00",
     # Pluto TV news channels to rotate through (picked randomly per block)
     "news_channels": "News + Opinion",
     # Whether scheduled content (news, Jeopardy, classical) interrupts current playback
-    # "always" = always interrupt, "idle_only" = only if on home screen or screensaver
+    # "always" = always interrupt, "idle_only" = only if on home screen
     "auto_play_interrupt": "always",
     # Minutes before YouTube/video player returns to home for content rotation (0 = never)
     "content_rotation_minutes": "90",
@@ -49,11 +49,14 @@ DEFAULTS = {
     # Activity log level: "minimal" (playback only), "normal" (+ pages, alerts),
     # "verbose" (everything — for performance analysis)
     "log_level": "verbose",
-    # Quiet hours — no auto-play, no scheduled content, screensaver only
-    # 24h format. Empty = disabled.
+    # Classical music schedule — comma-separated 24h times for ~30 min blocks
+    "classical_music_schedule": "10:00,16:00",
+    # Photo slideshow schedule — comma-separated 24h times for Immich family photos
+    "photo_schedule": "11:00,15:00",
+    # Quiet hours — no auto-play, no scheduled content. 24h format. Empty = disabled.
     "quiet_hours_start": "22:00",
     "quiet_hours_end": "07:00",
-    # Presence detection — webcam person detection controls screensaver/auto-play
+    # Presence detection — webcam person detection
     # "1" = enabled, "0" = disabled (system assumes room is always occupied)
     "presence_enabled": "1",
 }

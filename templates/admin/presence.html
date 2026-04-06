@@ -1,0 +1,182 @@
+{% extends "admin/base.html" %}
+{% block title %}Presence Detection{% endblock %}
+{% block content %}
+<h1>Presence Detection</h1>
+
+<div class="card">
+    <h2>Live Status</h2>
+    <div style="display: flex; gap: 24px; flex-wrap: wrap; align-items: center;">
+        <div>
+            <div style="font-size: 48px; line-height: 1;" id="live-icon">
+                {% if live and live.occupied %}
+                    {% if live.person_count == 2 %}👫{% else %}👤{% endif %}
+                {% else %}
+                    🔲
+                {% endif %}
+            </div>
+        </div>
+        <div id="live-details">
+            {% if live %}
+                <div style="font-size: 18px; font-weight: 600;">
+                    {% if live.occupied %}
+                        {{ live.person_count }} {{ 'person' if live.person_count == 1 else 'people' }} detected
+                    {% else %}
+                        Room empty
+                    {% endif %}
+                </div>
+                {% if live.who %}
+                    <div style="font-size: 15px; color: #4caf50; margin-top: 4px;">
+                        {{ live.who | join(', ') }}
+                    </div>
+                {% endif %}
+                {% if live.source %}
+                    <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
+                        via {{ live.source }}
+                        {% if live.sound_level is not none %}
+                            &middot; sound: {{ live.sound_level }} dB
+                        {% endif %}
+                        {% if live.last_seen %}
+                            &middot; last seen: {{ live.last_seen.strftime('%I:%M %p') if live.last_seen else '-' }}
+                        {% endif %}
+                    </div>
+                {% endif %}
+            {% else %}
+                <div style="font-size: 18px;">Presence monitor not running</div>
+            {% endif %}
+        </div>
+        <div style="margin-left: auto;">
+            <button class="btn" onclick="takeSnapshot()">Refresh Now</button>
+        </div>
+    </div>
+    <div id="live-status" style="margin-top: 8px; font-size: 13px; color: var(--text-muted);"></div>
+</div>
+
+<div class="card">
+    <h2>Hourly Summary (Last 7 Days)</h2>
+    {% if summary %}
+    <div style="overflow-x: auto;">
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Hour</th>
+                <th>Readings</th>
+                <th>Empty</th>
+                <th>1 Person</th>
+                <th>2 People</th>
+                <th>3+</th>
+                <th>Avg Conf</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in summary %}
+            <tr>
+                <td>{{ row.day }}</td>
+                <td>{{ row.hour }}:00</td>
+                <td>{{ row.readings }}</td>
+                <td class="{{ 'highlight-empty' if row.empty == row.readings else '' }}">{{ row.empty }}</td>
+                <td class="{{ 'highlight-one' if row.one_person > 0 else '' }}">{{ row.one_person }}</td>
+                <td class="{{ 'highlight-two' if row.two_people > 0 else '' }}">{{ row.two_people }}</td>
+                <td>{{ row.more }}</td>
+                <td>{{ row.avg_confidence }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p>No data yet. Readings are logged every 5 minutes.</p>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h2>Recent Readings (Last 48 Hours)</h2>
+    {% if logs %}
+    <div style="overflow-x: auto;">
+    <table>
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>People</th>
+                <th>Who</th>
+                <th>Source</th>
+                <th>Sound</th>
+                <th>Confidence</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in logs %}
+            <tr>
+                <td>{{ log.logged_at }}</td>
+                <td>
+                    {% if log.person_count == 0 %}
+                        <span class="badge badge-empty">Empty</span>
+                    {% elif log.person_count == 1 %}
+                        <span class="badge badge-one">1 person</span>
+                    {% elif log.person_count == 2 %}
+                        <span class="badge badge-two">2 people</span>
+                    {% else %}
+                        <span class="badge badge-more">{{ log.person_count }} people</span>
+                    {% endif %}
+                </td>
+                <td>{{ log.who_detected or '' }}</td>
+                <td style="font-size: 12px;">{{ log.source or '' }}</td>
+                <td>{{ (log.sound_level ~ ' dB') if log.sound_level is not none else '' }}</td>
+                <td>{{ "%.0f%%"|format(log.max_confidence * 100) if log.max_confidence else '-' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p>No readings yet.</p>
+    {% endif %}
+</div>
+
+<style>
+    .badge {
+        display: inline-block;
+        padding: 2px 10px;
+        border-radius: 12px;
+        font-weight: bold;
+        font-size: 0.9em;
+    }
+    .badge-empty { background: #555; color: #ccc; }
+    .badge-one { background: #2a7a2a; color: #fff; }
+    .badge-two { background: #1a6abf; color: #fff; }
+    .badge-more { background: #b5651d; color: #fff; }
+    .highlight-empty { color: #999; }
+    .highlight-one { color: #4caf50; font-weight: bold; }
+    .highlight-two { color: #42a5f5; font-weight: bold; }
+</style>
+
+<script>
+function takeSnapshot() {
+    var status = document.getElementById('live-status');
+    status.textContent = 'Detecting...';
+    fetch('/api/presence-snapshot')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.error) {
+                status.textContent = 'Error: ' + data.error;
+                return;
+            }
+            var label = data.person_count === 0 ? 'Empty' :
+                        data.person_count === 1 ? '1 person' :
+                        data.person_count + ' people';
+            var parts = [label];
+            if (data.who && data.who.length > 0) parts.push(data.who.join(', '));
+            if (data.source) parts.push('via ' + data.source);
+            if (data.sound_level !== null && data.sound_level !== undefined) parts.push(data.sound_level + ' dB');
+            if (data.max_confidence) parts.push(Math.round(data.max_confidence * 100) + '% confidence');
+            status.textContent = parts.join(' \u00b7 ');
+
+            var icon = document.getElementById('live-icon');
+            if (data.person_count === 0) icon.textContent = '\uD83D\uDD32';
+            else if (data.person_count === 2) icon.textContent = '\uD83D\uDC6B';
+            else icon.textContent = '\uD83D\uDC64';
+        })
+        .catch(function(e) { status.textContent = 'Error: ' + e; });
+}
+</script>
+{% endblock %}

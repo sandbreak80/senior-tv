@@ -65,13 +65,6 @@ _last_fired = {}  # {"pill_id_HH:MM": datetime}
 DAY_MAP = {"mon": 0, "tue": 1, "wed": 2, "thu": 3, "fri": 4, "sat": 5, "sun": 6}
 
 
-def _is_quiet_hours():
-    """Check if current time falls within configured quiet hours."""
-    from models import is_quiet_hours
-
-    return is_quiet_hours()
-
-
 def check_pills():
     """Called every minute. Check if any pill is due now."""
     now = datetime.now()
@@ -271,8 +264,6 @@ def check_favorite_shows():
     Previously used Pluto TV EPG (deprecated Feb 2026). Now checks YouTube RSS feeds
     for channels matching favorite show names.
     """
-    if _is_quiet_hours():
-        return
 
     import feedparser
     from models import get_favorite_shows, get_youtube_channels
@@ -338,6 +329,8 @@ def check_favorite_shows():
                     "url": f"/tv/youtube/watch/{vid_id}",
                     "message": f"📺 {show['name']} — new episode!",
                     "interrupt": interrupt,
+                    "trigger": "scheduled_show",
+                    "source": "youtube",
                 }
                 try:
                     reminder_queue.put_nowait(event_data)
@@ -355,25 +348,56 @@ def _cache_cleanup():
 
 
 def trigger_classical_music():
-    """Daily classical music (doctor's orders). Checks hourly, plays at configured time."""
+    """Classical music blocks (doctor's orders). Multiple shorter sessions per day.
+
+    Checks every 10 minutes against configured schedule (comma-separated 24h times).
+    Default: 10:00,16:00 (morning + afternoon, 30 min each via content rotation).
+    """
     import feedparser
     import random as _random
     from models import get_setting
-
-    if _is_quiet_hours():
-        return
 
     enabled = get_setting("classical_music_enabled", "1")
     if enabled != "1":
         return
 
-    # Check if current hour matches the configured time
-    target_hour = int(get_setting("classical_music_hour", "10"))
-    if datetime.now().hour != target_hour:
+    schedule_str = get_setting("classical_music_schedule", "10:00,16:00")
+    now = datetime.now()
+
+    matched = False
+    for slot in schedule_str.split(","):
+        slot = slot.strip()
+        if not slot:
+            continue
+        try:
+            sh, sm = int(slot.split(":")[0]), int(slot.split(":")[1])
+            if now.hour == sh and now.minute >= sm and now.minute < sm + 10:
+                matched = True
+                break
+        except (ValueError, IndexError):
+            continue
+
+    if not matched:
+        # Backwards compat: also check old single-hour setting
+        try:
+            target_hour = int(get_setting("classical_music_hour", "99"))
+            if now.hour == target_hour:
+                matched = True
+        except (ValueError, TypeError):
+            pass
+
+    if not matched:
         return
 
-    # Get a random classical video (must be >= 15 minutes)
-    channel_id = get_setting("classical_music_channel", "UClScm1QV2xecmZrAuADnP9g")
+    dedup_key = f"music_{now.strftime('%Y-%m-%d_%H')}"
+    with _lock:
+        if dedup_key in active_reminders:
+            return
+        active_reminders[dedup_key] = {"triggered_at": now.isoformat()}
+
+    channel_id = get_setting(
+        "classical_music_channel", "UClScm1QV2xecmZrAuADnP9g"
+    )
     try:
         feed = feedparser.parse(
             f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
@@ -386,15 +410,10 @@ def trigger_classical_music():
                 vid_id = entry.get("yt_videoid", "")
                 if not vid_id:
                     continue
-                # Check duration — skip short videos
                 from youtube_utils import get_youtube_duration
 
                 dur = get_youtube_duration(vid_id)
-                if dur and dur < 900:  # 15 minutes
-                    print(
-                        f"Scheduler: skipping short video {vid_id} ({dur}s)",
-                        file=sys.stderr,
-                    )
+                if dur and dur < 900:
                     vid_id = ""
                     continue
                 break
@@ -402,16 +421,79 @@ def trigger_classical_music():
                 event_data = {
                     "type": "auto_play",
                     "url": f"/tv/youtube/watch/{vid_id}",
-                    "title": "Classical Music Time",
-                    "message": "Doctor says: 1 hour of classical music daily",
+                    "title": "Classical Music",
+                    "message": "Relaxing classical music",
                     "icon": "🎵",
+                    "trigger": "scheduled_music",
+                    "source": "youtube",
                 }
                 try:
                     reminder_queue.put_nowait(event_data)
                 except queue.Full:
                     pass
+                print(f"Scheduler: classical music started")
     except Exception as e:
         print(f"Scheduler: classical music error: {e}", file=sys.stderr)
+
+
+def trigger_photo_slideshow():
+    """Scheduled family photo breaks via Immich. Calming, triggers memory.
+
+    Checks every 10 minutes against configured schedule.
+    Default: 11:00,15:00 (late morning + afternoon).
+    """
+    from models import get_setting
+
+    schedule_str = get_setting("photo_schedule", "11:00,15:00")
+    now = datetime.now()
+
+    matched = False
+    for slot in schedule_str.split(","):
+        slot = slot.strip()
+        if not slot:
+            continue
+        try:
+            sh, sm = int(slot.split(":")[0]), int(slot.split(":")[1])
+            if now.hour == sh and now.minute >= sm and now.minute < sm + 10:
+                matched = True
+                break
+        except (ValueError, IndexError):
+            continue
+
+    if not matched:
+        return
+
+    dedup_key = f"photos_{now.strftime('%Y-%m-%d_%H')}"
+    with _lock:
+        if dedup_key in active_reminders:
+            return
+        active_reminders[dedup_key] = {"triggered_at": now.isoformat()}
+
+    # Only trigger if Immich or local photos are available
+    try:
+        import immich_api
+
+        if not immich_api.is_configured():
+            return
+    except Exception:
+        return
+
+    interrupt = get_setting("auto_play_interrupt") or "always"
+    event_data = {
+        "type": "auto_play",
+        "url": "/tv/photos",
+        "title": "Family Photos",
+        "message": "Family photo time",
+        "icon": "📸",
+        "interrupt": interrupt,
+        "trigger": "scheduled_photos",
+        "source": "immich",
+    }
+    try:
+        reminder_queue.put_nowait(event_data)
+    except queue.Full:
+        pass
+    print(f"Scheduler: photo slideshow started")
 
 
 def trigger_exercise():
@@ -419,9 +501,6 @@ def trigger_exercise():
     import feedparser
     import random as _random
     from models import get_setting
-
-    if _is_quiet_hours():
-        return
 
     enabled = get_setting("exercise_enabled", "1")
     if enabled != "1":
@@ -462,6 +541,8 @@ def trigger_exercise():
                     "title": "Exercise Time",
                     "message": "Time for your stretching exercises!",
                     "icon": "🏋️",
+                    "trigger": "scheduled_exercise",
+                    "source": "youtube",
                 }
                 try:
                     reminder_queue.put_nowait(event_data)
@@ -475,14 +556,11 @@ def trigger_news_block():
     """Scheduled news blocks — auto-play a live news channel at configured times.
 
     Checks every 10 minutes if current time matches a news schedule slot.
-    Picks a random Pluto TV news channel and pushes an auto_play event.
+    Picks a random YouTube news channel and pushes an auto_play event.
     """
     import feedparser
     import random as _random
     from models import get_setting
-
-    if _is_quiet_hours():
-        return
 
     schedule_str = get_setting("news_schedule") or ""
     if not schedule_str.strip():
@@ -556,6 +634,8 @@ def trigger_news_block():
             "message": "Time for the news!",
             "icon": "📰",
             "interrupt": interrupt,
+            "trigger": "scheduled_news",
+            "source": "youtube",
         }
         try:
             reminder_queue.put_nowait(event_data)
@@ -576,6 +656,43 @@ def _validate_pluto_channels():
         print(f"Scheduler: Pluto validation error: {e}", file=sys.stderr)
 
 
+def log_presence_reading():
+    """Every 5 minutes, log presence from Frigate/HA (or webcam fallback)."""
+    from models import get_setting, log_presence
+
+    if get_setting("presence_enabled", "1") != "1":
+        return
+
+    try:
+        from smart_home import _poll_frigate_presence, _poll_webcam
+
+        ha_url = (get_setting("ha_url") or "").rstrip("/")
+        ha_token = get_setting("ha_token") or ""
+
+        # Try Frigate/HA first
+        result = _poll_frigate_presence(ha_url, ha_token)
+        if result is not None:
+            person_count, who, sound_level = result
+            log_presence(
+                person_count, 1.0 if person_count > 0 else 0.0,
+                who_detected=who, source="frigate",
+                sound_level=sound_level,
+            )
+            return
+
+        # Fallback: USB webcam
+        webcam_result = _poll_webcam()
+        if webcam_result is not None:
+            person_count, confidence = webcam_result
+            log_presence(
+                person_count, confidence,
+                source="webcam",
+            )
+            return
+    except Exception as e:
+        print(f"Scheduler: presence logging error: {e}", file=sys.stderr)
+
+
 def _daily_maintenance():
     """Daily database cleanup — runs at 3 AM."""
     try:
@@ -584,6 +701,27 @@ def _daily_maintenance():
         prune_old_logs(activity_days=30, remote_days=7)
     except Exception as e:
         print(f"Scheduler: daily maintenance error: {e}", file=sys.stderr)
+    try:
+        from models import cleanup_presence_logs
+
+        cleanup_presence_logs(keep_days=30)
+    except Exception as e:
+        print(f"Scheduler: presence log cleanup error: {e}", file=sys.stderr)
+    try:
+        from models import cleanup_movement_logs
+
+        cleanup_movement_logs(keep_days=90)
+    except Exception as e:
+        print(f"Scheduler: movement log cleanup error: {e}", file=sys.stderr)
+    # Compute yesterday's daily activity summaries
+    try:
+        from datetime import timedelta
+        yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+        from smart_home import _compute_day_summary
+
+        _compute_day_summary(yesterday)
+    except Exception as e:
+        print(f"Scheduler: daily activity summary error: {e}", file=sys.stderr)
 
 
 scheduler = BackgroundScheduler()
@@ -591,9 +729,11 @@ scheduler.add_job(check_pills, "interval", minutes=1, id="pill_checker")
 scheduler.add_job(check_birthdays, "interval", hours=1, id="birthday_checker")
 scheduler.add_job(check_favorite_shows, "interval", minutes=10, id="show_checker")
 scheduler.add_job(_cache_cleanup, "interval", minutes=30, id="cache_cleanup")
-scheduler.add_job(trigger_classical_music, "interval", hours=1, id="classical_music")
+scheduler.add_job(trigger_classical_music, "interval", minutes=10, id="classical_music")
 scheduler.add_job(trigger_news_block, "interval", minutes=10, id="news_block")
 scheduler.add_job(trigger_exercise, "interval", hours=1, id="exercise")
+scheduler.add_job(trigger_photo_slideshow, "interval", minutes=10, id="photo_slideshow")
+scheduler.add_job(log_presence_reading, "interval", minutes=5, id="presence_logger")
 scheduler.add_job(_daily_maintenance, "cron", hour=3, minute=15, id="daily_maintenance")
 
 

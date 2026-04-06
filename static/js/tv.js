@@ -12,21 +12,11 @@
 // Log levels: "minimal" (playback only), "normal" (+ pages/alerts), "verbose" (everything)
 window._pageLoadTime = Date.now();
 window._logLevel = "verbose"; // default until loaded
-window._quietHours = false; // updated by periodic poll
-window._roomEmpty = false; // updated by SSE presence_change events
 fetch("/api/log-level").then(function(r){return r.json()}).then(function(d){window._logLevel=d.level||"verbose"}).catch(function(){});
-// Poll quiet hours state every 5 minutes (handles crossing midnight boundary)
-function _pollQuietHours() {
-    fetch("/api/tv-state").then(function(r){return r.ok?r.json():{}}).then(function(s){
-        window._quietHours = !!s.quiet_hours;
-    }).catch(function(){});
-}
-_pollQuietHours();
-setInterval(_pollQuietHours, 300000);
 
 // Events that each level includes
 var _LOG_MINIMAL = ["playback_start","playback_stop","auto_play","dead_stream","frozen_stream"];
-var _LOG_NORMAL = _LOG_MINIMAL.concat(["page_visit","page_leave","screensaver_start","screensaver_end",
+var _LOG_NORMAL = _LOG_MINIMAL.concat(["page_visit","page_leave",
     "alert_pill","alert_doorbell","alert_birthday","alert_show","alert_message",
     "alert_dismiss","music_play"]);
 // verbose = log everything
@@ -369,37 +359,17 @@ window.quickNav = function(url) {
                             dismissReminder();
                         }
                     } else if (data.type === "auto_play") {
-                        // Only auto-play if someone is watching and not in quiet hours
-                        if (data.url && !window._roomEmpty && !window._quietHours) {
+                        if (data.url) {
                             var interrupt = data.interrupt || "always";
                             var onIdlePage = window.location.pathname === "/" ||
                                              window.location.pathname.indexOf("/tv/photos") === 0;
-                            // "always" = interrupt anything, "idle_only" = only if on home/screensaver
                             if (interrupt === "always" || onIdlePage) {
+                                window.logActivity("auto_play", data.title || "Auto-play", data.url, {
+                                    item_id: data.id,
+                                    trigger: data.trigger || "scheduled",
+                                    source: data.source || "unknown"
+                                });
                                 window.quickNav(data.url);
-                            }
-                        }
-                    } else if (data.type === "presence_change") {
-                        window._roomEmpty = !data.occupied;
-                        if (!data.occupied) {
-                            // Room empty — start screensaver after 15 minutes
-                            // (bathroom trips, getting food, etc. — don't interrupt too quickly)
-                            if (!window._presenceTimeout) {
-                                window._presenceTimeout = setTimeout(function() {
-                                    window.logActivity("screensaver_start", "Room empty — screensaver", window.location.pathname);
-                                    window.quickNav("/tv/photos?screensaver=1");
-                                }, 900000);
-                            }
-                        } else if (data.occupied) {
-                            // Someone sat down — cancel screensaver timer
-                            if (window._presenceTimeout) {
-                                clearTimeout(window._presenceTimeout);
-                                window._presenceTimeout = null;
-                            }
-                            // Wake from screensaver — go to home (which will auto-play content)
-                            if (window.location.search.indexOf("screensaver") > -1) {
-                                window.logActivity("screensaver_end", "Person detected — waking", window.location.pathname);
-                                window.quickNav("/");
                             }
                         }
                     }
@@ -843,13 +813,9 @@ window.quickNav = function(url) {
 
     // --- Auto-Play from Home Screen ---
     // The care recipients watch TV for hours without pressing buttons.
-    // Screensaver is triggered ONLY by presence detection (room empty),
-    // never by keyboard idle. After showing the home screen for 45 seconds
-    // (weather, greeting, pills, family photo), auto-play genre-appropriate
-    // content from Jellyfin based on time-of-day care plan.
-    //
-    // Quiet hours (default 10 PM - 7 AM): no auto-play, screensaver only.
-    // Room empty + presence enabled: screensaver instead of auto-play.
+    // After showing the home screen for 45 seconds (weather, greeting,
+    // pills, family photo), auto-play genre-appropriate content from
+    // Jellyfin based on time-of-day care plan.
 
     var autoPlayTimer = null;
     var AUTO_PLAY_DELAY = 45 * 1000; // 45 seconds on home before auto-play
@@ -862,25 +828,7 @@ window.quickNav = function(url) {
                 autoPlayTimer = setTimeout(_tryAutoPlay, 60000);
                 return;
             }
-            // Check quiet hours and presence before auto-playing
-            fetch("/api/tv-state")
-                .then(function(r) { return r.ok ? r.json() : {}; })
-                .then(function(state) {
-                    if (state.quiet_hours) {
-                        // Quiet hours — go to screensaver, retry in 15 min
-                        window.logActivity("screensaver_start", "Quiet hours — screensaver", "/");
-                        window.quickNav("/tv/photos?screensaver=1");
-                        return;
-                    }
-                    if (state.presence_enabled && !state.room_occupied) {
-                        // Room empty — go to screensaver, presence_change will wake us
-                        window.logActivity("screensaver_start", "Room empty — screensaver", "/");
-                        window.quickNav("/tv/photos?screensaver=1");
-                        return;
-                    }
-                    _doAutoPlay();
-                })
-                .catch(function() { _doAutoPlay(); });
+            _doAutoPlay();
         }, AUTO_PLAY_DELAY);
 
         // Cancel auto-play if user navigates manually — but restart it after 2 min
@@ -903,14 +851,18 @@ window.quickNav = function(url) {
             .then(function(r) { return r.ok ? r.json() : null; })
             .then(function(data) {
                 if (data && data.url) {
-                    window.logActivity("auto_play", data.title || "Auto-play", data.url, {item_id: data.id});
+                    window.logActivity("auto_play", data.title || "Auto-play", data.url, {
+                        item_id: data.id, trigger: "auto_play_idle", source: data.source || "jellyfin"
+                    });
                     window.quickNav(data.url);
                 } else {
                     return fetch("/api/next-channel")
                         .then(function(r) { return r.ok ? r.json() : null; })
                         .then(function(ch) {
                             if (ch && ch.url) {
-                                window.logActivity("auto_play", ch.name || "Live TV", ch.url);
+                                window.logActivity("auto_play", ch.name || "Live TV", ch.url, {
+                                    trigger: "auto_play_idle", source: "youtube"
+                                });
                                 window.quickNav(ch.url);
                             }
                         });
@@ -921,7 +873,9 @@ window.quickNav = function(url) {
                     .then(function(r) { return r.ok ? r.json() : null; })
                     .then(function(ch) {
                         if (ch && ch.url) {
-                            window.logActivity("auto_play", ch.name || "Live TV", ch.url);
+                            window.logActivity("auto_play", ch.name || "Live TV", ch.url, {
+                                trigger: "auto_play_idle", source: "youtube"
+                            });
                             window.quickNav(ch.url);
                         }
                     })

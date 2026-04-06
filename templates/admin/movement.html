@@ -1,0 +1,190 @@
+{% extends "admin/base.html" %}
+{% block title %}Movement Tracking{% endblock %}
+{% block content %}
+<h1>Movement Tracking</h1>
+
+<div class="card">
+    <h2>Live Status</h2>
+    <div style="display: flex; gap: 32px; flex-wrap: wrap; align-items: flex-start;">
+        <div style="text-align: center;">
+            <div style="font-size: 48px;">📺</div>
+            <div style="font-size: 18px; font-weight: 600;">TV</div>
+            <div style="font-size: 14px; color: {{ '#4caf50' if tv_power.on else '#999' }}; font-weight: 700;">
+                {{ 'ON' if tv_power.on else 'OFF' }}
+            </div>
+            {% if tv_power.last_on %}
+                <div style="font-size: 11px; color: var(--text-muted);">
+                    on: {{ tv_power.last_on.strftime('%I:%M %p') }}
+                </div>
+            {% endif %}
+            {% if tv_power.last_off %}
+                <div style="font-size: 11px; color: var(--text-muted);">
+                    off: {{ tv_power.last_off.strftime('%I:%M %p') }}
+                </div>
+            {% endif %}
+        </div>
+        {% if locations %}
+            {% for person, room in locations.items() %}
+            <div style="text-align: center;">
+                <div style="font-size: 48px;">👤</div>
+                <div style="font-size: 18px; font-weight: 600;">{{ person }}</div>
+                <div style="font-size: 14px; color: var(--text-muted);">{{ room }}</div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <p style="align-self: center;">Waiting for first face detection...</p>
+        {% endif %}
+    </div>
+</div>
+
+<div style="margin-bottom: 12px;">
+    <a href="?days=7" class="btn btn-sm {% if days == 7 %}btn-active{% endif %}">7 Days</a>
+    <a href="?days=14" class="btn btn-sm {% if days == 14 %}btn-active{% endif %}">14 Days</a>
+    <a href="?days=30" class="btn btn-sm {% if days == 30 %}btn-active{% endif %}">30 Days</a>
+</div>
+
+<div class="card">
+    <h2>Daily Activity Summary</h2>
+    {% if daily %}
+    <div style="overflow-x: auto;">
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Person</th>
+                <th>Wake</th>
+                <th>Sleep</th>
+                <th>Active</th>
+                <th>Transitions</th>
+                <th>Kitchen</th>
+                <th>Kitchen Time</th>
+                <th>Bathroom</th>
+                <th>Bathroom Time</th>
+                <th>Living Room</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in daily %}
+            <tr>
+                <td>{{ row.day }}</td>
+                <td><strong>{{ row.person }}</strong></td>
+                <td>{{ row.wake_time or '-' }}</td>
+                <td>{{ row.sleep_time or '-' }}</td>
+                <td>{{ '%dh %dm' % (row.active_minutes // 60, row.active_minutes % 60) if row.active_minutes else '-' }}</td>
+                <td>
+                    <span class="metric">{{ row.transition_count or 0 }}</span>
+                </td>
+                <td>
+                    <span class="metric">{{ row.kitchen_trips or 0 }}</span>
+                </td>
+                <td>{{ '%dm' % row.kitchen_minutes if row.kitchen_minutes else '-' }}</td>
+                <td>
+                    <span class="metric">{{ row.bathroom_trips or 0 }}</span>
+                </td>
+                <td>{{ '%dm' % row.bathroom_minutes if row.bathroom_minutes else '-' }}</td>
+                <td>{{ '%dh %dm' % (row.living_room_minutes // 60, row.living_room_minutes % 60) if row.living_room_minutes else '-' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p>No daily summaries yet. Data appears after the first full day of tracking.</p>
+    {% endif %}
+</div>
+
+{% if daily %}
+<div class="card">
+    <h2>Trends</h2>
+    <p style="color: var(--text-muted); font-size: 13px;">
+        Each person's metrics are compared to their own 7-day rolling average.
+        Significant changes may indicate progression.
+    </p>
+    {% set people = daily | map(attribute='person') | unique | list %}
+    {% for person in people %}
+    {% set person_data = daily | selectattr('person', 'equalto', person) | list %}
+    {% if person_data | length >= 2 %}
+    <h3 style="margin-top: 16px;">{{ person }}</h3>
+    <div style="display: flex; gap: 16px; flex-wrap: wrap;">
+        {% set latest = person_data[0] %}
+        {% set avg_transitions = (person_data | map(attribute='transition_count') | select('number') | list | sum) // (person_data | length) %}
+        {% set avg_kitchen = (person_data | map(attribute='kitchen_trips') | select('number') | list | sum) // (person_data | length) %}
+        <div class="trend-card">
+            <div class="trend-label">Transitions/day</div>
+            <div class="trend-value">{{ latest.transition_count or 0 }}</div>
+            <div class="trend-avg">avg: {{ avg_transitions }}</div>
+        </div>
+        <div class="trend-card">
+            <div class="trend-label">Kitchen trips/day</div>
+            <div class="trend-value">{{ latest.kitchen_trips or 0 }}</div>
+            <div class="trend-avg">avg: {{ avg_kitchen }}</div>
+        </div>
+    </div>
+    {% endif %}
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="card">
+    <h2>Recent Movements (Last 48 Hours)</h2>
+    {% if movements %}
+    <div style="overflow-x: auto;">
+    <table>
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>Person</th>
+                <th>From</th>
+                <th>To</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for m in movements[:200] %}
+            <tr>
+                <td>{{ m.logged_at }}</td>
+                <td><strong>{{ m.person }}</strong></td>
+                <td>{{ m.from_room or '-' }}</td>
+                <td>{{ m.to_room }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p>No movements recorded yet. Transitions will appear as Frigate detects people moving between rooms.</p>
+    {% endif %}
+</div>
+
+<style>
+.metric {
+    font-weight: 700;
+    font-size: 1.1em;
+}
+.trend-card {
+    background: var(--bg-card, #1e1e1e);
+    border: 1px solid var(--border, #333);
+    border-radius: 8px;
+    padding: 12px 20px;
+    min-width: 140px;
+    text-align: center;
+}
+.trend-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+.trend-value {
+    font-size: 28px;
+    font-weight: 700;
+}
+.trend-avg {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+.btn-sm { padding: 4px 12px; font-size: 13px; }
+.btn-active { background: var(--primary); color: #fff; }
+</style>
+{% endblock %}

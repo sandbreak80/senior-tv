@@ -79,14 +79,14 @@ def build_menu_items(unread_msgs, free_movie_count):
     """Build the home screen navigation menu."""
     msg_label = f"Messages ({unread_msgs} new)" if unread_msgs > 0 else "Messages"
     return [
+        {"label": "Movies & Shows", "icon": "\U0001f3ac", "url": "/tv/plex"},
         {"label": "Live TV", "icon": "\U0001f4fa", "url": "/tv/live"},
+        {"label": "YouTube", "icon": "\u25b6\ufe0f", "url": "/tv/youtube"},
         {
             "label": f"Free Movies ({free_movie_count})",
             "icon": "\U0001f37f",
             "url": "/tv/free-movies",
         },
-        {"label": "Movies & Shows", "icon": "\U0001f3ac", "url": "/tv/plex"},
-        {"label": "YouTube", "icon": "\u25b6\ufe0f", "url": "/tv/youtube"},
         {"label": msg_label, "icon": "\U0001f48c", "url": "/tv/messages"},
         {"label": "News", "icon": "\U0001f4f0", "url": "/tv/news"},
         {"label": "Weather", "icon": "\U0001f324\ufe0f", "url": "/tv/weather"},

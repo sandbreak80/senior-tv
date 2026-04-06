@@ -88,7 +88,11 @@ def capture_frame(device, output_path):
 
 
 def detect_person(net, image_path):
-    """Run MobileNet SSD on an image, return (person_detected, confidence, all_detections)."""
+    """Run MobileNet SSD on an image, return (person_detected, confidence, all_detections).
+
+    all_detections includes all above-threshold detections as (class_id, confidence) tuples.
+    Use count_persons() for a dedicated person count.
+    """
     import cv2
 
     frame = cv2.imread(image_path)
@@ -112,6 +116,11 @@ def detect_person(net, image_path):
                 best_person_conf = confidence
 
     return best_person_conf > 0, best_person_conf, results
+
+
+def count_persons(detections):
+    """Count how many person detections are in the results list."""
+    return sum(1 for class_id, _ in detections if class_id == PERSON_CLASS_ID)
 
 
 def main():

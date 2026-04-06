@@ -1114,13 +1114,6 @@ def run_tests():
             test(f"Escape from {start} navigates away", left, f"Got: {page.url}")
 
         # ============================================================
-        print("\n=== SCREENSAVER MODE ===")
-        # ============================================================
-        page.goto(f"{BASE}/tv/photos?screensaver=1")
-        page.wait_for_load_state("domcontentloaded")
-        test("Screensaver mode loads", page.locator(".slideshow, .slide").count() > 0)
-
-        # ============================================================
         browser.close()
 
     # Print summary
