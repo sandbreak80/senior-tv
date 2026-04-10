@@ -15,9 +15,9 @@ Senior TV is a full-screen kiosk-style entertainment, communication, and care sy
 - **SQLite** (`senior_tv.db`) — pills, calendar, birthdays, messages, favorites, settings; WAL mode for concurrent reads
 - **APScheduler** (`scheduler.py`) — pill reminders (1 min), birthday checks (1 hr), show alerts (10 min)
 - **SSE** (`/events`) — pushes pill reminders, doorbell alerts, show notifications, family messages to TV
-- **Jellyfin API** (`jellyfin_api.py`) — media library at `192.168.50.20:8096` (network server)
+- **Jellyfin API** (`jellyfin_api.py`) — media library at `192.168.50.205:8096` (network server)
 - **Pluto TV** (`pluto_tv.py`) — 421 free live TV channels via HLS, logos via `path` key (not `url`)
-- **Immich API** (`immich_api.py`) — family photos from Immich at `192.168.50.165:2283` (network server); photos proxied through `/api/immich-photo/<id>` to hide API key
+- **Immich API** (`immich_api.py`) — family photos from Immich at `192.168.50.205:2283` (network server); photos proxied through `/api/immich-photo/<id>` to hide API key
 - **Smart Home** (`smart_home.py`) — Frigate person detection on front_door camera, HA integration, room presence tracking
 - **Display** — forced to 1920x1080 (no 4K content); `monitors.xml` covers both HDMI ports, `start.sh` enforces via Mutter DBus API
 - **HDMI audio** (`fix_audio.sh`) — finds any HDMI sink via PipeWire `object.path`, works with either HDMI port; called by `start.sh` and `watchdog.sh`
@@ -118,10 +118,10 @@ SSE reconnects with exponential backoff (5s → 60s max). Alert sounds use Web A
 
 | Service | Location | URL | Auth |
 |---------|----------|-----|------|
-| Jellyfin | Network server | `http://192.168.50.20:8096` | API key in settings DB |
-| Immich | Network server | `http://192.168.50.165:2283` | API key in settings DB |
-| Frigate | Network | `http://192.168.50.114:5000` | Session cookie login |
-| Home Assistant | Network | `http://192.168.50.76:8123` | Long-lived token |
+| Jellyfin | storageserver (192.168.50.205) | `http://192.168.50.205:8096` | API key in settings DB |
+| Immich | storageserver (192.168.50.205) | `http://192.168.50.205:2283` | API key in settings DB |
+| Frigate | gpuserver (192.168.50.92) | `http://192.168.50.92:5000` | Session cookie login |
+| Home Assistant | storageserver (192.168.50.205) | `http://192.168.50.205:8123` | Long-lived token |
 | Pluto TV | External | Public API | No auth |
 | Open-Meteo | External | Public API | No auth (Sun City, CA: 33.7083, -117.1972) |
 
