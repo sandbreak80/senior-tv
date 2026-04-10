@@ -249,7 +249,7 @@ Accessible from any device on the network at **http://<device-ip>:5000/admin**
 - **Media:** Jellyfin (local Docker on localhost:8096 — public domain movies, classical music, classic TV shows from Archive.org)
 - **Live TV:** Pluto TV (421 channels with logos, HLS proxy for CORS bypass)
 - **Photos:** Immich (local Docker on localhost:2283 — family photo library, ML disabled for RAM savings)
-- **Smart Home:** Frigate (doorbell camera), Home Assistant (TV control)
+- **Smart Home:** Frigate (doorbell camera, 192.168.50.92), Home Assistant (TV control, 192.168.50.205)
 - **Remote:** Samsung TV remote via HDMI-CEC → keyboard events via xdotool
 - **Auto-start:** systemd service with process supervision (Flask + Chrome + CEC bridge)
 - **Self-healing:** Local watchdog (3 min) + Claude AI health agent (hourly) + HDMI audio persistence
