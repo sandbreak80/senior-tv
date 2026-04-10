@@ -444,6 +444,24 @@ def start_presence_monitor(alert_queue=None):
                     sound_level=sound_level,
                 )
 
+                # Log to DB every 5 minutes (not every 10s poll)
+                from models import log_presence
+                if not hasattr(_poll, "_last_db_log"):
+                    _poll._last_db_log = 0
+                now_ts = time.time()
+                if now_ts - _poll._last_db_log >= 300:
+                    try:
+                        log_presence(
+                            person_count=person_count,
+                            max_confidence=0.0,
+                            who_detected=",".join(who) if who else None,
+                            source=source,
+                            sound_level=sound_level,
+                        )
+                        _poll._last_db_log = now_ts
+                    except Exception as e:
+                        print(f"Presence DB log error: {e}", file=sys.stderr)
+
                 # Push SSE event when presence changes
                 if alert_queue and effective_occupied != last_occupied:
                     try:

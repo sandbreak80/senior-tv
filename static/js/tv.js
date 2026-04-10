@@ -818,7 +818,7 @@ window.quickNav = function(url) {
     // Jellyfin based on time-of-day care plan.
 
     var autoPlayTimer = null;
-    var AUTO_PLAY_DELAY = 45 * 1000; // 45 seconds on home before auto-play
+    var AUTO_PLAY_DELAY = 3 * 1000; // 3 seconds — skip home screen, go straight to content
 
     function initAutoPlay() {
         if (window.location.pathname !== "/") return;

@@ -249,6 +249,8 @@
     // Track auto-play chain depth (max 3 then go home)
     var autoPlayCount = parseInt(new URLSearchParams(window.location.search).get("ap") || "0");
 
+    var shuffleShowId = container ? container.dataset.shuffleShowId : "";
+
     video.addEventListener("ended", function () {
         logStop("video_ended");
         if (autoPlayCount >= 3) {
@@ -259,6 +261,14 @@
         }
         showCenterIcon("Up Next...");
         showOverlay();
+
+        // If we came from shuffle, keep shuffling the same show
+        if (shuffleShowId) {
+            var shuffleUrl = "/tv/plex/shuffle/" + shuffleShowId + "?ap=" + (autoPlayCount + 1);
+            setTimeout(function() { window.quickNav(shuffleUrl); }, 3000);
+            return;
+        }
+
         fetch("/api/next-video")
             .then(function(r) { return r.json(); })
             .then(function(data) {

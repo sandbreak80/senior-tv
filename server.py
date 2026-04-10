@@ -677,6 +677,7 @@ def tv_plex_shuffle(item_id):
                 transcode_url=transcode_url,
                 subtitle_url=subtitle_url,
                 item_id=episode["id"],
+                shuffle_show_id=item_id,
             )
         return redirect(f"/tv/plex/show/{item_id}")
     except Exception:
