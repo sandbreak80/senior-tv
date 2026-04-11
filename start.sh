@@ -117,6 +117,9 @@ start_chrome() {
         --remote-debugging-port=9222 \
         --remote-allow-origins=* \
         --user-data-dir=$HOME/.config/senior-tv-chrome \
+        --use-gl=egl \
+        --enable-features=VaapiVideoDecodeLinuxGL \
+        --disable-features=UseChromeOSDirectVideoDecoder \
         http://localhost:5000 &
     CHROME_PID=$!
     echo "$(date): Chrome started (PID $CHROME_PID)"

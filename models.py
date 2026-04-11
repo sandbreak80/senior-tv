@@ -592,12 +592,11 @@ def prune_old_logs(activity_days=30, remote_days=7):
             "DELETE FROM volume_logs WHERE logged_at < datetime('now', '-30 days')",
         )
         db.commit()
-    # VACUUM must run outside any transaction
+    # Lightweight maintenance — wal_checkpoint + optimize is sufficient for a small DB
+    # (VACUUM requires autocommit mode outside get_db_safe() and is overkill here)
     with get_db_safe() as db:
-        db.execute("PRAGMA journal_mode=WAL")
-        db.isolation_level = None  # autocommit mode
-        db.execute("VACUUM")
-        db.isolation_level = ""  # restore
+        db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        db.execute("PRAGMA optimize")
 
 
 # --- Calendar helpers ---

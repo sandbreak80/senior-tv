@@ -2677,7 +2677,7 @@ def jellyfin_stream_proxy(item_id, rest):
 
         # Stream the response (don't buffer entire video in memory)
         upstream_resp = requests.get(
-            upstream, params=params, stream=True, timeout=30, headers=headers
+            upstream, params=params, stream=True, timeout=(10, 300), headers=headers
         )
         if not upstream_resp.ok:
             return "", upstream_resp.status_code
@@ -3179,6 +3179,9 @@ if __name__ == "__main__":
     start_movement_tracker()
     try:
         debug_mode = os.environ.get("SENIOR_TV_DEBUG", "0") == "1"
+        if not debug_mode:
+            import logging
+            logging.getLogger("werkzeug").setLevel(logging.ERROR)
         app.run(host="0.0.0.0", port=5000, debug=debug_mode, threaded=True)
     finally:
         stop_scheduler()
