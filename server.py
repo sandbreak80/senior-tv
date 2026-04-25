@@ -636,24 +636,30 @@ def tv_plex_library(library_id):
 
 @app.route("/tv/plex/daily")
 def tv_plex_daily():
-    """Today's 20 movies — different every day."""
+    """Today's 20 movies — picked ONCE per day by daily_planner.
+
+    Reads from data/daily_plan.json. On any miss (missing file, stale date)
+    regenerates on-demand via daily_planner.regenerate_if_needed().
+
+    The planning layer is the ONLY place that makes filter decisions; this
+    endpoint is dumb — just read plan, render.
+    """
+    from datetime import date
+    import daily_planner
+
+    today_str = date.today().strftime("%A, %B %d")
+
     jf = _get_jellyfin()
     if not jf:
         return redirect("/tv/plex")
 
     try:
-        libs = jf.get_libraries()
-        movies_lib = next((lib for lib in libs if lib["type"] == "movies"), None)
-        if not movies_lib:
-            return redirect("/tv/plex")
-        movies = jf.get_daily_picks(movies_lib["id"], count=20)
-        from datetime import date
-
-        today_str = date.today().strftime("%A, %B %d")
+        _, plan = daily_planner.regenerate_if_needed(jf)
+        movies = (plan or {}).get("movies") or []
         return render_template("tv/plex_daily.html", movies=movies, today_str=today_str)
     except Exception as e:
         return render_template(
-            "tv/plex_daily.html", movies=[], today_str="Today", error=str(e)
+            "tv/plex_daily.html", movies=[], today_str=today_str, error=str(e)
         )
 
 
@@ -723,6 +729,25 @@ def tv_plex_play(item_id):
     """Play a Jellyfin item in our built-in player."""
     jf = _get_jellyfin()
     if not jf:
+        return redirect("/tv/plex")
+
+    # Gate: silently skip items with only non-English audio. Library filtering
+    # already hides these, but a direct link / bookmark / auto-chain could still
+    # hit the play URL, and we never want to expose the elderly viewers to
+    # content they can't understand.
+    if not jf.is_english_audio_available(item_id):
+        try:
+            item = jf.get_item(item_id)
+            models.log_activity(
+                activity_type="skipped_non_english",
+                item_id=item_id,
+                item_title=item.get("title", "") if item else "",
+                item_type="movie",
+                source="jellyfin",
+                trigger="no_english_audio",
+            )
+        except Exception:
+            pass
         return redirect("/tv/plex")
 
     try:
@@ -2455,7 +2480,11 @@ def tv_photos():
     import immich_api
 
     photos = _get_all_photos()
-    has_immich = immich_api.is_configured()
+    # Only advertise Immich to the template if we actually got photos from it,
+    # otherwise the slideshow sits on a black screen when Immich is unreachable.
+    has_immich = immich_api.is_configured() and any(
+        p.get("source") == "immich" for p in photos
+    )
     if not photos and not has_immich:
         return render_template(
             "tv/photos.html", photos=photos, has_immich=False, interval=10
@@ -2756,11 +2785,19 @@ def immich_photo_proxy(asset_id):
 
 @app.route("/api/next-video")
 def api_next_video():
-    """Get a random video to auto-play. Jellyfin is the #1 source.
+    """Get a video to auto-play.
 
-    Strategy: Jellyfin first (3 rounds × 10 items each), genre-biased by time of day.
-    Alternates between movies and shows so they don't just watch one type.
-    YouTube free movies are a last-resort fallback only.
+    Planning-first strategy:
+      1. Try the daily plan (data/plans/plan_<today>.json) — this is the
+         SOURCE OF TRUTH for what should play today. Pre-filtered overnight
+         by daily_planner.generate_plan(), deterministic per day.
+      2. If the plan is missing/empty/exhausted, fall back to live Jellyfin
+         query with genre filter (which is still safe — get_library_items
+         routes through _drop_excluded_genres).
+      3. If Jellyfin is down entirely, fall back to YouTube free movies.
+
+    Result: every pick has already been vetted by the planner's filters.
+    No more Return of Jafar / Strange Magic surprises.
     """
     import random as _random
 
@@ -2773,7 +2810,7 @@ def api_next_video():
     if not jf:
         return jsonify({"error": "not configured"}), 400
 
-    def _make_result(item, genre=None):
+    def _make_result(item, genre=None, source="jellyfin"):
         """Build result dict. Series use shuffle; movies play directly.
         Trusts Jellyfin stream availability — no HEAD validation (Jellyfin is local,
         the player handles errors gracefully with retry/skip).
@@ -2787,11 +2824,44 @@ def api_next_video():
             "title": item.get("title", ""),
             "type": item.get("type", ""),
             "url": url,
-            "source": "jellyfin",
+            "source": source,
         }
         if genre:
             result["genre"] = genre
         return result
+
+    # === PHASE 1: planning layer ===
+    # Try to serve from today's pre-built daily plan first.
+    try:
+        import daily_planner
+
+        _, plan = daily_planner.regenerate_if_needed(jf)
+        plan_movies = (plan or {}).get("movies") or []
+        if plan_movies:
+            # Shuffle a local copy so we pick randomly from the plan instead
+            # of serving in-order every time.
+            candidates = list(plan_movies)
+            _random.shuffle(candidates)
+            for m in candidates:
+                mid = m.get("id")
+                if not mid:
+                    continue
+                if mid in _excluded_ids:
+                    continue
+                if mid in _recently_played:
+                    continue
+                _recently_played.append(mid)
+                return jsonify(
+                    _make_result(m, source="jellyfin_plan")
+                )
+            # All plan items are recently-played — fall through to live query
+            # so the viewer doesn't see an empty response
+    except Exception as e:
+        print(f"api_next_video: plan lookup failed, falling back live: {e}")
+
+    # === PHASE 2: live Jellyfin query fallback ===
+    # Runs when the plan is missing/empty/exhausted. Still safe — the library
+    # item fetch is filtered by _drop_excluded_genres in jellyfin_api.py.
 
     try:
         libs = jf.get_libraries()
@@ -3114,6 +3184,59 @@ def admin_volume():
     return render_template("admin/volume.html")
 
 
+@app.route("/admin/plan", methods=["GET"])
+def admin_plan_view():
+    """Inspect today's and tomorrow's content plans as JSON.
+
+    Query string ?date=YYYY-MM-DD to view a specific day's plan.
+    """
+    import daily_planner
+    from flask import request as _req
+    from datetime import date as _date, timedelta as _td
+
+    qdate = _req.args.get("date")
+    if qdate:
+        plan = daily_planner.load_plan(qdate) or {}
+        return jsonify(plan)
+    today = _date.today().strftime("%Y-%m-%d")
+    tomorrow = (_date.today() + _td(days=1)).strftime("%Y-%m-%d")
+    return jsonify({
+        "today": daily_planner.load_plan(today),
+        "tomorrow": daily_planner.load_plan(tomorrow),
+    })
+
+
+@app.route("/admin/plan/regenerate", methods=["POST"])
+def admin_plan_regenerate():
+    """Force a fresh regenerate. Body/query param 'target' selects which:
+        target=today    (default) - rebuilds today's plan
+        target=tomorrow           - rebuilds tomorrow's pre-staged plan
+    Use after editing content_exclusions.json or changing genre filters.
+    """
+    import daily_planner
+    from flask import request as _req
+
+    target = (_req.values.get("target") or "today").lower()
+    jf = _get_jellyfin()
+    if not jf:
+        return jsonify({"ok": False, "error": "Jellyfin not configured"}), 400
+    try:
+        if target == "tomorrow":
+            plan = daily_planner.regenerate_tomorrow(jf)
+        else:
+            plan = daily_planner.regenerate_now(jf)
+        return jsonify({
+            "ok": True,
+            "target": target,
+            "plan_date": plan.get("plan_date"),
+            "movie_count": len(plan.get("movies", [])),
+            "pool_size": plan.get("pool_size"),
+            "pool_after_filter": plan.get("pool_after_filter"),
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 @app.route("/api/health")
 def api_health():
     """System health check for monitoring and watchdog."""
@@ -3130,31 +3253,19 @@ _smart_home_monitor = None
 
 
 def _start_smart_home():
-    """Start the Frigate doorbell monitor if configured."""
+    """Start the Frigate doorbell monitor.
+
+    Started unconditionally — the monitor reads frigate_url / cameras /
+    credentials from settings on every poll, so it idles cheaply when nothing
+    is configured and picks up admin-panel changes on the next tick without a
+    service restart.
+    """
     global _smart_home_monitor
-    frigate_url = get_setting_or_default("frigate_url")
-    frigate_user = get_setting_or_default("frigate_user")
-    frigate_pass = get_setting_or_default("frigate_pass")
+    from smart_home import SmartHomeMonitor
 
-    if frigate_url:
-        from smart_home import SmartHomeMonitor
-
-        ha_url = get_setting_or_default("ha_url")
-        ha_token = get_setting_or_default("ha_token")
-        cameras_str = get_setting_or_default("frigate_cameras") or "front_door"
-        cameras = [c.strip() for c in cameras_str.split(",")]
-
-        _smart_home_monitor = SmartHomeMonitor(
-            frigate_url,
-            frigate_user or "",
-            frigate_pass or "",
-            ha_url,
-            ha_token,
-            reminder_queue,
-            cameras,
-        )
-        _smart_home_monitor.start()
-        print(f"Smart home monitor started (cameras: {cameras})")
+    _smart_home_monitor = SmartHomeMonitor(reminder_queue)
+    _smart_home_monitor.start()
+    print("Smart home monitor started (settings-driven)")
 
 
 if __name__ == "__main__":

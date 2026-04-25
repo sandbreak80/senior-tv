@@ -2,6 +2,22 @@
 
 All notable changes to Senior TV are documented here.
 
+## [Unreleased] - 2026-04-13
+
+### Added
+- **Frigate-based presence detection** (`services/health.py` → `_check_presence()`): the health endpoint now verifies that `presence_logs` contains recent samples with `source=frigate` and flags degraded if the monitor has silently fallen back to HA sensors or USB webcam. Dementia-safety-critical: we must know if the system is blind to "who is watching TV".
+- **Non-English audio filter** (`jellyfin_api.py`): new `_has_english_audio()` helper rejects any Jellyfin item that doesn't have an explicit `eng`/`en` audio track. Applied to every list method (`get_library_items`, `get_latest`, `get_resume`, `get_episodes`, `get_daily_picks`, `get_random_episode`, `search`) via `_filter_english()`. Strict mode — `und`-tagged items are also hidden since we can't verify they're English, and a dementia-friendly kiosk should never surface foreign-audio content.
+- **Play-time English audio gate** (`server.py` → `/tv/plex/play/<id>`): even if a direct link / bookmark / auto-chain URL bypasses library filtering, the play route now calls `jf.is_english_audio_available(item_id)` first and silently redirects to `/tv/plex` on failure, logging a `skipped_non_english` activity entry. Silent skip per the "no cognitive load" design rule — the viewer never sees an error.
+
+### Changed
+- **Volume monitor** (`volume_monitor.py`): rewritten to pull `audio_rms` and `audio_dBFS` from Frigate's `/api/stats` endpoint instead of recording from a USB webcam mic via `arecord`. Configured via `frigate_volume_cameras` setting (default `dining_room,den` — deliberately NOT `living_room`, which sits next to the Sonos soundbar and reads the speaker output directly, not the room-level sound). Averages RMS linearly across cameras then converts to dBFS with the same `32768` reference as the old mic path, so existing `volume_logs` data and the `/admin/volume` dashboard baselines remain directly comparable. Polls at 1 Hz — the highest rate Frigate's stats endpoint usefully updates (verified empirically: 10 sub-second polls return identical cached values). Sub-second precision would require ffmpeg-from-RTSP, not shipped.
+
+### Fixed
+- **`jellyfin_api.get_english_audio_index()` and `.get_subtitle_url()`** were using the bare `/Items/{id}` endpoint which returns HTTP 400 on current Jellyfin. Both silently failed for an unknown period — this is why "River of No Return" (and likely others) have been playing non-English audio despite the "prefer English track" logic existing in the codebase. Switched both to the user-scoped `/Users/{user_id}/Items/{id}` path. `get_english_audio_index()` now actually works.
+
+### Removed
+- **CEC health check** (`services/health.py` → `_check_cec()`): the check was reporting `ok: true` regardless of state because the project doesn't actually use an HDMI-CEC adapter (the "USB device" detected earlier was a Flirc IR receiver, not a CEC dongle; HA fallback handles TV power/input). Removing the check eliminates a misleading "always-green" status.
+
 ## [0.1.0-beta] - 2026-04-04
 
 ### First Public Beta

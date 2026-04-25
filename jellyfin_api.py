@@ -18,12 +18,90 @@ _retry = Retry(total=2, backoff_factor=0.5, status_forcelist=[500, 502, 503])
 _session.mount("http://", HTTPAdapter(max_retries=_retry))
 _session.mount("https://", HTTPAdapter(max_retries=_retry))
 
+_ENG_ALIASES = {"eng", "en", "english"}
+
+
+def _has_english_audio(raw_item):
+    """Return True only if the item has at least one explicit English audio track.
+
+    Strict mode: rejects both explicit non-English (`fra`, `jpn`, ...) AND
+    `und`/unknown. Mislabeled-but-actually-English files will be hidden —
+    re-tag the file in Jellyfin/Radarr to bring it back. Dementia-friendly
+    kiosk safety outweighs the cost of hiding ~7% of a mislabeled library.
+    If MediaStreams aren't in the payload at all, fail-open (we couldn't check).
+    """
+    streams = raw_item.get("MediaStreams")
+    if streams is None:
+        return True  # query didn't request MediaStreams — don't filter here
+    audios = [s for s in streams if s.get("Type") == "Audio"]
+    if not audios:
+        return True  # no audio info available — inconclusive, allow
+    for a in audios:
+        lang = (a.get("Language") or "").lower().strip()
+        if lang in _ENG_ALIASES:
+            return True
+    return False
+
+
+def _filter_english(raw_items):
+    return [it for it in raw_items if _has_english_audio(it)]
+
+
+# Genres that should never appear in recommendations/picks for the care
+# recipient demographic (elderly couple, 90s, dementia + Alzheimer's).
+# Per CLAUDE.md design constraints: they want game shows, sitcoms, westerns,
+# familiar old films. Modern animated kids movies (Disney sequels, Pixar,
+# DreamWorks, anime) are not recognized, not memorable, and create cognitive
+# load. Horror/Thriller are anxiety-inducing. These get filtered at the API
+# layer so EVERY picker (daily, latest, browse, search) respects them.
+EXCLUDED_GENRES = [
+    "Animation",
+    "Anime",
+    "Horror",
+    "Thriller",
+]
+
 
 class JellyfinAPI:
-    def __init__(self, base_url, api_key=None, user_id=None):
+    def __init__(self, base_url, api_key=None, user_id=None, excluded_genres=None):
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.user_id = user_id
+        self.excluded_genres = (
+            excluded_genres if excluded_genres is not None else list(EXCLUDED_GENRES)
+        )
+
+    def _with_genre_filter(self, params):
+        """Ensure Fields includes Genres so we can client-side filter.
+        Jellyfin's own NotGenres param does not work (silently ignored across
+        multiple spellings on our version), so we over-fetch and filter in
+        Python via _drop_excluded_genres below.
+        Also over-fetches when Limit is set to account for filtered items."""
+        if not self.excluded_genres:
+            return params
+        fields = params.get("Fields", "")
+        if "Genres" not in fields:
+            params["Fields"] = (fields + ",Genres").lstrip(",") if fields else "Genres"
+        # Over-fetch to leave margin after filtering. ~30% of the library is
+        # animation, so 2x gives safe headroom.
+        if "Limit" in params and params["Limit"] > 0:
+            params["_orig_limit"] = params["Limit"]
+            params["Limit"] = params["Limit"] * 2
+        return params
+
+    def _drop_excluded_genres(self, items):
+        """Drop any item whose Genres intersect self.excluded_genres.
+        Case-insensitive. Items with no Genres field are kept."""
+        if not self.excluded_genres:
+            return items
+        excluded_lower = {g.lower() for g in self.excluded_genres}
+        kept = []
+        for it in items:
+            genres = it.get("Genres") or []
+            if any(g.lower() in excluded_lower for g in genres):
+                continue
+            kept.append(it)
+        return kept
 
     def _headers(self):
         h = {"X-Emby-Authorization": AUTH_HEADER}
@@ -132,7 +210,7 @@ class JellyfinAPI:
             "ParentId": library_id,
             "SortBy": sort,
             "SortOrder": sort_order,
-            "Fields": "Overview,PrimaryImageAspectRatio,Genres",
+            "Fields": "Overview,PrimaryImageAspectRatio,Genres,MediaStreams",
             "ImageTypeLimit": 1,
             "Limit": limit,
             "StartIndex": start,
@@ -143,18 +221,27 @@ class JellyfinAPI:
             params["Genres"] = genre
         if exclude_tags:
             params["ExcludeTags"] = ",".join(exclude_tags)
+        params = self._with_genre_filter(params)
+        orig_limit = params.pop("_orig_limit", limit)
 
         data = self._get(f"/Users/{self.user_id}/Items", params=params)
+        items = self._drop_excluded_genres(_filter_english(data.get("Items", [])))
         return [
             _parse_item(item, self.base_url, self.api_key)
-            for item in data.get("Items", [])
+            for item in items[:orig_limit]
         ]
 
     def get_latest(self, library_id=None, limit=20):
         """Get recently added items."""
-        params = {"Limit": limit, "Fields": "Overview", "ImageTypeLimit": 1}
+        params = {
+            "Limit": limit,
+            "Fields": "Overview,MediaStreams",
+            "ImageTypeLimit": 1,
+        }
         if library_id:
             params["ParentId"] = library_id
+        params = self._with_genre_filter(params)
+        orig_limit = params.pop("_orig_limit", limit)
         data = self._get(f"/Users/{self.user_id}/Items/Latest", params=params)
         items = (
             data
@@ -163,24 +250,51 @@ class JellyfinAPI:
             if isinstance(data, dict)
             else []
         )
-        return [_parse_item(item, self.base_url, self.api_key) for item in items]
+        items = self._drop_excluded_genres(_filter_english(items))
+        return [
+            _parse_item(item, self.base_url, self.api_key)
+            for item in items[:orig_limit]
+        ]
 
     def get_resume(self, limit=10):
         """Get continue watching items."""
         params = {
             "Limit": limit,
-            "Fields": "Overview",
+            "Fields": "Overview,MediaStreams",
             "ImageTypeLimit": 1,
             "MediaTypes": "Video",
         }
         data = self._get(f"/Users/{self.user_id}/Items/Resume", params=params)
         items = data.get("Items", []) if isinstance(data, dict) else []
-        return [_parse_item(item, self.base_url, self.api_key) for item in items]
+        return [
+            _parse_item(item, self.base_url, self.api_key)
+            for item in _filter_english(items)
+        ]
 
     def get_item(self, item_id):
         """Get detailed metadata for a single item."""
-        data = self._get(f"/Users/{self.user_id}/Items/{item_id}")
+        data = self._get(
+            f"/Users/{self.user_id}/Items/{item_id}",
+            params={"Fields": "MediaStreams,Overview"},
+        )
         return _parse_item(data, self.base_url, self.api_key)
+
+    def is_english_audio_available(self, item_id):
+        """Play-time gate: does this item have an explicit English audio track?
+
+        Fails open on network errors so a Jellyfin hiccup never blocks playback.
+        """
+        try:
+            resp = _session.get(
+                f"{self.base_url}/Users/{self.user_id}/Items/{item_id}",
+                params={"api_key": self.api_key, "Fields": "MediaStreams"},
+                timeout=10,
+            )
+            if not resp.ok:
+                return True
+            return _has_english_audio(resp.json())
+        except Exception:
+            return True
 
     def get_seasons(self, show_id):
         """Get seasons for a TV show."""
@@ -213,11 +327,11 @@ class JellyfinAPI:
             params={
                 "SeasonId": season_id,
                 "UserId": self.user_id,
-                "Fields": "Overview",
+                "Fields": "Overview,MediaStreams",
             },
         )
         episodes = []
-        for item in data.get("Items", []):
+        for item in _filter_english(data.get("Items", [])):
             episodes.append(
                 {
                     "id": item["Id"],
@@ -265,7 +379,7 @@ class JellyfinAPI:
         """Find the English audio track index. Returns None if default is already English."""
         try:
             resp = _session.get(
-                f"{self.base_url}/Items/{item_id}",
+                f"{self.base_url}/Users/{self.user_id}/Items/{item_id}",
                 params={"api_key": self.api_key, "Fields": "MediaStreams"},
                 timeout=10,
             )
@@ -314,7 +428,7 @@ class JellyfinAPI:
         Prefers external SRT (from Bazarr) > embedded, and HI > non-HI."""
         try:
             resp = _session.get(
-                f"{self.base_url}/Items/{item_id}",
+                f"{self.base_url}/Users/{self.user_id}/Items/{item_id}",
                 params={"api_key": self.api_key, "Fields": "MediaStreams"},
                 timeout=10,
             )
@@ -370,45 +484,48 @@ class JellyfinAPI:
         today = date.today()
         day_seed = today.year * 10000 + today.month * 100 + today.day
 
-        # Get total count
-        data = self._get(
-            f"/Users/{self.user_id}/Items",
-            params={
-                "ParentId": library_id,
-                "Recursive": "true",
-                "IncludeItemTypes": "Movie",
-                "Limit": 0,
-            },
-        )
+        # Get total count (no genre filter in count — we filter client-side)
+        count_params = {
+            "ParentId": library_id,
+            "Recursive": "true",
+            "IncludeItemTypes": "Movie",
+            "Limit": 0,
+        }
+        data = self._get(f"/Users/{self.user_id}/Items", params=count_params)
         total = data.get("TotalRecordCount", 0)
         if total == 0:
             return []
 
-        # Use date as offset into the library, wrapping around
-        start_index = (day_seed * 7) % max(1, total - count)
+        # Over-fetch 3x so we still have enough after dropping excluded genres.
+        # SortName+StartIndex gives a deterministic daily window (same all day,
+        # different tomorrow). start_index is bounded so we don't run off end.
+        overfetch = count * 3
+        start_index = (day_seed * 7) % max(1, total - overfetch)
 
-        data = self._get(
-            f"/Users/{self.user_id}/Items",
-            params={
-                "ParentId": library_id,
-                "SortBy": "SortName",
-                "SortOrder": "Ascending",
-                "Fields": "Overview,PrimaryImageAspectRatio,Genres",
-                "ImageTypeLimit": 1,
-                "Limit": count,
-                "StartIndex": start_index,
-                "Recursive": "true",
-                "IncludeItemTypes": "Movie",
-            },
-        )
+        pick_params = {
+            "ParentId": library_id,
+            "SortBy": "SortName",
+            "SortOrder": "Ascending",
+            "Fields": "Overview,PrimaryImageAspectRatio,Genres,MediaStreams",
+            "ImageTypeLimit": 1,
+            "Limit": overfetch,
+            "StartIndex": start_index,
+            "Recursive": "true",
+            "IncludeItemTypes": "Movie",
+        }
+        data = self._get(f"/Users/{self.user_id}/Items", params=pick_params)
+        items = self._drop_excluded_genres(_filter_english(data.get("Items", [])))
         return [
             _parse_item(item, self.base_url, self.api_key)
-            for item in data.get("Items", [])
+            for item in items[:count]
         ]
 
     def get_random_episode(self, show_id):
-        """Get a random episode from a TV show."""
-        # Get all episodes
+        """Get a random English-audio episode from a TV show.
+
+        Over-fetches then filters so we don't return None when the random pick
+        happened to land on a non-English episode.
+        """
         data = self._get(
             f"/Users/{self.user_id}/Items",
             params={
@@ -417,30 +534,30 @@ class JellyfinAPI:
                 "IncludeItemTypes": "Episode",
                 "SortBy": "Random",
                 "SortOrder": "Ascending",
-                "Fields": "Overview",
-                "Limit": 1,
+                "Fields": "Overview,MediaStreams",
+                "Limit": 10,
             },
         )
-        items = data.get("Items", [])
+        items = _filter_english(data.get("Items", []))
         if items:
             return _parse_item(items[0], self.base_url, self.api_key)
         return None
 
     def search(self, query, limit=20):
         """Search across all libraries."""
-        data = self._get(
-            f"/Users/{self.user_id}/Items",
-            params={
-                "SearchTerm": query,
-                "Limit": limit,
-                "Fields": "Overview",
-                "Recursive": "true",
-                "IncludeItemTypes": "Movie,Series,Episode",
-            },
-        )
+        params = self._with_genre_filter({
+            "SearchTerm": query,
+            "Limit": limit,
+            "Fields": "Overview,MediaStreams",
+            "Recursive": "true",
+            "IncludeItemTypes": "Movie,Series,Episode",
+        })
+        orig_limit = params.pop("_orig_limit", limit)
+        data = self._get(f"/Users/{self.user_id}/Items", params=params)
+        items = self._drop_excluded_genres(_filter_english(data.get("Items", [])))
         return [
             _parse_item(item, self.base_url, self.api_key)
-            for item in data.get("Items", [])
+            for item in items[:orig_limit]
         ]
 
     def report_playback_start(self, item_id):

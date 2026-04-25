@@ -265,7 +265,11 @@ version: "3.8"
 
 services:
   jellyfin:
-    image: jellyfin/jellyfin:latest
+    # Pinned to 10.10.7 — newer versions have a wizard regression where
+    # POST /Startup/User throws 500 ("Sequence contains no elements") because
+    # no default user gets auto-created. The GET-then-POST workaround below
+    # handles 10.11+, but pinning keeps fresh installs deterministic.
+    image: jellyfin/jellyfin:10.10.7
     container_name: jellyfin
     restart: unless-stopped
     ports:
@@ -600,37 +604,40 @@ chmod +x "$APP_DIR/health_check_agent.sh" 2>/dev/null || true
 echo "  Configuring Jellyfin..."
 
 if [ "$JELLY" -eq 1 ]; then
-    # Check if Jellyfin needs first-time setup
-    JELLY_STARTUP=$(curl -sf http://localhost:8096/Startup/Configuration 2>/dev/null)
-    if [ $? -eq 0 ]; then
+    # Check if Jellyfin needs first-time setup. `|| true` because under set -e
+    # a non-zero curl exit (HTTP 405 once the wizard has run) would kill the script.
+    JELLY_STARTUP=$(curl -sf http://localhost:8096/Startup/Configuration 2>/dev/null || true)
+    if [ -n "$JELLY_STARTUP" ]; then
         # First-time setup — run wizard via API
-        # Set initial config
         curl -sf -X POST http://localhost:8096/Startup/Configuration \
             -H "Content-Type: application/json" \
-            -d '{"UICulture":"en-US","MetadataCountryCode":"US","PreferredMetadataLanguage":"en"}' > /dev/null 2>&1
+            -d '{"UICulture":"en-US","MetadataCountryCode":"US","PreferredMetadataLanguage":"en"}' > /dev/null 2>&1 || true
 
-        # Create admin user
+        # GET /Startup/User first — Jellyfin lazily creates the default 'root'
+        # user on first access. Without this, the POST below 500s on 10.10+
+        # ("Sequence contains no elements") because Users.First() throws.
+        curl -sf http://localhost:8096/Startup/User > /dev/null 2>&1 || true
+
+        # Now POST to update the default user with our chosen credentials.
         curl -sf -X POST http://localhost:8096/Startup/User \
             -H "Content-Type: application/json" \
-            -d "{\"Name\":\"$JELLYFIN_USER\",\"Password\":\"$JELLYFIN_PASS\"}" > /dev/null 2>&1
+            -d "{\"Name\":\"$JELLYFIN_USER\",\"Password\":\"$JELLYFIN_PASS\"}" > /dev/null 2>&1 || true
 
-        # Set remote access
         curl -sf -X POST http://localhost:8096/Startup/RemoteAccess \
             -H "Content-Type: application/json" \
-            -d '{"EnableRemoteAccess":true,"EnableAutomaticPortMapping":false}' > /dev/null 2>&1
+            -d '{"EnableRemoteAccess":true,"EnableAutomaticPortMapping":false}' > /dev/null 2>&1 || true
 
-        # Complete wizard
-        curl -sf -X POST http://localhost:8096/Startup/Complete > /dev/null 2>&1
+        curl -sf -X POST http://localhost:8096/Startup/Complete > /dev/null 2>&1 || true
         ok "Jellyfin first-time setup completed (user: $JELLYFIN_USER)"
     else
         ok "Jellyfin already configured"
     fi
 
-    # Authenticate and get token
+    # Authenticate and get token (|| true to avoid set -e on transient failure)
     JELLY_AUTH=$(curl -sf -X POST http://localhost:8096/Users/AuthenticateByName \
         -H "Content-Type: application/json" \
         -H "X-Emby-Authorization: MediaBrowser Client=\"SeniorTV\", Device=\"Installer\", DeviceId=\"install-script\", Version=\"1.0\"" \
-        -d "{\"Username\":\"$JELLYFIN_USER\",\"Pw\":\"$JELLYFIN_PASS\"}" 2>/dev/null)
+        -d "{\"Username\":\"$JELLYFIN_USER\",\"Pw\":\"$JELLYFIN_PASS\"}" 2>/dev/null || true)
 
     if [ -n "$JELLY_AUTH" ]; then
         JELLY_TOKEN=$(echo "$JELLY_AUTH" | python3 -c "import sys,json; print(json.load(sys.stdin)['AccessToken'])" 2>/dev/null)
@@ -645,15 +652,15 @@ if [ "$JELLY" -eq 1 ]; then
                 curl -sf -X POST "http://localhost:8096/Library/VirtualFolders?name=Movies&collectionType=movies&refreshLibrary=false" \
                     -H "X-Emby-Token: $JELLY_TOKEN" \
                     -H "Content-Type: application/json" \
-                    -d '{"LibraryOptions":{"Enabled":true,"EnableRealtimeMonitor":true,"PathInfos":[{"Path":"/media/movies"}]}}' > /dev/null 2>&1
+                    -d '{"LibraryOptions":{"Enabled":true,"EnableRealtimeMonitor":true,"PathInfos":[{"Path":"/media/movies"}]}}' > /dev/null 2>&1 || true
                 curl -sf -X POST "http://localhost:8096/Library/VirtualFolders?name=Shows&collectionType=tvshows&refreshLibrary=false" \
                     -H "X-Emby-Token: $JELLY_TOKEN" \
                     -H "Content-Type: application/json" \
-                    -d '{"LibraryOptions":{"Enabled":true,"EnableRealtimeMonitor":true,"PathInfos":[{"Path":"/media/shows"}]}}' > /dev/null 2>&1
+                    -d '{"LibraryOptions":{"Enabled":true,"EnableRealtimeMonitor":true,"PathInfos":[{"Path":"/media/shows"}]}}' > /dev/null 2>&1 || true
                 curl -sf -X POST "http://localhost:8096/Library/VirtualFolders?name=Music&collectionType=music&refreshLibrary=false" \
                     -H "X-Emby-Token: $JELLY_TOKEN" \
                     -H "Content-Type: application/json" \
-                    -d '{"LibraryOptions":{"Enabled":true,"EnableRealtimeMonitor":true,"PathInfos":[{"Path":"/media/music"}]}}' > /dev/null 2>&1
+                    -d '{"LibraryOptions":{"Enabled":true,"EnableRealtimeMonitor":true,"PathInfos":[{"Path":"/media/music"}]}}' > /dev/null 2>&1 || true
                 ok "Jellyfin libraries created (Movies, Shows, Music)"
             else
                 ok "Jellyfin libraries already exist ($EXISTING_LIBS)"
@@ -661,7 +668,7 @@ if [ "$JELLY" -eq 1 ]; then
 
             # Create permanent API key
             curl -sf -X POST "http://localhost:8096/Auth/Keys?app=SeniorTV" \
-                -H "X-Emby-Token: $JELLY_TOKEN" > /dev/null 2>&1
+                -H "X-Emby-Token: $JELLY_TOKEN" > /dev/null 2>&1 || true
             JELLY_API_KEY=$(curl -sf "http://localhost:8096/Auth/Keys" \
                 -H "X-Emby-Token: $JELLY_TOKEN" \
                 | python3 -c "import sys,json; keys=json.load(sys.stdin)['Items']; print(next(k['AccessToken'] for k in keys if k['AppName']=='SeniorTV'))" 2>/dev/null)
@@ -725,10 +732,11 @@ fi
 echo "  Configuring Immich..."
 
 if [ "$IMMICH" -eq 1 ]; then
-    # Try to sign up admin (only works on first run)
+    # `|| true` on these $()s — under set -e a non-zero curl (e.g. admin already
+    # exists → 400) inside an assignment kills the script.
     IMMICH_SIGNUP=$(curl -sf -X POST http://localhost:2283/api/auth/admin-sign-up \
         -H "Content-Type: application/json" \
-        -d "{\"email\":\"$IMMICH_ADMIN_EMAIL\",\"password\":\"$IMMICH_ADMIN_PASS\",\"name\":\"seniortv\"}" 2>/dev/null)
+        -d "{\"email\":\"$IMMICH_ADMIN_EMAIL\",\"password\":\"$IMMICH_ADMIN_PASS\",\"name\":\"seniortv\"}" 2>/dev/null || true)
 
     if [ -n "$IMMICH_SIGNUP" ]; then
         ok "Immich admin account created ($IMMICH_ADMIN_EMAIL)"
@@ -736,10 +744,9 @@ if [ "$IMMICH" -eq 1 ]; then
         ok "Immich admin already exists"
     fi
 
-    # Authenticate
     IMMICH_AUTH=$(curl -sf -X POST http://localhost:2283/api/auth/login \
         -H "Content-Type: application/json" \
-        -d "{\"email\":\"$IMMICH_ADMIN_EMAIL\",\"password\":\"$IMMICH_ADMIN_PASS\"}" 2>/dev/null)
+        -d "{\"email\":\"$IMMICH_ADMIN_EMAIL\",\"password\":\"$IMMICH_ADMIN_PASS\"}" 2>/dev/null || true)
 
     if [ -n "$IMMICH_AUTH" ]; then
         IMMICH_TOKEN=$(echo "$IMMICH_AUTH" | python3 -c "import sys,json; print(json.load(sys.stdin)['accessToken'])" 2>/dev/null)
@@ -747,11 +754,11 @@ if [ "$IMMICH" -eq 1 ]; then
 
         if [ -n "$IMMICH_TOKEN" ]; then
             # Create permanent API key
-            IMMICH_API_KEY=$(curl -sf -X POST http://localhost:2283/api/api-keys \
+            IMMICH_API_KEY=$({ curl -sf -X POST http://localhost:2283/api/api-keys \
                 -H "Content-Type: application/json" \
                 -H "Authorization: Bearer $IMMICH_TOKEN" \
                 -d '{"name":"SeniorTV","permissions":["all"]}' \
-                | python3 -c "import sys,json; print(json.load(sys.stdin)['secret'])" 2>/dev/null)
+                || true; } | python3 -c "import sys,json; print(json.load(sys.stdin)['secret'])" 2>/dev/null || true)
 
             if [ -n "$IMMICH_API_KEY" ]; then
                 # Disable ML (no ML container, saves ~400MB RAM)

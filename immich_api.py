@@ -4,8 +4,6 @@ Fetches random family photos from an Immich server for the photo slideshow
 and home page widget.
 """
 
-import sys
-
 import requests
 import cache
 
@@ -117,8 +115,10 @@ def get_random_photos(count=20):
         cache.record_success("immich")
         return photos
     except Exception as e:
-        cache.record_failure("immich")
-        print(f"Immich: get_random_photos error: {e}", file=sys.stderr)
+        cache.record_failure("immich", e)
+        cache.log_throttled(
+            "immich:random", f"Immich get_random_photos error: {e}"
+        )
         return []
 
 
@@ -141,7 +141,10 @@ def get_photo_data(asset_id, size="preview"):
         resp.raise_for_status()
         return resp.content, resp.headers.get("Content-Type", "image/jpeg")
     except Exception as e:
-        print(f"Immich: get_photo_data error: {e}", file=sys.stderr)
+        cache.record_failure("immich", e)
+        cache.log_throttled(
+            "immich:photo_data", f"Immich get_photo_data error: {e}"
+        )
         return None, None
 
 
@@ -166,7 +169,9 @@ def get_photo_count():
         cache.set("immich_count", count, ttl=3600)
         return count
     except Exception as e:
-        print(f"Immich: get_photo_count error: {e}", file=sys.stderr)
+        cache.log_throttled(
+            "immich:count", f"Immich get_photo_count error: {e}"
+        )
         return 0
 
 
@@ -206,7 +211,9 @@ def get_folder_photos(folder_path, count=20):
             )
         return photos
     except Exception as e:
-        print(f"Immich: get_folder_photos error: {e}", file=sys.stderr)
+        cache.log_throttled(
+            "immich:folder", f"Immich get_folder_photos error: {e}"
+        )
         return []
 
 
@@ -240,7 +247,9 @@ def get_albums():
         cache.set("immich_albums", albums, ttl=300)
         return albums
     except Exception as e:
-        print(f"Immich: get_albums error: {e}", file=sys.stderr)
+        cache.log_throttled(
+            "immich:albums", f"Immich get_albums error: {e}"
+        )
         return []
 
 
@@ -283,7 +292,9 @@ def search_folders(sample_size=500):
         result.sort(key=lambda x: -x["estimated_count"])
         return result
     except Exception as e:
-        print(f"Immich: search_folders error: {e}", file=sys.stderr)
+        cache.log_throttled(
+            "immich:folders", f"Immich search_folders error: {e}"
+        )
         return []
 
 

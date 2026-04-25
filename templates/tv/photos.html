@@ -177,6 +177,15 @@
                 imgA.src = queue[0];
             }
 
+            // Safety net: if the slideshow can't load any photos within 8s
+            // (e.g. Immich unreachable and no server-rendered photos), bail
+            // back to the home screen instead of sitting on a black page.
+            setTimeout(function() {
+                if (queue.length === 0) {
+                    window.quickNav('/');
+                }
+            }, 8000);
+
             setInterval(showNext, interval);
 
             // Refresh photo queue every 30 min (don't loop same 20 photos forever)

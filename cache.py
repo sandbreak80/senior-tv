@@ -1,20 +1,30 @@
 """Simple in-memory cache with TTL and circuit breakers for Senior TV.
 Prevents repeated API calls to Pluto TV, weather, YouTube, etc.
-Circuit breakers prevent hammering down services with requests that will timeout."""
+Circuit breakers prevent hammering down services with requests that will timeout.
+Throttled logging collapses duplicate errors so one broken service can't flood the journal."""
 
+import sys
 import time
 import threading
 
 _cache = {}
 _lock = threading.Lock()
 
-# Circuit breaker state: {service_name: {"failures": int, "open_until": float}}
+# Circuit breaker state per service:
+#   {"failures", "open_until", "last_failure_at", "last_success_at", "last_error"}
 _breakers = {}
 _breaker_lock = threading.Lock()
+
+# Throttled log state: {key: {"last_emit": float, "count": int, "last_msg": str}}
+_log_state = {}
+_log_lock = threading.Lock()
 
 # Circuit breaker defaults
 BREAKER_FAILURE_THRESHOLD = 3  # consecutive failures before opening
 BREAKER_RECOVERY_SECONDS = 120  # how long to stay open (2 minutes)
+
+# Default window for throttled log suppression
+LOG_THROTTLE_WINDOW_SECONDS = 300  # 5 minutes
 
 
 def get(key):
@@ -72,36 +82,130 @@ def is_circuit_open(service):
 
 
 def record_success(service):
-    """Record a successful call — resets the circuit breaker."""
+    """Record a successful call. Closes the breaker and stamps last_success_at.
+
+    Keeps the entry around (with zero failures) so breaker_status / health checks
+    can report the last known good time for each service.
+    """
+    now = time.time()
     with _breaker_lock:
-        _breakers.pop(service, None)
+        state = _breakers.get(service) or {}
+        was_open = (
+            state.get("failures", 0) >= BREAKER_FAILURE_THRESHOLD
+            and now < state.get("open_until", 0)
+        )
+        state.update({
+            "failures": 0,
+            "open_until": 0,
+            "last_success_at": now,
+            "last_error": None,
+        })
+        _breakers[service] = state
+    if was_open:
+        _emit(f"breaker:{service}:recovered",
+              f"[breaker] {service} recovered")
 
 
-def record_failure(service):
-    """Record a failed call. Opens breaker after threshold."""
+def record_failure(service, error=None):
+    """Record a failed call. Opens breaker after threshold.
+
+    `error` is an optional short string describing the failure; stored for
+    health reporting. The message is NOT logged from here — callers should use
+    log_throttled(key, message) so the suppression key is under their control.
+    """
+    now = time.time()
     with _breaker_lock:
-        state = _breakers.get(service, {"failures": 0, "open_until": 0})
-        state["failures"] += 1
+        state = _breakers.get(
+            service,
+            {"failures": 0, "open_until": 0,
+             "last_success_at": None, "last_error": None},
+        )
+        state["failures"] = state.get("failures", 0) + 1
+        state["last_failure_at"] = now
+        if error is not None:
+            state["last_error"] = str(error)[:200]
         if state["failures"] >= BREAKER_FAILURE_THRESHOLD:
-            state["open_until"] = time.time() + BREAKER_RECOVERY_SECONDS
+            state["open_until"] = now + BREAKER_RECOVERY_SECONDS
         _breakers[service] = state
 
 
 def breaker_status():
-    """Return circuit breaker status for all services."""
+    """Return circuit breaker status for all services.
+
+    Shape per service:
+      {failures, open, recovers_in, last_failure_at, last_success_at, last_error}
+    """
     with _breaker_lock:
         now = time.time()
         result = {}
         for svc, s in _breakers.items():
             is_open = (
-                s["failures"] >= BREAKER_FAILURE_THRESHOLD and now < s["open_until"]
+                s.get("failures", 0) >= BREAKER_FAILURE_THRESHOLD
+                and now < s.get("open_until", 0)
             )
             recover = 0
-            if s["failures"] >= BREAKER_FAILURE_THRESHOLD:
-                recover = max(0, int(s["open_until"] - now))
+            if s.get("failures", 0) >= BREAKER_FAILURE_THRESHOLD:
+                recover = max(0, int(s.get("open_until", 0) - now))
             result[svc] = {
-                "failures": s["failures"],
+                "failures": s.get("failures", 0),
                 "open": is_open,
                 "recovers_in": recover,
+                "last_failure_at": s.get("last_failure_at"),
+                "last_success_at": s.get("last_success_at"),
+                "last_error": s.get("last_error"),
             }
         return result
+
+
+# --- Throttled logging ---
+
+
+def _emit(key, message, file=None):
+    """Internal: write a line now and reset the throttle counter for key."""
+    if file is None:
+        file = sys.stderr
+    with _log_lock:
+        state = _log_state.get(key) or {}
+        suppressed = state.get("count", 0)
+        state["last_emit"] = time.time()
+        state["count"] = 0
+        state["last_msg"] = message
+        _log_state[key] = state
+    if suppressed > 0:
+        print(f"{message} [suppressed {suppressed} prior]", file=file)
+    else:
+        print(message, file=file)
+
+
+def log_throttled(key, message, file=None, window=LOG_THROTTLE_WINDOW_SECONDS):
+    """Print `message` at most once per `window` seconds per `key`.
+
+    Additional calls within the window bump a suppressed counter. When the
+    window elapses and the next call fires, the emitted line is suffixed with
+    "[suppressed N prior]" so the reader knows how many were collapsed.
+
+    Use one distinct key per failure *class*, not per message text — e.g.
+    "frigate:events" not the exception string itself. Keeping the key stable
+    is what lets suppression actually collapse bursts.
+    """
+    now = time.time()
+    with _log_lock:
+        state = _log_state.get(key)
+        if state is None:
+            state = {"last_emit": 0.0, "count": 0, "last_msg": message}
+            _log_state[key] = state
+        elapsed = now - state["last_emit"]
+        if elapsed < window:
+            state["count"] += 1
+            state["last_msg"] = message
+            return
+    _emit(key, message, file=file)
+
+
+def log_recovery(key, message, file=None):
+    """Force-emit a recovery/state-change message and reset the throttle.
+
+    Use this to announce "service X is back" — it bypasses the window so the
+    good news lands immediately, and clears the suppressed counter.
+    """
+    _emit(key, message, file=file)

@@ -1,7 +1,10 @@
 import json
+import os
 import sys
 import queue
 import threading
+
+import config
 from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 from models import get_pills, log_pill_acknowledgment
@@ -469,14 +472,28 @@ def trigger_photo_slideshow():
             return
         active_reminders[dedup_key] = {"triggered_at": now.isoformat()}
 
-    # Only trigger if Immich or local photos are available
+    # Only trigger if we can actually display something — check reachability,
+    # not just configuration. When Immich is down and no local photos exist,
+    # skip the auto-play so the TV isn't shoved onto a broken slideshow page.
+    have_content = False
     try:
-        import immich_api
-
-        if not immich_api.is_configured():
-            return
+        photo_dir = os.path.join(config.MEDIA_DIR, "photos")
+        if os.path.isdir(photo_dir):
+            for f in os.listdir(photo_dir):
+                if f.lower().endswith((".jpg", ".jpeg", ".png", ".gif", ".webp")):
+                    have_content = True
+                    break
     except Exception:
-        return
+        pass
+    if not have_content:
+        try:
+            import immich_api
+
+            ok, _ = immich_api.test_connection()
+            if not ok:
+                return
+        except Exception:
+            return
 
     interrupt = get_setting("auto_play_interrupt") or "always"
     event_data = {
@@ -723,6 +740,43 @@ def _daily_maintenance():
     except Exception as e:
         print(f"Scheduler: daily activity summary error: {e}", file=sys.stderr)
 
+    # Prune old plan files (>30 days). Plan generation itself happens in a
+    # dedicated cron at 22:00 — see plan_tomorrow below.
+    try:
+        import daily_planner
+        removed = daily_planner.prune_old_plans()
+        if removed:
+            print(f"Scheduler: pruned {removed} old plan files")
+    except Exception as e:
+        print(f"Scheduler: plan pruning error: {e}", file=sys.stderr)
+
+
+def plan_tomorrow():
+    """Generate tomorrow's content plan and save it.
+    Runs nightly at 22:00 local time so the plan exists BEFORE the day starts.
+    """
+    try:
+        import daily_planner
+        from jellyfin_api import JellyfinAPI
+        from models import get_setting
+
+        jf_url = get_setting("jellyfin_url")
+        jf_key = get_setting("jellyfin_api_key")
+        jf_user = get_setting("jellyfin_user_id")
+        if not (jf_url and jf_key and jf_user):
+            print("Scheduler: plan_tomorrow skipped — Jellyfin not configured")
+            return
+
+        jf = JellyfinAPI(jf_url, api_key=jf_key, user_id=jf_user)
+        plan = daily_planner.regenerate_tomorrow(jf)
+        print(
+            f"Scheduler: tomorrow's plan generated for {plan.get('plan_date')} — "
+            f"{len(plan.get('movies', []))} movies, "
+            f"pool {plan.get('pool_size', 0)} -> {plan.get('pool_after_filter', 0)}"
+        )
+    except Exception as e:
+        print(f"Scheduler: plan_tomorrow error: {e}", file=sys.stderr)
+
 
 scheduler = BackgroundScheduler()
 scheduler.add_job(check_pills, "interval", minutes=1, id="pill_checker")
@@ -735,6 +789,10 @@ scheduler.add_job(trigger_exercise, "interval", hours=1, id="exercise")
 scheduler.add_job(trigger_photo_slideshow, "interval", minutes=10, id="photo_slideshow")
 scheduler.add_job(log_presence_reading, "interval", minutes=5, id="presence_logger")
 scheduler.add_job(_daily_maintenance, "cron", hour=3, minute=15, id="daily_maintenance")
+# Generate tomorrow's plan nightly at 22:00 local time so it exists before
+# the day starts. The user-facing endpoint reads today's plan; tomorrow's
+# is staged in a separate file and rolls over at midnight.
+scheduler.add_job(plan_tomorrow, "cron", hour=22, minute=0, id="plan_tomorrow")
 
 
 def start_scheduler():

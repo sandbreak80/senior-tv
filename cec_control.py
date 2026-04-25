@@ -5,10 +5,12 @@ Samsung TV integration for power on/off and input switching.
 """
 
 import os
-import sys
 import subprocess
 
 import requests
+import cache
+
+_BRK_HA = "home_assistant"
 
 
 def _cec_available():
@@ -42,6 +44,8 @@ def _ha_call_service(domain, service, data=None):
     cfg = _get_ha_config()
     if not cfg["url"] or not cfg["token"]:
         return False
+    if cache.is_circuit_open(_BRK_HA):
+        return False
     try:
         resp = requests.post(
             f"{cfg['url']}/api/services/{domain}/{service}",
@@ -49,9 +53,21 @@ def _ha_call_service(domain, service, data=None):
             json=data or {},
             timeout=10,
         )
-        return resp.ok
+        if resp.ok:
+            cache.record_success(_BRK_HA)
+            return True
+        cache.record_failure(_BRK_HA, f"HTTP {resp.status_code}")
+        cache.log_throttled(
+            "ha:service_call",
+            f"HA {domain}/{service}: HTTP {resp.status_code}",
+        )
+        return False
     except Exception as e:
-        print(f"HA service call {domain}/{service} error: {e}", file=sys.stderr)
+        cache.record_failure(_BRK_HA, e)
+        cache.log_throttled(
+            "ha:service_call",
+            f"HA service call {domain}/{service} error: {e}",
+        )
         return False
 
 
@@ -96,16 +112,23 @@ def tv_get_power_status():
     cfg = _get_ha_config()
     if not cfg["url"] or not cfg["token"]:
         return "unknown"
+    if cache.is_circuit_open(_BRK_HA):
+        return "unknown"
     try:
         resp = requests.get(
             f"{cfg['url']}/api/states/{cfg['entity']}",
             headers={"Authorization": f"Bearer {cfg['token']}"},
             timeout=5,
         )
-        state = resp.json().get("state", "unknown")
-        return "on" if state in ("playing", "on", "idle") else state
+        if resp.ok:
+            cache.record_success(_BRK_HA)
+            state = resp.json().get("state", "unknown")
+            return "on" if state in ("playing", "on", "idle") else state
+        cache.record_failure(_BRK_HA, f"HTTP {resp.status_code}")
+        return "unknown"
     except Exception as e:
-        print(f"HA power status error: {e}", file=sys.stderr)
+        cache.record_failure(_BRK_HA, e)
+        cache.log_throttled("ha:power_status", f"HA power status error: {e}")
         return "unknown"
 
 
@@ -117,4 +140,4 @@ def ensure_tv_ready():
             tv_power_on()
         tv_set_input()
     except Exception as e:
-        print(f"ensure_tv_ready error: {e}", file=sys.stderr)
+        cache.log_throttled("ha:ensure_ready", f"ensure_tv_ready error: {e}")

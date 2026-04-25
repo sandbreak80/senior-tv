@@ -85,6 +85,28 @@ start_chrome() {
     rm -rf $HOME/.config/senior-tv-chrome/Default/Cache 2>/dev/null
     rm -rf $HOME/.config/senior-tv-chrome/Default/Code\ Cache 2>/dev/null
 
+    # Kiosk-mode hygiene: prevent "Chrome didn't shut down correctly" / restore-pages bubble.
+    # Chrome decides to show crash bubble based on:
+    #  1. stale SingletonLock from unclean shutdown
+    #  2. Preferences.profile.exit_type != "Normal"
+    #  3. Preferences.profile.exited_cleanly == false
+    # We unconditionally reset all three at every launch — this is kiosk mode, nothing to restore.
+    rm -f $HOME/.config/senior-tv-chrome/Singleton{Lock,Socket,Cookie} 2>/dev/null
+    PREF="$HOME/.config/senior-tv-chrome/Default/Preferences"
+    if [ -f "$PREF" ]; then
+        python3 -c "
+import json, sys
+try:
+    d = json.load(open('$PREF'))
+    d.setdefault('profile', {})
+    d['profile']['exit_type'] = 'Normal'
+    d['profile']['exited_cleanly'] = True
+    json.dump(d, open('$PREF', 'w'))
+except Exception as e:
+    print(f'pref sanitize skipped: {e}', file=sys.stderr)
+" 2>/dev/null
+    fi
+
     # Wait for server to respond
     for i in $(seq 1 15); do
         curl -sf http://localhost:5000/ > /dev/null 2>&1 && break
@@ -107,8 +129,12 @@ start_chrome() {
         --noerrdialogs \
         --disable-infobars \
         --disable-session-crashed-bubble \
+        --hide-crash-restore-bubble \
+        --disable-features=InfoBars,TranslateUI,SessionCrashedBubble \
         --disable-translate \
         --no-first-run \
+        --no-default-browser-check \
+        --disable-save-password-bubble \
         --start-fullscreen \
         --load-extension=$HOME/.config/senior-tv-chrome/ublock-origin \
         --autoplay-policy=no-user-gesture-required \

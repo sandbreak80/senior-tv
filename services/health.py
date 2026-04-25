@@ -8,7 +8,7 @@ from datetime import datetime
 
 import requests
 
-from models import get_setting_or_default
+from models import get_setting, get_setting_or_default
 
 
 def check_all(app_start_time):
@@ -23,13 +23,13 @@ def check_all(app_start_time):
     health["checks"]["disk"] = _check_disk()
     health["checks"]["memory"] = _check_memory()
     health["checks"]["chrome"] = _check_chrome()
-    health["checks"]["cec"] = _check_cec()
     health["checks"]["audio"] = _check_audio()
     health["checks"]["jellyfin"] = _check_jellyfin()
     health["checks"]["internet"] = _check_internet()
     health["checks"]["tailscale"] = _check_tailscale()
     health["checks"]["watchdog"] = _check_watchdog()
     health["checks"]["scheduler"] = _check_scheduler()
+    health["checks"]["presence"] = _check_presence()
     _check_immich(health)
 
     all_ok = all(c.get("ok", True) for c in health["checks"].values())
@@ -60,21 +60,6 @@ def _check_chrome():
         for p in psutil.process_iter(["cmdline"])
     )
     return {"running": running, "ok": running}
-
-
-def _check_cec():
-    import psutil
-
-    running = any(
-        "cec_bridge" in " ".join(p.info["cmdline"] or [])
-        for p in psutil.process_iter(["cmdline"])
-    )
-    device = os.path.exists("/dev/cec0")
-    return {
-        "bridge_running": running,
-        "device_exists": device,
-        "ok": True,
-    }
 
 
 def _check_audio():
@@ -146,6 +131,56 @@ def _check_scheduler():
     from scheduler import scheduler as _sched
 
     return {"running": _sched.running, "ok": _sched.running}
+
+
+def _check_presence():
+    """Verify TV-room presence detection is sourcing from Frigate, not stuck on fallback.
+
+    Degraded if the last hour of presence_logs contains no Frigate samples — that
+    means _poll_frigate_presence() is failing and we're silently running on ha_sensor
+    or webcam fallback (or nothing), which hides "someone is watching" from the system.
+    """
+    from models import get_db_safe
+
+    if (get_setting("presence_enabled") or "1") != "1":
+        return {"enabled": False, "ok": True}
+
+    try:
+        with get_db_safe() as db:
+            rows = db.execute(
+                "SELECT source, person_count FROM presence_logs "
+                "WHERE datetime(logged_at) > datetime('now','-1 hour') "
+                "ORDER BY id DESC LIMIT 20"
+            ).fetchall()
+    except Exception as e:
+        return {"enabled": True, "ok": False, "error": f"{type(e).__name__}: {e}"}
+
+    if not rows:
+        return {
+            "enabled": True,
+            "ok": False,
+            "detail": "no presence_logs entries in last hour — monitor thread not running?",
+        }
+
+    sources = {}
+    for r in rows:
+        src = (r["source"] or "unknown") if hasattr(r, "__getitem__") else "unknown"
+        sources[src] = sources.get(src, 0) + 1
+
+    primary = max(sources, key=sources.get)
+    has_frigate = "frigate" in sources
+    return {
+        "enabled": True,
+        "primary_source": primary,
+        "source_counts": sources,
+        "recent_samples": len(rows),
+        "ok": has_frigate,
+        "detail": (
+            "Frigate presence active"
+            if has_frigate
+            else f"stuck on fallback '{primary}' — Frigate→HA chain likely broken"
+        ),
+    }
 
 
 def _check_immich(health):

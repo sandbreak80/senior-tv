@@ -15,6 +15,13 @@ import threading
 import requests
 from datetime import datetime
 
+import cache
+
+# Breaker service names — use these consistently so log_throttled keys and
+# circuit_open checks always line up.
+_BRK_FRIGATE = "frigate"
+_BRK_HA = "home_assistant"
+
 # Frigate session
 _frigate_cookies = {}
 _last_event_id = None
@@ -261,7 +268,15 @@ def _update_presence(occupied, person_count=0, who=None,
 
 
 def _ha_get_state(ha_url, ha_token, entity_id):
-    """Get a single HA entity state. Returns parsed JSON or None."""
+    """Get a single HA entity state. Returns parsed JSON or None.
+
+    Routed through the "home_assistant" circuit breaker — a broken HA URL
+    won't drag every poller into its own timeout.
+    """
+    if not ha_url or not ha_token:
+        return None
+    if cache.is_circuit_open(_BRK_HA):
+        return None
     try:
         resp = requests.get(
             f"{ha_url}/api/states/{entity_id}",
@@ -269,9 +284,16 @@ def _ha_get_state(ha_url, ha_token, entity_id):
             timeout=5,
         )
         if resp.ok:
+            cache.record_success(_BRK_HA)
             return resp.json()
-    except Exception:
-        pass
+        cache.record_failure(_BRK_HA, f"HTTP {resp.status_code}")
+        cache.log_throttled(
+            "ha:get_state",
+            f"HA get_state {entity_id}: HTTP {resp.status_code}",
+        )
+    except Exception as e:
+        cache.record_failure(_BRK_HA, e)
+        cache.log_throttled("ha:get_state", f"HA get_state error: {e}")
     return None
 
 
@@ -489,8 +511,16 @@ def start_presence_monitor(alert_queue=None):
 # --- Frigate Event Monitoring (doorbell alerts) ---
 
 def frigate_login(base_url, username, password):
-    """Login to Frigate and get session cookie."""
+    """Login to Frigate and get session cookie.
+
+    Honors the "frigate" circuit breaker; returns False immediately if open
+    so callers (including scheduled retries) can't stampede a dead server.
+    """
     global _frigate_cookies
+    if not base_url:
+        return False
+    if cache.is_circuit_open(_BRK_FRIGATE):
+        return False
     try:
         resp = requests.post(
             f"{base_url}/api/login",
@@ -500,15 +530,32 @@ def frigate_login(base_url, username, password):
         )
         if resp.status_code == 200:
             _frigate_cookies = dict(resp.cookies)
+            cache.record_success(_BRK_FRIGATE)
             return True
+        cache.record_failure(_BRK_FRIGATE, f"login HTTP {resp.status_code}")
+        cache.log_throttled(
+            "frigate:login",
+            f"Frigate login: HTTP {resp.status_code}",
+        )
     except Exception as e:
-        print(f"Frigate login error: {e}", file=sys.stderr)
+        cache.record_failure(_BRK_FRIGATE, e)
+        cache.log_throttled("frigate:login", f"Frigate login error: {e}")
     return False
 
 
 def frigate_get_events(base_url, camera=None, label="person",
                        limit=5, after=None):
-    """Get recent Frigate events."""
+    """Get recent Frigate events.
+
+    Returns:
+      - list of events on success
+      - None if auth expired (caller should re-login)
+      - [] if the breaker is open or the server is unreachable
+    """
+    if not base_url:
+        return []
+    if cache.is_circuit_open(_BRK_FRIGATE):
+        return []
     params = {"limit": limit, "label": label}
     if camera:
         params["camera"] = camera
@@ -523,11 +570,21 @@ def frigate_get_events(base_url, camera=None, label="person",
             timeout=10,
         )
         if resp.status_code == 200:
+            cache.record_success(_BRK_FRIGATE)
             return resp.json()
         elif resp.status_code == 401:
+            # Don't count auth as a breaker failure — caller will re-login.
             return None
+        cache.record_failure(_BRK_FRIGATE, f"events HTTP {resp.status_code}")
+        cache.log_throttled(
+            "frigate:events",
+            f"Frigate events: HTTP {resp.status_code}",
+        )
     except Exception as e:
-        print(f"Frigate event fetch error: {e}", file=sys.stderr)
+        cache.record_failure(_BRK_FRIGATE, e)
+        cache.log_throttled(
+            "frigate:events", f"Frigate event fetch error: {e}"
+        )
     return []
 
 
@@ -563,30 +620,46 @@ def ha_get_camera_snapshot(base_url, token, entity_id):
 
 class SmartHomeMonitor:
     """Background thread that monitors Frigate for doorbell/person events
-    and pushes alerts to the TV UI via the SSE queue."""
+    and pushes alerts to the TV UI via the SSE queue.
 
-    def __init__(
-        self,
-        frigate_url,
-        frigate_user,
-        frigate_pass,
-        ha_url,
-        ha_token,
-        alert_queue,
-        cameras=None,
-    ):
-        self.frigate_url = frigate_url.rstrip("/")
-        self.frigate_user = frigate_user
-        self.frigate_pass = frigate_pass
-        self.ha_url = ha_url.rstrip("/") if ha_url else None
-        self.ha_token = ha_token
+    Intentionally takes no URL/credential arguments: every poll iteration
+    re-reads frigate_url / frigate_user / frigate_pass / ha_url / ha_token /
+    frigate_cameras from the settings DB. That way, when the admin panel
+    updates an endpoint (e.g. after an arr-stack rebuild), the change takes
+    effect on the next tick with no service restart.
+    """
+
+    POLL_INTERVAL_OK = 5        # seconds between polls when healthy
+    POLL_INTERVAL_BREAKER = 30  # back off when breaker is open
+    POLL_INTERVAL_IDLE = 15     # no frigate_url configured yet
+
+    def __init__(self, alert_queue):
         self.alert_queue = alert_queue
-        self.cameras = cameras or ["front_door"]
         self.running = False
         self._thread = None
         self._last_event_time = time.time()
         self._seen_events = set()
         self._seen_lock = threading.Lock()
+        self._logged_in_for = None  # (url, user) tuple we last logged in as
+
+    def _load_config(self):
+        """Read current Frigate/HA config from settings.
+
+        Returns a dict of the fields the poll loop needs, or None if Frigate
+        isn't configured at all.
+        """
+        from models import get_setting
+
+        frigate_url = (get_setting("frigate_url") or "").rstrip("/")
+        if not frigate_url:
+            return None
+        cameras_str = get_setting("frigate_cameras") or "front_door"
+        return {
+            "frigate_url": frigate_url,
+            "frigate_user": get_setting("frigate_user") or "",
+            "frigate_pass": get_setting("frigate_pass") or "",
+            "cameras": [c.strip() for c in cameras_str.split(",") if c.strip()],
+        }
 
     def start(self):
         if self.running:
@@ -601,24 +674,50 @@ class SmartHomeMonitor:
         self.running = False
 
     def _poll_loop(self):
-        """Poll Frigate every 5 seconds for new person events."""
-        if self.frigate_user and self.frigate_pass:
-            frigate_login(
-                self.frigate_url, self.frigate_user, self.frigate_pass
-            )
+        """Poll Frigate on an adaptive interval.
 
+        Healthy: every 5s. Breaker open: every 30s. Not configured: every 15s
+        (so a fresh admin URL gets picked up quickly without spinning).
+        """
         while self.running:
+            interval = self.POLL_INTERVAL_OK
             try:
-                self._check_frigate_events()
+                cfg = self._load_config()
+                if cfg is None:
+                    interval = self.POLL_INTERVAL_IDLE
+                elif cache.is_circuit_open(_BRK_FRIGATE):
+                    interval = self.POLL_INTERVAL_BREAKER
+                else:
+                    self._check_frigate_events(cfg)
             except Exception as e:
-                print(f"SmartHome poll error: {e}")
-            time.sleep(5)
+                cache.log_throttled(
+                    "smarthome:poll", f"SmartHome poll error: {e}"
+                )
+            time.sleep(interval)
 
-    def _check_frigate_events(self):
+    def _ensure_logged_in(self, cfg):
+        """Login to Frigate if we haven't yet for the current URL/user combo.
+
+        When the URL changes in settings we drop the old cookie and re-auth,
+        so rotating credentials or endpoints doesn't require a restart.
+        """
+        if not (cfg["frigate_user"] and cfg["frigate_pass"]):
+            return
+        key = (cfg["frigate_url"], cfg["frigate_user"])
+        if self._logged_in_for == key:
+            return
+        if frigate_login(
+            cfg["frigate_url"], cfg["frigate_user"], cfg["frigate_pass"]
+        ):
+            self._logged_in_for = key
+
+    def _check_frigate_events(self, cfg):
         """Check for new person detection events on monitored cameras."""
-        for camera in self.cameras:
+        self._ensure_logged_in(cfg)
+
+        for camera in cfg["cameras"]:
             events = frigate_get_events(
-                self.frigate_url,
+                cfg["frigate_url"],
                 camera=camera,
                 label="person",
                 limit=3,
@@ -626,12 +725,9 @@ class SmartHomeMonitor:
             )
 
             if events is None:
-                if self.frigate_user and self.frigate_pass:
-                    frigate_login(
-                        self.frigate_url,
-                        self.frigate_user,
-                        self.frigate_pass,
-                    )
+                # 401 — cookie expired, drop our login marker and retry.
+                self._logged_in_for = None
+                self._ensure_logged_in(cfg)
                 continue
 
             for event in events:
@@ -653,7 +749,7 @@ class SmartHomeMonitor:
                 )
 
                 snapshot_url = frigate_get_snapshot_url(
-                    self.frigate_url, event_id
+                    cfg["frigate_url"], event_id
                 )
 
                 if "front_door" in camera_name:
